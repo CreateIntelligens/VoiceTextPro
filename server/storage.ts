@@ -1,4 +1,6 @@
 import { transcriptions, type Transcription, type InsertTranscription, type UpdateTranscription } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Transcription methods
@@ -9,63 +11,45 @@ export interface IStorage {
   deleteTranscription(id: number): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private transcriptions: Map<number, Transcription>;
-  private currentTranscriptionId: number;
-
-  constructor() {
-    this.transcriptions = new Map();
-    this.currentTranscriptionId = 1;
-  }
-
+export class DatabaseStorage implements IStorage {
   async createTranscription(insertTranscription: InsertTranscription): Promise<Transcription> {
-    const id = this.currentTranscriptionId++;
-    const now = new Date();
-    const transcription: Transcription = {
-      ...insertTranscription,
-      id,
-      status: "pending",
-      progress: 0,
-      assemblyaiId: null,
-      transcriptText: null,
-      speakers: null,
-      segments: null,
-      confidence: null,
-      duration: null,
-      wordCount: null,
-      errorMessage: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.transcriptions.set(id, transcription);
+    const [transcription] = await db
+      .insert(transcriptions)
+      .values(insertTranscription)
+      .returning();
     return transcription;
   }
 
   async getTranscription(id: number): Promise<Transcription | undefined> {
-    return this.transcriptions.get(id);
+    const [transcription] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.id, id));
+    return transcription || undefined;
   }
 
   async updateTranscription(id: number, updates: UpdateTranscription): Promise<Transcription | undefined> {
-    const existing = this.transcriptions.get(id);
-    if (!existing) return undefined;
-
-    const updated: Transcription = {
-      ...existing,
-      ...updates,
-      updatedAt: new Date(),
-    };
-    this.transcriptions.set(id, updated);
-    return updated;
+    const [transcription] = await db
+      .update(transcriptions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(transcriptions.id, id))
+      .returning();
+    return transcription || undefined;
   }
 
   async getAllTranscriptions(): Promise<Transcription[]> {
-    return Array.from(this.transcriptions.values())
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return await db
+      .select()
+      .from(transcriptions)
+      .orderBy(desc(transcriptions.createdAt));
   }
 
   async deleteTranscription(id: number): Promise<boolean> {
-    return this.transcriptions.delete(id);
+    const result = await db
+      .delete(transcriptions)
+      .where(eq(transcriptions.id, id));
+    return result.rowCount !== undefined && result.rowCount > 0;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
