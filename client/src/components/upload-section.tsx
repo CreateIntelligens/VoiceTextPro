@@ -16,8 +16,13 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
   const { toast } = useToast();
 
   const validateFile = (file: File): boolean => {
-    const allowedTypes = ['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/aac', 'audio/flac', 'audio/mpeg'];
-    const allowedExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.flac'];
+    // 支援 iPhone 語音備忘錄和其他常見音頻格式
+    const allowedTypes = [
+      'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/aac', 'audio/flac', 'audio/mpeg',
+      'audio/mp4', 'audio/x-m4a', 'audio/mpeg4-generic', 'audio/aiff', 'audio/x-aiff',
+      'audio/ogg', 'audio/webm', 'audio/3gpp', 'audio/amr'
+    ];
+    const allowedExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.mp4', '.aiff', '.aif', '.ogg', '.webm', '.3gp', '.amr'];
     const maxSize = 100 * 1024 * 1024; // 100MB
 
     const extension = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -25,7 +30,7 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(extension)) {
       toast({
         title: "檔案格式不支援",
-        description: "請選擇 MP3、WAV、M4A、AAC 或 FLAC 格式的音頻檔案。",
+        description: "請選擇支援的音頻格式，包括 iPhone 語音備忘錄 (M4A) 等格式。",
         variant: "destructive",
       });
       return false;
@@ -124,7 +129,7 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     <div className="mb-8">
       <div className="text-center mb-6">
         <h2 className="text-3xl font-bold text-slate-900 mb-2">上傳語音檔案</h2>
-        <p className="text-slate-600">支援 MP3、WAV、M4A 等格式，獲得高品質的繁體中文語音轉錄</p>
+        <p className="text-slate-600">支援 iPhone 語音備忘錄、MP3、WAV、M4A 等多種音頻格式，獲得高品質的繁體中文語音轉錄</p>
       </div>
 
       <Card 
@@ -154,7 +159,7 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
           <input
             type="file"
             id="audioFile"
-            accept=".mp3,.wav,.m4a,.aac,.flac"
+            accept=".mp3,.wav,.m4a,.aac,.flac,.mp4,.aiff,.aif,.ogg,.webm,.3gp,.amr"
             className="hidden"
             onChange={handleFileInputChange}
             disabled={isDisabled}

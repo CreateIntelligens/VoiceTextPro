@@ -14,14 +14,19 @@ const upload = multer({
     fileSize: 100 * 1024 * 1024, // 100MB
   },
   fileFilter: (req, file, cb) => {
-    const allowedMimes = ['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/aac', 'audio/flac', 'audio/mpeg'];
-    const allowedExts = ['.mp3', '.wav', '.m4a', '.aac', '.flac'];
+    // 支援 iPhone 語音備忘錄和其他常見音頻格式
+    const allowedMimes = [
+      'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/aac', 'audio/flac', 'audio/mpeg',
+      'audio/mp4', 'audio/x-m4a', 'audio/mpeg4-generic', 'audio/aiff', 'audio/x-aiff',
+      'audio/ogg', 'audio/webm', 'audio/3gpp', 'audio/amr'
+    ];
+    const allowedExts = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.mp4', '.aiff', '.aif', '.ogg', '.webm', '.3gp', '.amr'];
     const ext = path.extname(file.originalname).toLowerCase();
     
     if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('不支援的檔案格式。請使用 MP3、WAV、M4A、AAC 或 FLAC 格式。'));
+      cb(new Error('不支援的檔案格式。請使用 MP3、WAV、M4A、AAC、FLAC 或其他音頻格式。'));
     }
   }
 });
