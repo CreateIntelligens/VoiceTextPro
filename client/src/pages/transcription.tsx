@@ -7,10 +7,17 @@ import UploadSection from "@/components/upload-section";
 import ProcessingSection from "@/components/processing-section";
 import ResultsSection from "@/components/results-section";
 import ErrorSection from "@/components/error-section";
+import TranscriptionList from "@/components/transcription-list";
 import type { TranscriptionStatus } from "@/lib/types";
 
 export default function TranscriptionPage() {
   const [currentTranscriptionId, setCurrentTranscriptionId] = useState<number | null>(null);
+
+  // Query for all transcriptions
+  const { data: allTranscriptions = [] } = useQuery<TranscriptionStatus[]>({
+    queryKey: ["/api/transcriptions"],
+    refetchInterval: 3000,
+  });
 
   // Query for current transcription status
   const { data: transcription, refetch } = useQuery<TranscriptionStatus>({
@@ -44,6 +51,10 @@ export default function TranscriptionPage() {
 
   const handleRetry = () => {
     setCurrentTranscriptionId(null);
+  };
+
+  const handleSelectTranscription = (id: number) => {
+    setCurrentTranscriptionId(id);
   };
 
   const showUpload = !currentTranscriptionId || transcription?.status === "error";
