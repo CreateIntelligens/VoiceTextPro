@@ -49,6 +49,11 @@ export default function TranscriptionPage() {
   const showResults = transcription?.status === "completed";
   const showError = transcription?.status === "error";
 
+  // Debug logging
+  console.log('Current transcription:', transcription);
+  console.log('Show results:', showResults);
+  console.log('Transcription status:', transcription?.status);
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
