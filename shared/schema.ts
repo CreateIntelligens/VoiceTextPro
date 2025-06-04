@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -14,7 +14,7 @@ export const transcriptions = pgTable("transcriptions", {
   transcriptText: text("transcript_text"),
   speakers: jsonb("speakers"), // Array of speaker information
   segments: jsonb("segments"), // Array of transcript segments with speaker labels
-  confidence: integer("confidence"), // Overall confidence percentage
+  confidence: real("confidence"), // Overall confidence as decimal
   duration: integer("duration"), // Audio duration in seconds
   wordCount: integer("word_count"),
   errorMessage: text("error_message"),
