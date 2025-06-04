@@ -69,17 +69,26 @@ def main():
         print(f"DEBUG: Submitted, transcript ID: {transcript.id}", flush=True)
         print("PROGRESS:50", flush=True)
         
-        # Poll for completion
+        # Poll for completion with longer timeout for large files
         progress = 50
-        max_retries = 120  # 10 minutes max wait time (5 second intervals)
+        max_retries = 300  # 25 minutes max wait time (5 second intervals) 
         retry_count = 0
         
         print(f"DEBUG: Initial status: {transcript.status}", flush=True)
         
         while transcript.status in [aai.TranscriptStatus.queued, aai.TranscriptStatus.processing] and retry_count < max_retries:
-            progress = min(progress + 1, 85)
+            if retry_count < 60:  # First 5 minutes
+                progress = min(50 + retry_count, 75)
+            else:  # After 5 minutes, slower progress
+                progress = min(75 + (retry_count - 60) // 4, 85)
+                
             print(f"PROGRESS:{progress}", flush=True)
             print(f"DEBUG: Status check {retry_count + 1}/{max_retries}, status: {transcript.status}", flush=True)
+            
+            # Show estimated time remaining for large files
+            if retry_count > 0 and retry_count % 12 == 0:  # Every minute
+                minutes_elapsed = retry_count * 5 / 60
+                print(f"DEBUG: Elapsed: {minutes_elapsed:.1f} minutes. Large files may take 10-15 minutes.", flush=True)
             
             time.sleep(5)
             retry_count += 1
@@ -98,7 +107,7 @@ def main():
                     
             except Exception as e:
                 print(f"ERROR: Failed to check status: {e}", file=sys.stderr, flush=True)
-                if retry_count > 20:  # Give up after 20 failed attempts
+                if retry_count > 30:  # Give up after 30 failed attempts
                     sys.exit(1)
         
         # Check for timeout

@@ -1,0 +1,154 @@
+API Reference
+Transcripts
+Get paragraphs in transcript
+
+GET
+https://api.assemblyai.com/v2/transcript/:transcript_id/paragraphs
+GET
+/v2/transcript/:transcript_id/paragraphs
+
+curl https://api.assemblyai.com/v2/transcript/transcript_id/paragraphs \
+     -H "Authorization: <Authorization>"
+Try it
+200
+getParagraphsExample
+
+{
+  "id": "d5a3d302-066e-43fb-b63b-8f57baf185db",
+  "confidence": 0.9578730257009361,
+  "audio_duration": 281,
+  "paragraphs": [
+    {
+      "text": "Smoke from hundreds of wildfires in Canada is triggering air quality alerts throughout the US. Skylines from Maine to Maryland to Minnesota are gray and smoggy. And in some places, the air quality warnings include the warning to stay inside. We wanted to better understand what's happening here and why, so we called Peter Decarlo, an associate professor in the Department of Environmental Health and Engineering at Johns Hopkins University. Good morning, professor.",
+      "start": 250,
+      "end": 26950,
+      "confidence": 0.73033,
+      "words": [
+        {
+          "confidence": 0.73033,
+          "start": 250,
+          "end": 650,
+          "text": "Smoke",
+          "speaker": null
+        },
+        {
+          "confidence": 1,
+          "start": 730,
+          "end": 1022,
+          "text": "from",
+          "speaker": null
+        },
+        {
+          "confidence": 0.99992,
+          "start": 1076,
+          "end": 1466,
+          "text": "hundreds",
+          "speaker": null
+        },
+        {
+          "confidence": 1,
+          "start": 1498,
+          "end": 1646,
+          "text": "of",
+          "speaker": null
+        }
+      ]
+    },
+    {
+      "text": "Good morning. So what is it about the conditions right now that have caused this round of wildfires to affect so many people so far away? Well, there's a couple of things. The season has been pretty dry already, and then the fact that we're getting hit in the US. Is because there's a couple of weather systems that are essentially channeling the smoke from those Canadian wildfires through Pennsylvania into the Mid Atlantic and the Northeast and kind of just dropping the smoke there.",
+      "start": 27850,
+      "end": 56190,
+      "confidence": 0.99667,
+      "words": [
+        {
+          "confidence": 0.99667,
+          "start": 27850,
+          "end": 28262,
+          "text": "Good",
+          "speaker": null
+        },
+        {
+          "confidence": 0.99742,
+          "start": 28316,
+          "end": 28920,
+          "text": "morning.",
+          "speaker": null
+        },
+        {
+          "confidence": 0.94736,
+          "start": 29290,
+          "end": 29702,
+          "text": "So",
+          "speaker": null
+        }
+      ]
+    }
+  ]
+}
+To retrieve your transcriptions on our EU server, replace api.assemblyai.com with api.eu.assemblyai.com.
+Get the transcript split by paragraphs. The API will attempt to semantically segment your transcript into paragraphs to create more reader-friendly transcripts.
+
+Path parameters
+transcript_id
+string
+Required
+ID of the transcript
+
+Headers
+Authorization
+string
+Required
+Response
+Exported paragraphs
+
+id
+string
+format: "uuid"
+The unique identifier of your transcript
+
+confidence
+double
+>=0
+<=1
+The confidence score for the transcript
+
+audio_duration
+double
+The duration of the audio file in seconds
+
+paragraphs
+list of objects
+An array of paragraphs in the transcript
+
+
+Show 5 properties
+Errors
+
+400
+Bad Request Error
+
+401
+Unauthorized Error
+
+404
+Not Found Error
+
+429
+Too Many Requests Error
+
+500
+Internal Server Error
+
+503
+Service Unavailable Error
+
+504
+Gateway Timeout Error
+Was this page helpful?
+Yes
+No
+Previous
+Get subtitles for transcript
+
+Next
+Built with
