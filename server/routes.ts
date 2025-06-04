@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs/promises";
 import { spawn } from "child_process";
 import { storage } from "./storage";
+import { GeminiAnalyzer } from "./gemini-analysis";
 import { db } from "./db";
 import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions } from "@shared/schema";
 import { desc } from "drizzle-orm";
@@ -240,6 +241,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to get transcriptions:", error);
       res.status(500).json({ message: error instanceof Error ? error.message : "獲取轉錄記錄失敗" });
+    }
+  });
+
+  // Analyze transcription with Gemini AI
+  app.post("/api/transcriptions/:id/analyze", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transcription = await storage.getTranscription(id);
+
+      if (!transcription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+
+      if (transcription.status !== 'completed') {
+        return res.status(400).json({ message: "轉錄尚未完成，無法進行分析" });
+      }
+
+      const analyzer = new GeminiAnalyzer();
+      const analysis = await analyzer.analyzeTranscription(transcription);
+
+      res.json(analysis);
+    } catch (error) {
+      console.error("Gemini analysis error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "AI 分析失敗" 
+      });
     }
   });
 
