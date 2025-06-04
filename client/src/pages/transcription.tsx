@@ -57,22 +57,23 @@ export default function TranscriptionPage() {
   };
 
   const handleSelectTranscription = (id: number) => {
+    console.log('Selecting transcription:', id);
     setCurrentTranscriptionId(id);
   };
 
-  const showUpload = !currentTranscriptionId || currentTranscription?.status === "error";
-  const showProcessing = currentTranscription?.status === "processing";
-  const showResults = currentTranscription?.status === "completed";
-  const showError = currentTranscription?.status === "error";
+  // Handle case where currentTranscription might be an array
+  const actualTranscription = Array.isArray(currentTranscription) ? currentTranscription[0] : currentTranscription;
+
+  const showUpload = !currentTranscriptionId || actualTranscription?.status === "error";
+  const showProcessing = actualTranscription?.status === "processing";
+  const showResults = actualTranscription?.status === "completed";
+  const showError = actualTranscription?.status === "error";
 
   // Debug logging
   console.log('Current transcription ID:', currentTranscriptionId);
-  console.log('All transcriptions:', allTranscriptions);
-  console.log('Current transcription:', currentTranscription);
+  console.log('Actual transcription:', actualTranscription);
   console.log('Show results:', showResults);
-  console.log('Transcription status:', currentTranscription?.status);
-  console.log('Has segments:', !!currentTranscription?.segments);
-  console.log('Segments length:', currentTranscription?.segments?.length);
+  console.log('Status:', actualTranscription?.status);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -117,16 +118,16 @@ export default function TranscriptionPage() {
               />
             )}
 
-            {showProcessing && currentTranscription && (
-              <ProcessingSection transcription={currentTranscription} />
+            {showProcessing && actualTranscription && (
+              <ProcessingSection transcription={actualTranscription} />
             )}
 
-            {showResults && currentTranscription && (
-              <ResultsSection transcription={currentTranscription} />
+            {showResults && actualTranscription && (
+              <ResultsSection transcription={actualTranscription} />
             )}
 
-            {showError && currentTranscription && (
-              <ErrorSection transcription={currentTranscription} onRetry={handleRetry} />
+            {showError && actualTranscription && (
+              <ErrorSection transcription={actualTranscription} onRetry={handleRetry} />
             )}
           </div>
         </div>
