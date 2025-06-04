@@ -88,11 +88,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       pythonProcess.stdout.on("data", async (data) => {
         try {
           const output = data.toString().trim();
+          console.log("Python output:", output);
+          
           if (output.startsWith("PROGRESS:")) {
             const progress = parseInt(output.split(":")[1]);
+            console.log(`Updating progress to ${progress}%`);
             await storage.updateTranscription(id, { progress });
           } else if (output.startsWith("RESULT:")) {
             const result = JSON.parse(output.substring(7));
+            console.log("Transcription completed, saving results");
             await storage.updateTranscription(id, {
               status: "completed",
               progress: 100,
@@ -106,7 +110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         } catch (error) {
-          console.error("Error processing Python output:", error);
+          console.error("Error processing Python output:", error, "Raw output:", data.toString());
         }
       });
 

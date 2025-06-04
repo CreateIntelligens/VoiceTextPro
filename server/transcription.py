@@ -5,6 +5,9 @@ import json
 import assemblyai as aai
 from datetime import timedelta
 
+# Disable output buffering
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
+
 def format_timestamp(milliseconds):
     """Convert milliseconds to MM:SS format"""
     seconds = milliseconds / 1000
@@ -34,7 +37,7 @@ def main():
     aai.settings.api_key = api_key
     
     try:
-        print("PROGRESS:10")
+        print("PROGRESS:10", flush=True)
         
         # Configure transcription with best model and speaker labels
         config = aai.TranscriptionConfig(
@@ -43,17 +46,17 @@ def main():
             language_code="zh"  # Chinese language
         )
         
-        print("PROGRESS:20")
+        print("PROGRESS:20", flush=True)
         
         # Create transcriber and start transcription
         transcriber = aai.Transcriber(config=config)
         
-        print("PROGRESS:30")
+        print("PROGRESS:30", flush=True)
         
         # Submit for transcription
         transcript = transcriber.submit(audio_file_path)
         
-        print("PROGRESS:40")
+        print("PROGRESS:40", flush=True)
         
         # Poll for completion with progress updates
         import time
@@ -63,7 +66,7 @@ def main():
         
         while transcript.status in ["queued", "processing"] and retry_count < max_retries:
             progress = min(progress + 2, 80)
-            print(f"PROGRESS:{progress}")
+            print(f"PROGRESS:{progress}", flush=True)
             time.sleep(5)  # Wait 5 seconds before checking again
             retry_count += 1
             
@@ -72,10 +75,10 @@ def main():
                 if transcript.id:
                     transcript = aai.Transcript.get_by_id(transcript.id)
                 else:
-                    print("ERROR: No transcript ID available", file=sys.stderr)
+                    print("ERROR: No transcript ID available", file=sys.stderr, flush=True)
                     sys.exit(1)
             except Exception as e:
-                print(f"ERROR: Failed to get transcript status: {e}", file=sys.stderr)
+                print(f"ERROR: Failed to get transcript status: {e}", file=sys.stderr, flush=True)
                 sys.exit(1)
         
         # Check for timeout
