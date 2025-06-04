@@ -53,7 +53,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const transcriptionData = {
         filename: req.file.filename,
-        originalName: req.file.originalname,
+        originalName: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
         fileSize: req.file.size,
       };
 
