@@ -29,13 +29,12 @@ export class GeminiAnalyzer {
     cleanedText: string;
     improvements: string[];
   }> {
-    const prompt = `
-請整理以下逐字稿內容，將破碎的語音識別結果轉換成完整、流暢、專業的文字記錄。
+    const prompt = `請整理以下逐字稿內容，將破碎的語音識別結果轉換成完整、流暢、專業的文字記錄。
 
 原始逐字稿：
 ${transcriptText}
 
-請按照以下JSON格式回覆：
+請嚴格按照以下JSON格式回覆，不要包含任何其他文字或說明：
 
 {
   "cleanedText": "整理後的完整逐字稿內容",
@@ -46,6 +45,8 @@ ${transcriptText}
   ]
 }
 
+注意：回覆時只輸出JSON，不要包含任何標記或其他文字。
+
 重要整理原則：
 1. 語句完整化：
    - 將破碎、不完整的句子重新組織成完整的語句
@@ -54,8 +55,8 @@ ${transcriptText}
 
 2. 關鍵字優化：
    - 識別專業術語、產品名稱、公司名稱等關鍵詞
-   - 統一相似詞彙的表達方式（例如：將"LINE"、"line"、"賴"統一為"LINE"）
-   - 修正語音識別錯誤導致的關鍵詞誤讀（例如：將"全家"、"全佳"統一為"全家便利商店"）
+   - 統一相似詞彙的表達方式（例如：將LINE、line、賴統一為LINE）
+   - 修正語音識別錯誤導致的關鍵詞誤讀（例如：將全家、全佳統一為全家便利商店）
    - 特別注意自定義關鍵字列表中的詞彙，修正逐字稿中發音相似但拼寫錯誤的詞語
    - 保持專業術語的準確性和一致性
    - 根據上下文判斷正確的關鍵詞用法
@@ -77,8 +78,7 @@ ${transcriptText}
 5. 內容完整性：
    - 不添加原文中沒有提到的信息
    - 保持說話者的原始觀點和立場
-   - 維持對話的邏輯順序和因果關係
-`;
+   - 維持對話的邏輯順序和因果關係`;
 
     try {
       const result = await this.model.generateContent(prompt);
@@ -213,13 +213,70 @@ ${conversationText}
     improvements: string[];
   } {
     try {
-      // Extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
+      // Try to find and extract the JSON block
+      let jsonText = response.trim();
+      
+      // Remove any markdown formatting
+      jsonText = jsonText
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .replace(/^\s*```.*$/gm, '') // Remove any other markdown
+        .trim();
+      
+      // Find JSON boundaries more carefully
+      const jsonStart = jsonText.indexOf('{');
+      let jsonEnd = -1;
+      
+      if (jsonStart !== -1) {
+        let braceCount = 0;
+        let inString = false;
+        let escapeNext = false;
+        
+        for (let i = jsonStart; i < jsonText.length; i++) {
+          const char = jsonText[i];
+          
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+          
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+          
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+          
+          if (!inString) {
+            if (char === '{') {
+              braceCount++;
+            } else if (char === '}') {
+              braceCount--;
+              if (braceCount === 0) {
+                jsonEnd = i;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (jsonEnd !== -1) {
+          jsonText = jsonText.substring(jsonStart, jsonEnd + 1);
+        }
       }
+      
+      // Clean up common JSON formatting issues
+      jsonText = jsonText
+        .replace(/,\s*}/g, '}') // Remove trailing commas
+        .replace(/,\s*]/g, ']') // Remove trailing commas in arrays
+        .replace(/\n/g, ' ') // Replace newlines with spaces
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonText);
       
       return {
         cleanedText: parsed.cleanedText || '無法生成整理後的文字',
@@ -227,10 +284,36 @@ ${conversationText}
       };
     } catch (error) {
       console.error('Failed to parse Gemini cleaning response:', error);
-      // Fallback response
+      
+      // Advanced fallback: try to extract content with regex
+      try {
+        const cleanedTextMatch = response.match(/"cleanedText"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        const improvementsMatch = response.match(/"improvements"\s*:\s*\[((?:[^\]]|\](?!\s*}))*)\]/);
+        
+        if (cleanedTextMatch) {
+          let improvements: string[] = [];
+          
+          if (improvementsMatch) {
+            const improvementsStr = improvementsMatch[1];
+            const itemMatches = improvementsStr.match(/"((?:[^"\\]|\\.)*)"/g);
+            if (itemMatches) {
+              improvements = itemMatches.map(item => item.slice(1, -1));
+            }
+          }
+          
+          return {
+            cleanedText: cleanedTextMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n'),
+            improvements: improvements.length > 0 ? improvements : ['手動提取整理內容', '建議重新嘗試以獲得完整分析']
+          };
+        }
+      } catch (regexError) {
+        console.error('Regex extraction also failed:', regexError);
+      }
+      
+      // Final fallback
       return {
-        cleanedText: '文字整理過程中發生錯誤，請稍後再試。',
-        improvements: []
+        cleanedText: '文字整理過程中發生錯誤，請稍後再試。建議檢查文本長度或重新嘗試。',
+        improvements: ['JSON 解析失敗', '建議重新執行整理功能']
       };
     }
   }
