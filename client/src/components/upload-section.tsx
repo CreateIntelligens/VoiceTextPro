@@ -186,14 +186,14 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
             <div className="space-y-2">
               <Textarea
                 id="keywords"
-                placeholder="輸入專業詞彙以提高轉錄準確度，例如：公司名稱、產品名稱、技術術語等，用逗號分隔"
+                placeholder="輸入英文專業詞彙以提高轉錄準確度，例如：AiTAGO, Fanpokka, LINE, LIFF 等，用逗號分隔"
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
                 className="min-h-[80px] resize-none"
                 disabled={isDisabled}
               />
               <p className="text-xs text-slate-500">
-                系統已包含常用商業詞彙。您可以添加特定領域的專業術語來獲得更準確的轉錄結果。
+                請輸入英文關鍵字（如：公司名稱、產品名稱、技術術語的英文）。系統會自動過濾只支援英文字詞的增強功能。
               </p>
             </div>
           </div>

@@ -65,15 +65,24 @@ def main():
         
         print(f"DEBUG: Using {len(keywords)} English keywords for word boost", flush=True)
         
-        config = aai.TranscriptionConfig(
-            speaker_labels=True,
-            language_code="zh",
-            speech_model=aai.SpeechModel.best,
-            punctuate=True,
-            format_text=True,
-            word_boost=keywords if keywords else None,
-            boost_param=aai.WordBoost.high if keywords else None
-        )
+        if keywords:
+            config = aai.TranscriptionConfig(
+                speaker_labels=True,
+                language_code="zh",
+                speech_model=aai.SpeechModel.best,
+                punctuate=True,
+                format_text=True,
+                word_boost=keywords,
+                boost_param=aai.WordBoost.high
+            )
+        else:
+            config = aai.TranscriptionConfig(
+                speaker_labels=True,
+                language_code="zh",
+                speech_model=aai.SpeechModel.best,
+                punctuate=True,
+                format_text=True
+            )
         
         print("PROGRESS:30", flush=True)
         print("DEBUG: Created transcription config", flush=True)
