@@ -81,52 +81,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update status to processing
       await storage.updateTranscription(id, { status: "processing", progress: 0 });
 
-      // Start Python transcription process (using simulation temporarily)
+      // Start Python transcription process with real AssemblyAI
       const filePath = path.join("uploads", transcription.filename);
-      console.log(`[LOG-${id}] Starting transcription process for file: ${filePath}`);
-      const pythonProcess = spawn("python3", ["simulate_completion.py", id.toString()]);
+      console.log(`[LOG-${id}] Starting real transcription for file: ${filePath}`);
+      const pythonProcess = spawn("python3", ["server/transcription_real.py", filePath, id.toString()]);
 
+      let outputBuffer = "";
+      
       pythonProcess.stdout.on("data", async (data) => {
         try {
-          const output = data.toString().trim();
-          console.log(`[LOG-${id}] Python output: "${output}"`);
+          outputBuffer += data.toString();
+          const lines = outputBuffer.split('\n');
+          outputBuffer = lines.pop() || ""; // Keep incomplete line in buffer
           
-          if (output.startsWith("PROGRESS:")) {
-            const progress = parseInt(output.split(":")[1]);
-            console.log(`[LOG-${id}] Updating progress to ${progress}%`);
-            await storage.updateTranscription(id, { progress });
-            console.log(`[LOG-${id}] Progress update completed`);
-          } else if (output.startsWith("RESULT:")) {
-            console.log(`[LOG-${id}] Processing transcription result`);
-            const resultJson = output.substring(7);
-            console.log(`[LOG-${id}] Result JSON: ${resultJson.substring(0, 200)}...`);
-            const result = JSON.parse(resultJson);
-            console.log(`[LOG-${id}] Parsed result keys:`, Object.keys(result));
-            console.log(`[LOG-${id}] Text length: ${result.transcript_text?.length || 0}`);
-            console.log(`[LOG-${id}] Speaker count: ${result.speakers?.length || 0}`);
+          for (const line of lines) {
+            const output = line.trim();
+            if (!output) continue;
             
-            await storage.updateTranscription(id, {
-              status: "completed",
-              progress: 100,
-              assemblyaiId: result.assemblyai_id,
-              transcriptText: result.transcript_text,
-              speakers: result.speakers,
-              segments: result.segments,
-              confidence: result.confidence,
-              duration: result.duration,
-              wordCount: result.word_count,
-            });
-            console.log(`[LOG-${id}] Transcription marked as completed`);
-          } else if (output.startsWith("ERROR:")) {
-            console.log(`[LOG-${id}] Error received: ${output}`);
-            await storage.updateTranscription(id, {
-              status: "error",
-              errorMessage: output.substring(6),
-            });
-          } else if (output.startsWith("DEBUG:")) {
-            console.log(`[LOG-${id}] Debug: ${output}`);
-          } else if (output.startsWith("SUCCESS:")) {
-            console.log(`[LOG-${id}] Success message: ${output}`);
+            console.log(`[LOG-${id}] Python output: "${output}"`);
+            
+            if (output.startsWith("PROGRESS:")) {
+              const progress = parseInt(output.split(":")[1]);
+              console.log(`[LOG-${id}] Updating progress to ${progress}%`);
+              await storage.updateTranscription(id, { progress });
+              console.log(`[LOG-${id}] Progress update completed`);
+            } else if (output.startsWith("RESULT:")) {
+              console.log(`[LOG-${id}] Processing transcription result`);
+              const resultJson = output.substring(7);
+              console.log(`[LOG-${id}] Result JSON length: ${resultJson.length}`);
+              const result = JSON.parse(resultJson);
+              console.log(`[LOG-${id}] Parsed result keys:`, Object.keys(result));
+              console.log(`[LOG-${id}] Text length: ${result.transcript_text?.length || 0}`);
+              console.log(`[LOG-${id}] Speaker count: ${result.speakers?.length || 0}`);
+              
+              await storage.updateTranscription(id, {
+                status: "completed",
+                progress: 100,
+                assemblyaiId: result.assemblyai_id,
+                transcriptText: result.transcript_text,
+                speakers: result.speakers,
+                segments: result.segments,
+                confidence: result.confidence,
+                duration: result.duration,
+                wordCount: result.word_count,
+              });
+              console.log(`[LOG-${id}] Transcription marked as completed`);
+            } else if (output.startsWith("ERROR:")) {
+              console.log(`[LOG-${id}] Error received: ${output}`);
+              await storage.updateTranscription(id, {
+                status: "error",
+                errorMessage: output.substring(6),
+              });
+            } else if (output.startsWith("DEBUG:")) {
+              console.log(`[LOG-${id}] Debug: ${output}`);
+            } else if (output.startsWith("SUCCESS:")) {
+              console.log(`[LOG-${id}] Success message: ${output}`);
+            }
           }
         } catch (error) {
           console.error(`[LOG-${id}] Error processing output:`, error);
