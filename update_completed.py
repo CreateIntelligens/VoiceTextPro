@@ -3,11 +3,11 @@ import os
 import requests
 import json
 
-def update_transcription_16():
-    """Update transcription 16 with completed data from AssemblyAI"""
+def update_transcription_17():
+    """Update transcription 17 with completed data from AssemblyAI"""
     api_key = os.getenv("ASSEMBLYAI_API_KEY", "0f0da6a87ee34439b8188dc991414cca")
-    transcript_id = "644e225b-4b31-49c4-9e24-2cbbc7ccfe16"
-    db_id = 16
+    transcript_id = "2a4a9804-63b6-4cfa-8f5d-5d3ea8c27199"
+    db_id = 17
     
     headers = {"Authorization": api_key}
     
@@ -106,7 +106,7 @@ def update_transcription_16():
         return False
 
 if __name__ == "__main__":
-    if update_transcription_16():
-        print("轉錄16更新完成！")
+    if update_transcription_17():
+        print("轉錄17更新完成！")
     else:
-        print("轉錄16更新失敗")
+        print("轉錄17更新失敗")
