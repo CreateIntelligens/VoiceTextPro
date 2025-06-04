@@ -14,6 +14,7 @@ export const transcriptions = pgTable("transcriptions", {
   transcriptText: text("transcript_text"),
   speakers: jsonb("speakers"), // Array of speaker information
   segments: jsonb("segments"), // Array of transcript segments with speaker labels
+  customKeywords: jsonb("custom_keywords"), // Array of custom keywords for transcription
   confidence: real("confidence"), // Overall confidence as decimal
   duration: integer("duration"), // Audio duration in seconds
   wordCount: integer("word_count"),
@@ -36,6 +37,7 @@ export const updateTranscriptionSchema = createInsertSchema(transcriptions).pick
   transcriptText: true,
   speakers: true,
   segments: true,
+  customKeywords: true,
   confidence: true,
   duration: true,
   wordCount: true,

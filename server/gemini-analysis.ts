@@ -25,15 +25,19 @@ export class GeminiAnalyzer {
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
   }
 
-  async cleanTranscript(transcriptText: string): Promise<{
+  async cleanTranscript(transcriptText: string, customKeywords?: string[]): Promise<{
     cleanedText: string;
     improvements: string[];
   }> {
+    const keywordsSection = customKeywords && customKeywords.length > 0 
+      ? `\n\n重要關鍵字參考：\n${customKeywords.join('、')}\n請特別注意修正逐字稿中與這些關鍵字相似但錯誤的詞彙。`
+      : '';
+
     const prompt = `
-請整理以下逐字稿內容，修正破碎或不完整的語句，使其成為流暢完整的文字。請保持原意不變，只改善文字的表達和結構。
+請整理以下逐字稿內容，將破碎的語音識別結果轉換成完整、流暢、專業的文字記錄。
 
 原始逐字稿：
-${transcriptText}
+${transcriptText}${keywordsSection}
 
 請按照以下JSON格式回覆：
 
@@ -46,13 +50,38 @@ ${transcriptText}
   ]
 }
 
-整理原則：
-1. 修正語法和標點符號錯誤
-2. 將破碎的語句組合成完整句子
-3. 統一語言風格，但保持口語化特色
-4. 補充必要的連接詞使語意更清楚
-5. 保持原始內容的意思和語氣
-6. 不添加原文中沒有的資訊
+重要整理原則：
+1. 語句完整化：
+   - 將破碎、不完整的句子重新組織成完整的語句
+   - 補充缺失的主語、謂語或賓語，使句子結構完整
+   - 消除重複和冗餘的詞語
+
+2. 關鍵字優化：
+   - 識別專業術語、產品名稱、公司名稱等關鍵詞
+   - 統一相似詞彙的表達方式（例如：將"LINE"、"line"、"賴"統一為"LINE"）
+   - 修正語音識別錯誤導致的關鍵詞誤讀（例如：將"全家"、"全佳"統一為"全家便利商店"）
+   - 特別注意自定義關鍵字列表中的詞彙，修正逐字稿中發音相似但拼寫錯誤的詞語
+   - 保持專業術語的準確性和一致性
+   - 根據上下文判斷正確的關鍵詞用法
+
+3. 標點符號規範：
+   - 根據語句內容和語氣添加適當的標點符號
+   - 使用逗號分隔並列成分和短語
+   - 使用句號結束完整的陳述句
+   - 使用問號標示疑問句
+   - 使用冒號引入說明或列舉
+   - 使用分號連接相關的獨立子句
+
+4. 語言規範：
+   - 保持商務會議的專業語調
+   - 統一時態和語氣
+   - 修正語法錯誤但保留原意
+   - 適當使用敬語和禮貌用詞
+
+5. 內容完整性：
+   - 不添加原文中沒有提到的信息
+   - 保持說話者的原始觀點和立場
+   - 維持對話的邏輯順序和因果關係
 `;
 
     try {
