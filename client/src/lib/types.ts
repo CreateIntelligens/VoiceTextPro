@@ -2,6 +2,7 @@ export interface TranscriptionStatus {
   id: number;
   filename: string;
   originalName: string;
+  displayName?: string;
   fileSize: number;
   status: "pending" | "processing" | "completed" | "error";
   progress: number;

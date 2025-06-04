@@ -6,6 +6,7 @@ export const transcriptions = pgTable("transcriptions", {
   id: serial("id").primaryKey(),
   filename: text("filename").notNull(),
   originalName: text("original_name").notNull(),
+  displayName: text("display_name"),
   fileSize: integer("file_size").notNull(),
   status: text("status").notNull().default("pending"), // pending, processing, completed, error
   progress: integer("progress").notNull().default(0),
@@ -28,6 +29,7 @@ export const insertTranscriptionSchema = createInsertSchema(transcriptions).pick
 });
 
 export const updateTranscriptionSchema = createInsertSchema(transcriptions).pick({
+  displayName: true,
   status: true,
   progress: true,
   assemblyaiId: true,

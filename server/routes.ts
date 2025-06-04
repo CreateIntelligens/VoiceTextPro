@@ -211,6 +211,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update transcription (for naming)
+  app.patch("/api/transcriptions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateData = updateTranscriptionSchema.parse(req.body);
+      
+      const updatedTranscription = await storage.updateTranscription(id, updateData);
+      
+      if (!updatedTranscription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+      
+      res.json(updatedTranscription);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "資料驗證失敗", errors: error.errors });
+      }
+      res.status(500).json({ message: error instanceof Error ? error.message : "更新失敗" });
+    }
+  });
+
   // Get all transcriptions
   app.get("/api/transcriptions", async (req, res) => {
     try {
