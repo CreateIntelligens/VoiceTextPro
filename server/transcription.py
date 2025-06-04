@@ -51,11 +51,39 @@ def main():
         print("PROGRESS:30")
         
         # Submit for transcription
-        transcript = transcriber.transcribe(audio_file_path)
+        transcript = transcriber.submit(audio_file_path)
         
-        print("PROGRESS:50")
+        print("PROGRESS:40")
         
-        # Wait for completion
+        # Poll for completion with progress updates
+        import time
+        progress = 40
+        max_retries = 60  # 5 minutes max wait time
+        retry_count = 0
+        
+        while transcript.status in ["queued", "processing"] and retry_count < max_retries:
+            progress = min(progress + 2, 80)
+            print(f"PROGRESS:{progress}")
+            time.sleep(5)  # Wait 5 seconds before checking again
+            retry_count += 1
+            
+            # Refresh transcript status
+            try:
+                if transcript.id:
+                    transcript = aai.Transcript.get_by_id(transcript.id)
+                else:
+                    print("ERROR: No transcript ID available", file=sys.stderr)
+                    sys.exit(1)
+            except Exception as e:
+                print(f"ERROR: Failed to get transcript status: {e}", file=sys.stderr)
+                sys.exit(1)
+        
+        # Check for timeout
+        if retry_count >= max_retries:
+            print("ERROR: Transcription timed out after 5 minutes", file=sys.stderr)
+            sys.exit(1)
+        
+        # Check final status
         if transcript.status == "error":
             print(f"ERROR: Transcription failed: {transcript.error}", file=sys.stderr)
             sys.exit(1)
