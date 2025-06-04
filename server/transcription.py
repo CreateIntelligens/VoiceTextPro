@@ -83,15 +83,15 @@ def main():
         
         # Check for timeout
         if retry_count >= max_retries:
-            print("ERROR: Transcription timed out after 5 minutes", file=sys.stderr)
+            print("ERROR: Transcription timed out after 5 minutes", file=sys.stderr, flush=True)
             sys.exit(1)
         
         # Check final status
         if transcript.status == "error":
-            print(f"ERROR: Transcription failed: {transcript.error}", file=sys.stderr)
+            print(f"ERROR: Transcription failed: {transcript.error}", file=sys.stderr, flush=True)
             sys.exit(1)
         
-        print("PROGRESS:80")
+        print("PROGRESS:80", flush=True)
         
         # Process results
         speakers = {}
@@ -118,7 +118,7 @@ def main():
                     "timestamp": format_timestamp(utterance.start)
                 })
         
-        print("PROGRESS:95")
+        print("PROGRESS:95", flush=True)
         
         # Calculate overall confidence
         total_confidence = 0
@@ -142,11 +142,11 @@ def main():
             "words": transcript.words
         }
         
-        print("PROGRESS:100")
-        print(f"RESULT:{json.dumps(result)}")
+        print("PROGRESS:100", flush=True)
+        print(f"RESULT:{json.dumps(result)}", flush=True)
         
     except Exception as e:
-        print(f"ERROR: {str(e)}", file=sys.stderr)
+        print(f"ERROR: {str(e)}", file=sys.stderr, flush=True)
         sys.exit(1)
 
 if __name__ == "__main__":
