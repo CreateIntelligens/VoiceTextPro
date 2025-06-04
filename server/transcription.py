@@ -28,15 +28,8 @@ def main():
     audio_file_path = sys.argv[1]
     transcription_id = sys.argv[2]
     
-    # Get API key from environment variables
-    api_key = os.getenv("ASSEMBLYAI_API_KEY") or os.getenv("ASSEMBLY_AI_API_KEY") or "0f0da6a87ee34439b8188dc991414cca"
-    
-    if not api_key:
-        print("ERROR: AssemblyAI API key not found in environment variables", file=sys.stderr)
-        sys.exit(1)
-    
     # Set API key
-    aai.settings.api_key = api_key
+    aai.settings.api_key = "0f0da6a87ee34439b8188dc991414cca"
     
     try:
         print("PROGRESS:10", flush=True)
@@ -80,7 +73,8 @@ def main():
             # Refresh transcript status
             try:
                 if transcript.id:
-                    transcript = aai.Transcript.get_by_id(transcript.id)
+                    # Use the correct method to refresh transcript
+                    transcript = transcript.get_by_id(transcript.id)
                     print(f"DEBUG: Updated status: {transcript.status}", flush=True)
                 else:
                     print("ERROR: No transcript ID available", file=sys.stderr, flush=True)
