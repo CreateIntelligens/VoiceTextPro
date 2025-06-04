@@ -22,7 +22,7 @@ export class GeminiAnalyzer {
       throw new Error('GEMINI_API_KEY is required');
     }
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
   }
 
   async analyzeTranscription(transcription: Transcription): Promise<AnalysisResult> {
@@ -49,31 +49,12 @@ export class GeminiAnalyzer {
       throw new Error('Missing speakers or segments data');
     }
 
-    // Check data types without logging objects that cause JSON errors
-    
-    let speakers: any[];
-    let segments: any[];
-    
-    try {
-      // Handle different possible formats
-      if (Array.isArray(transcription.speakers)) {
-        speakers = transcription.speakers;
-      } else if (typeof transcription.speakers === 'string') {
-        speakers = JSON.parse(transcription.speakers);
-      } else {
-        speakers = transcription.speakers as any;
-      }
+    // Safely extract speakers and segments data
+    const speakers = transcription.speakers as any[];
+    const segments = transcription.segments as any[];
 
-      if (Array.isArray(transcription.segments)) {
-        segments = transcription.segments;
-      } else if (typeof transcription.segments === 'string') {
-        segments = JSON.parse(transcription.segments);
-      } else {
-        segments = transcription.segments as any;
-      }
-    } catch (error) {
-      console.error('Error parsing speakers/segments:', error);
-      throw new Error('Invalid speakers or segments data format');
+    if (!Array.isArray(speakers) || !Array.isArray(segments)) {
+      throw new Error('Speakers or segments data is not in array format');
     }
 
     const speakerList = speakers
