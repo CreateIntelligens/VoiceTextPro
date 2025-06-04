@@ -83,7 +83,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Start Python transcription process
       const filePath = path.join("uploads", transcription.filename);
-      const pythonProcess = spawn("python", ["server/transcription.py", filePath, id.toString()]);
+      const pythonProcess = spawn("python3", ["server/transcription.py", filePath, id.toString()]);
 
       pythonProcess.stdout.on("data", async (data) => {
         try {
