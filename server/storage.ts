@@ -25,7 +25,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(transcriptions)
       .where(eq(transcriptions.id, id));
-    return transcription || undefined;
+    
+    if (!transcription) return undefined;
+    
+    // Parse JSON fields
+    return {
+      ...transcription,
+      speakers: transcription.speakers ? JSON.parse(transcription.speakers as string) : undefined,
+      segments: transcription.segments ? JSON.parse(transcription.segments as string) : undefined,
+    };
   }
 
   async updateTranscription(id: number, updates: UpdateTranscription): Promise<Transcription | undefined> {
@@ -38,10 +46,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllTranscriptions(): Promise<Transcription[]> {
-    return await db
+    const transcripts = await db
       .select()
       .from(transcriptions)
       .orderBy(desc(transcriptions.createdAt));
+    
+    // Parse JSON fields for all transcriptions
+    return transcripts.map(transcription => ({
+      ...transcription,
+      speakers: transcription.speakers ? JSON.parse(transcription.speakers as string) : undefined,
+      segments: transcription.segments ? JSON.parse(transcription.segments as string) : undefined,
+    }));
   }
 
   async deleteTranscription(id: number): Promise<boolean> {
