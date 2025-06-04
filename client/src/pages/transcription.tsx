@@ -90,25 +90,39 @@ export default function TranscriptionPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {showUpload && (
-          <UploadSection 
-            onFileUploaded={handleFileUploaded} 
-            isDisabled={showProcessing}
-          />
-        )}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Left sidebar - Transcription list */}
+          <div className="lg:col-span-1">
+            <TranscriptionList 
+              transcriptions={allTranscriptions}
+              onSelectTranscription={handleSelectTranscription}
+              selectedId={currentTranscriptionId || undefined}
+            />
+          </div>
+          
+          {/* Main content */}
+          <div className="lg:col-span-3">
+            {showUpload && (
+              <UploadSection 
+                onFileUploaded={handleFileUploaded} 
+                isDisabled={showProcessing}
+              />
+            )}
 
-        {showProcessing && transcription && (
-          <ProcessingSection transcription={transcription} />
-        )}
+            {showProcessing && transcription && (
+              <ProcessingSection transcription={transcription} />
+            )}
 
-        {showResults && transcription && (
-          <ResultsSection transcription={transcription} />
-        )}
+            {showResults && transcription && (
+              <ResultsSection transcription={transcription} />
+            )}
 
-        {showError && transcription && (
-          <ErrorSection transcription={transcription} onRetry={handleRetry} />
-        )}
+            {showError && transcription && (
+              <ErrorSection transcription={transcription} onRetry={handleRetry} />
+            )}
+          </div>
+        </div>
 
         {/* Features Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
