@@ -5,8 +5,10 @@ import json
 import assemblyai as aai
 from datetime import timedelta
 
-# Disable output buffering
-sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
+# Ensure unbuffered output
+import sys
+import os
+sys.stdout.reconfigure(line_buffering=True)
 
 def format_timestamp(milliseconds):
     """Convert milliseconds to MM:SS format"""
