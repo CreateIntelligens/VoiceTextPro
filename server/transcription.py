@@ -64,24 +64,30 @@ def main():
         print(f"DEBUG: Initial status: {transcript.status}", flush=True)
         
         while transcript.status in ["queued", "processing"] and retry_count < max_retries:
-            progress = min(progress + 2, 80)
+            progress = min(progress + 1, 85)
             print(f"PROGRESS:{progress}", flush=True)
-            print(f"DEBUG: Status check {retry_count + 1}, current status: {transcript.status}", flush=True)
-            time.sleep(5)  # Wait 5 seconds before checking again
+            print(f"DEBUG: Status check {retry_count + 1}/60, current status: {transcript.status}", flush=True)
+            time.sleep(3)  # Check every 3 seconds instead of 5
             retry_count += 1
             
             # Refresh transcript status
             try:
                 if transcript.id:
-                    # Use the correct method to refresh transcript
-                    transcript = transcript.get_by_id(transcript.id)
+                    transcript = aai.Transcript.get_by_id(transcript.id)
                     print(f"DEBUG: Updated status: {transcript.status}", flush=True)
+                    
+                    # If completed, break immediately
+                    if transcript.status == "completed":
+                        print("DEBUG: Transcription completed!", flush=True)
+                        break
                 else:
                     print("ERROR: No transcript ID available", file=sys.stderr, flush=True)
                     sys.exit(1)
             except Exception as e:
                 print(f"ERROR: Failed to get transcript status: {e}", file=sys.stderr, flush=True)
-                sys.exit(1)
+                # Don't exit immediately, try a few more times
+                if retry_count > 10:
+                    sys.exit(1)
         
         # Check for timeout
         if retry_count >= max_retries:

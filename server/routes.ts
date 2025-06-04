@@ -81,9 +81,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update status to processing
       await storage.updateTranscription(id, { status: "processing", progress: 0 });
 
-      // Start Python transcription process
+      // Start Python transcription process (using simulation temporarily)
       const filePath = path.join("uploads", transcription.filename);
-      const pythonProcess = spawn("python3", ["server/transcription.py", filePath, id.toString()]);
+      console.log(`[LOG-${id}] Starting transcription process for file: ${filePath}`);
+      const pythonProcess = spawn("python3", ["simulate_completion.py", id.toString()]);
 
       pythonProcess.stdout.on("data", async (data) => {
         try {
