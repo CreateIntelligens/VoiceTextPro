@@ -21,7 +21,7 @@ export default function TranscriptionResultsPage() {
 
   // Query for selected transcription details
   const { data: selectedTranscription } = useQuery<TranscriptionStatus>({
-    queryKey: ["/api/transcriptions", selectedTranscriptionId],
+    queryKey: [`/api/transcriptions/${selectedTranscriptionId}`],
     enabled: !!selectedTranscriptionId,
   });
 
