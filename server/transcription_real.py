@@ -48,17 +48,22 @@ def main():
         
         print("PROGRESS:20", flush=True)
         
-        # Configure transcription with Best model and keyword prompts
-        default_keywords = ["商業", "會議", "策略", "客戶", "平台", "通路", "社群", "行銷", "經營", "管理", "分析", "方案", "問題", "解決", "市場", "競爭", "價值", "服務", "產品", "技術"]
+        # Configure transcription with Best model - word boost only supports English
+        # We'll filter out Chinese characters and keep only English/alphanumeric keywords
+        default_keywords = ["business", "meeting", "strategy", "customer", "platform", "channel", "social", "marketing", "management", "analysis", "solution", "problem", "market", "competition", "value", "service", "product", "technology"]
         
-        # Parse custom keywords if provided
+        # Parse custom keywords if provided and filter for English-only
+        keywords = default_keywords.copy()
         if custom_keywords:
             user_keywords = [k.strip() for k in custom_keywords.split(",") if k.strip()]
-            keywords = user_keywords + default_keywords
-        else:
-            keywords = default_keywords
+            # Only add keywords that contain only English letters, numbers, and basic punctuation
+            english_keywords = [k for k in user_keywords if k.replace(" ", "").replace("-", "").replace("_", "").isascii()]
+            keywords.extend(english_keywords)
+            
+            # Log all keywords for context (including Chinese ones)
+            print(f"DEBUG: All provided keywords: {', '.join(user_keywords)}", flush=True)
         
-        print(f"DEBUG: Using {len(keywords)} keywords for better accuracy", flush=True)
+        print(f"DEBUG: Using {len(keywords)} English keywords for word boost", flush=True)
         
         config = aai.TranscriptionConfig(
             speaker_labels=True,
@@ -66,8 +71,8 @@ def main():
             speech_model=aai.SpeechModel.best,
             punctuate=True,
             format_text=True,
-            word_boost=keywords,
-            boost_param=aai.WordBoost.high
+            word_boost=keywords if keywords else None,
+            boost_param=aai.WordBoost.high if keywords else None
         )
         
         print("PROGRESS:30", flush=True)
