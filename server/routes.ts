@@ -88,29 +88,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       pythonProcess.stdout.on("data", async (data) => {
         try {
           const output = data.toString().trim();
-          console.log("Python output:", output);
+          console.log(`[LOG-${id}] Python output: "${output}"`);
           
           if (output.startsWith("PROGRESS:")) {
             const progress = parseInt(output.split(":")[1]);
-            console.log(`Updating progress to ${progress}%`);
+            console.log(`[LOG-${id}] Updating progress to ${progress}%`);
             await storage.updateTranscription(id, { progress });
+            console.log(`[LOG-${id}] Progress update completed`);
           } else if (output.startsWith("RESULT:")) {
-            const result = JSON.parse(output.substring(7));
-            console.log("Transcription completed, saving results");
+            console.log(`[LOG-${id}] Processing transcription result`);
+            const resultJson = output.substring(7);
+            console.log(`[LOG-${id}] Result JSON: ${resultJson.substring(0, 200)}...`);
+            const result = JSON.parse(resultJson);
+            console.log(`[LOG-${id}] Parsed result keys:`, Object.keys(result));
+            console.log(`[LOG-${id}] Text length: ${result.transcript_text?.length || 0}`);
+            console.log(`[LOG-${id}] Speaker count: ${result.speakers?.length || 0}`);
+            
             await storage.updateTranscription(id, {
               status: "completed",
               progress: 100,
-              assemblyaiId: result.id,
-              transcriptText: result.text,
+              assemblyaiId: result.assemblyai_id,
+              transcriptText: result.transcript_text,
               speakers: result.speakers,
               segments: result.segments,
               confidence: result.confidence,
-              duration: result.audio_duration,
-              wordCount: result.words?.length || 0,
+              duration: result.duration,
+              wordCount: result.word_count,
             });
+            console.log(`[LOG-${id}] Transcription marked as completed`);
+          } else if (output.startsWith("ERROR:")) {
+            console.log(`[LOG-${id}] Error received: ${output}`);
+            await storage.updateTranscription(id, {
+              status: "error",
+              errorMessage: output.substring(6),
+            });
+          } else if (output.startsWith("DEBUG:")) {
+            console.log(`[LOG-${id}] Debug: ${output}`);
+          } else if (output.startsWith("SUCCESS:")) {
+            console.log(`[LOG-${id}] Success message: ${output}`);
           }
         } catch (error) {
-          console.error("Error processing Python output:", error, "Raw output:", data.toString());
+          console.error(`[LOG-${id}] Error processing output:`, error);
+          console.error(`[LOG-${id}] Raw output: "${data.toString()}"`);
         }
       });
 

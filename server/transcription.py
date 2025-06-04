@@ -133,19 +133,22 @@ def main():
         
         overall_confidence = round(total_confidence / confidence_count * 100) if confidence_count > 0 else 95
         
-        # Prepare result
+        # Prepare result with correct field names for backend
         result = {
-            "id": transcript.id,
-            "text": transcript.text,
+            "assemblyai_id": transcript.id,
+            "transcript_text": transcript.text,
             "speakers": list(speakers.values()),
             "segments": segments,
-            "confidence": overall_confidence,
-            "audio_duration": transcript.audio_duration,
-            "words": transcript.words
+            "confidence": overall_confidence / 100,  # Convert to decimal
+            "duration": transcript.audio_duration,
+            "word_count": len(transcript.text.split()) if transcript.text else 0
         }
         
+        print("PROGRESS:95", flush=True)
+        print(f"DEBUG: Final result created with {len(result['transcript_text'])} chars", flush=True)
         print("PROGRESS:100", flush=True)
-        print(f"RESULT:{json.dumps(result)}", flush=True)
+        print(f"RESULT:{json.dumps(result, ensure_ascii=False)}", flush=True)
+        print("SUCCESS: Transcription completed and result sent", flush=True)
         
     except Exception as e:
         print(f"ERROR: {str(e)}", file=sys.stderr, flush=True)
