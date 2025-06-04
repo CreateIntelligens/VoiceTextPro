@@ -1,0 +1,135 @@
+API Reference
+Streaming API
+Streaming API
+
+GET
+wss://streaming.assemblyai.com/v3/ws
+Handshake
+URL	wss://streaming.assemblyai.com/v3/ws
+Method	GET
+Status	101 Switching Protocols
+Try it
+Messages
+
+{"type":"Begin","id":"cfd280c7-5a9b-4dd6-8c05-235ccfa3c97f","expires_at":1745483367}
+sessionBegins
+
+
+"Y3VyaW91cyBtaW5k"
+audioChunk
+
+
+"cyB0aGluayBhbGlrZSA6KQ=="
+audioChunk
+
+Main channel for bi-directional audio and transcription data
+
+Handshake
+GET
+wss://streaming.assemblyai.com/v3/ws
+
+Headers
+Authorization
+string
+Required
+API key for authentication.
+
+Query parameters
+sample_rate
+string
+Required
+Sample rate of the audio stream
+
+encoding
+enum
+Optional
+Defaults to pcm_s16le
+Encoding of the audio stream
+
+Allowed values:
+pcm_s16le
+pcm_mulaw
+token
+string
+Optional
+API token for authentication
+
+format_turns
+boolean
+Optional
+Whether to return formatted final transcripts
+
+end_of_turn_confidence_threshold
+double
+Optional
+The confidence threshold (0.0 to 1.0) to use when determining if the end of a turn has been reached
+
+min_end_of_turn_silence_when_confident
+integer
+Optional
+The minimum amount of silence required to detect end of turn when confident
+
+max_turn_silence
+integer
+Optional
+The maximum amount of silence allowed in a turn before end of turn is triggered
+
+Send
+sendAudio
+any
+Required
+Send audio data chunks for transcription. The payload must be of type bytes and contain audio data between 50ms and 1000ms in length.
+
+OR
+sendUpdateConfiguration
+object
+Required
+Update streaming configuration parameters during an active session.
+
+
+Show 4 properties
+OR
+sendForceEndpoint
+object
+Required
+Manually force an endpoint in the transcription.
+
+
+Show 1 properties
+OR
+sendSessionTermination
+object
+Required
+Gracefully terminate the streaming session.
+
+
+Show 1 properties
+Receive
+receiveSessionBegins
+object
+Required
+Receive confirmation that the streaming session has successfully started.
+
+
+Show 3 properties
+OR
+receiveTurn
+object
+Required
+Receive a formatted turn-based transcription result.
+
+
+Show 7 properties
+OR
+receiveTermination
+object
+Required
+Receive confirmation that the session has been terminated by the server.
+
+
+Show 3 properties
+Was this page helpful?
+Yes
+No
+Previous
+Built with
