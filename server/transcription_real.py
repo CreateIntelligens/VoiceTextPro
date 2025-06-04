@@ -47,11 +47,13 @@ def main():
         
         print("PROGRESS:20", flush=True)
         
-        # Configure transcription for Chinese with speaker detection
+        # Configure transcription for Chinese with speaker detection and punctuation
         config = aai.TranscriptionConfig(
             speaker_labels=True,
             language_code="zh",
-            speech_model=aai.SpeechModel.best
+            speech_model=aai.SpeechModel.best,
+            punctuate=True,
+            format_text=True
         )
         
         print("PROGRESS:30", flush=True)
