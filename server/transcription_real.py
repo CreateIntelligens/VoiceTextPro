@@ -34,8 +34,9 @@ def main():
     transcription_id = sys.argv[2]
     custom_keywords = sys.argv[3] if len(sys.argv) > 3 else ""
     
-    # Set API key
-    aai.settings.api_key = "0f0da6a87ee34439b8188dc991414cca"
+    # Set API key from environment
+    import os
+    aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY", "0f0da6a87ee34439b8188dc991414cca")
     
     try:
         print("PROGRESS:10", flush=True)
