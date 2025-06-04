@@ -1,15 +1,25 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { TranscriptionStatus } from "@/lib/types";
+import SpeakerEditor from "@/components/speaker-editor";
+import type { TranscriptionStatus, Speaker } from "@/lib/types";
 
 interface ResultsSectionProps {
   transcription: TranscriptionStatus;
 }
 
 export default function ResultsSection({ transcription }: ResultsSectionProps) {
+  const [currentTranscription, setCurrentTranscription] = useState<TranscriptionStatus>(transcription);
   const { toast } = useToast();
+
+  const handleSpeakersUpdated = (updatedSpeakers: Speaker[]) => {
+    setCurrentTranscription(prev => ({
+      ...prev,
+      speakers: updatedSpeakers
+    }));
+  };
 
   const formatDuration = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -18,10 +28,10 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
   };
 
   const handleCopyTranscript = async () => {
-    if (!transcription.segments) return;
+    if (!currentTranscription.segments) return;
     
-    const fullText = transcription.segments
-      .map(segment => `${segment.timestamp} ${transcription.speakers?.find(s => s.id === segment.speaker)?.label || '未知講者'}: ${segment.text}`)
+    const fullText = currentTranscription.segments
+      .map(segment => `${segment.timestamp} ${currentTranscription.speakers?.find(s => s.id === segment.speaker)?.label || '未知講者'}: ${segment.text}`)
       .join('\n');
     
     try {
@@ -40,17 +50,17 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
   };
 
   const handleDownload = () => {
-    if (!transcription.segments) return;
+    if (!currentTranscription.segments) return;
     
-    const fullText = transcription.segments
-      .map(segment => `${segment.timestamp} ${transcription.speakers?.find(s => s.id === segment.speaker)?.label || '未知講者'}: ${segment.text}`)
+    const fullText = currentTranscription.segments
+      .map(segment => `${segment.timestamp} ${currentTranscription.speakers?.find(s => s.id === segment.speaker)?.label || '未知講者'}: ${segment.text}`)
       .join('\n');
     
     const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `轉錄_${transcription.originalName}.txt`;
+    a.download = `轉錄_${currentTranscription.originalName}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -69,7 +79,7 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
             <div>
               <h3 className="text-lg font-semibold text-slate-900">轉錄完成</h3>
               <p className="text-slate-600">
-                識別到 <span className="font-medium">{transcription.speakers?.length || 0}</span> 位對話者
+                識別到 <span className="font-medium">{currentTranscription.speakers?.length || 0}</span> 位對話者
               </p>
             </div>
           </div>
