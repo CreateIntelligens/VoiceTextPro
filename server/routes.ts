@@ -190,9 +190,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all transcriptions
   app.get("/api/transcriptions", async (req, res) => {
     try {
-      const transcriptions = await storage.getAllTranscriptions();
-      res.json(transcriptions);
+      // Direct database query to avoid JSON parsing issues
+      const result = await db.select({
+        id: transcriptions.id,
+        filename: transcriptions.filename,
+        originalName: transcriptions.originalName,
+        fileSize: transcriptions.fileSize,
+        status: transcriptions.status,
+        progress: transcriptions.progress,
+        assemblyaiId: transcriptions.assemblyaiId,
+        transcriptText: transcriptions.transcriptText,
+        confidence: transcriptions.confidence,
+        duration: transcriptions.duration,
+        wordCount: transcriptions.wordCount,
+        errorMessage: transcriptions.errorMessage,
+        createdAt: transcriptions.createdAt,
+        updatedAt: transcriptions.updatedAt,
+        speakers: transcriptions.speakers,
+        segments: transcriptions.segments
+      }).from(transcriptions).orderBy(desc(transcriptions.createdAt));
+
+      // Process the results with safe JSON parsing
+      const processedResults = result.map(transcription => {
+        let speakers = undefined;
+        let segments = undefined;
+        
+        // Parse speakers safely
+        if (transcription.speakers && typeof transcription.speakers === 'string') {
+          try {
+            if (transcription.speakers.startsWith('[')) {
+              speakers = JSON.parse(transcription.speakers);
+            }
+          } catch (e) {
+            console.error('Speaker parse error:', e);
+          }
+        }
+        
+        // Parse segments safely
+        if (transcription.segments && typeof transcription.segments === 'string') {
+          try {
+            if (transcription.segments.startsWith('[')) {
+              segments = JSON.parse(transcription.segments);
+            }
+          } catch (e) {
+            console.error('Segment parse error:', e);
+          }
+        }
+        
+        return {
+          ...transcription,
+          speakers,
+          segments
+        };
+      });
+
+      res.json(processedResults);
     } catch (error) {
+      console.error("Failed to get transcriptions:", error);
       res.status(500).json({ message: error instanceof Error ? error.message : "獲取轉錄記錄失敗" });
     }
   });

@@ -52,11 +52,40 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(transcriptions.createdAt));
     
     // Parse JSON fields for all transcriptions
-    return transcripts.map(transcription => ({
-      ...transcription,
-      speakers: transcription.speakers ? JSON.parse(transcription.speakers as string) : undefined,
-      segments: transcription.segments ? JSON.parse(transcription.segments as string) : undefined,
-    }));
+    return transcripts.map(transcription => {
+      let speakers = undefined;
+      let segments = undefined;
+      
+      // Safe parse speakers
+      if (transcription.speakers) {
+        try {
+          const speakersStr = transcription.speakers as string;
+          if (speakersStr.startsWith('[') || speakersStr.startsWith('{')) {
+            speakers = JSON.parse(speakersStr);
+          }
+        } catch (error) {
+          console.error('Speakers parse error for transcription', transcription.id, error);
+        }
+      }
+      
+      // Safe parse segments
+      if (transcription.segments) {
+        try {
+          const segmentsStr = transcription.segments as string;
+          if (segmentsStr.startsWith('[') || segmentsStr.startsWith('{')) {
+            segments = JSON.parse(segmentsStr);
+          }
+        } catch (error) {
+          console.error('Segments parse error for transcription', transcription.id, error);
+        }
+      }
+      
+      return {
+        ...transcription,
+        speakers,
+        segments,
+      };
+    });
   }
 
   async deleteTranscription(id: number): Promise<boolean> {
