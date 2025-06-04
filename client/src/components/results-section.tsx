@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import SpeakerEditor from "@/components/speaker-editor";
+import AIAnalysis from "@/components/ai-analysis";
 import type { TranscriptionStatus, Speaker } from "@/lib/types";
 
 interface ResultsSectionProps {
@@ -134,6 +135,9 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
           transcription={currentTranscription}
           onSpeakersUpdated={handleSpeakersUpdated}
         />
+
+        {/* AI Analysis */}
+        <AIAnalysis transcription={currentTranscription} />
 
         {/* Transcript Text */}
         {currentTranscription.segments && currentTranscription.segments.length > 0 && (
