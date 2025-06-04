@@ -92,10 +92,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update status to processing
       await storage.updateTranscription(id, { status: "processing", progress: 0 });
 
-      // Start Python transcription process with real AssemblyAI
+      // Start Python transcription process with real AssemblyAI and custom keywords
       const filePath = path.join("uploads", transcription.filename);
+      const customKeywords = transcriptionKeywords.get(id) || "";
       console.log(`[LOG-${id}] Starting real transcription for file: ${filePath}`);
-      const pythonProcess = spawn("python3", ["server/transcription_real.py", filePath, id.toString()]);
+      if (customKeywords) {
+        console.log(`[LOG-${id}] Using custom keywords: ${customKeywords}`);
+      }
+      
+      const args = ["server/transcription_real.py", filePath, id.toString()];
+      if (customKeywords) {
+        args.push(customKeywords);
+      }
+      const pythonProcess = spawn("python3", args);
       
       // Import and start auto-monitoring
       let assemblyaiId = null;
@@ -139,6 +148,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 duration: result.duration,
                 wordCount: result.word_count,
               });
+              // Clean up keywords from memory
+              transcriptionKeywords.delete(id);
               console.log(`[LOG-${id}] Transcription marked as completed`);
             } else if (output.startsWith("ERROR:")) {
               console.log(`[LOG-${id}] Error received: ${output}`);
@@ -146,6 +157,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 status: "error",
                 errorMessage: output.substring(6),
               });
+              // Clean up keywords from memory on error
+              transcriptionKeywords.delete(id);
             } else if (output.startsWith("DEBUG:")) {
               console.log(`[LOG-${id}] Debug: ${output}`);
             } else if (output.startsWith("SUCCESS:")) {
