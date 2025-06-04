@@ -8,7 +8,7 @@ from datetime import timedelta
 # Ensure unbuffered output
 import sys
 import os
-sys.stdout.reconfigure(line_buffering=True)
+sys.stdout.flush()
 
 def format_timestamp(milliseconds):
     """Convert milliseconds to MM:SS format"""
@@ -56,8 +56,10 @@ def main():
         print("PROGRESS:30", flush=True)
         
         # Submit for transcription
+        print("DEBUG: Starting transcription submission", flush=True)
         transcript = transcriber.submit(audio_file_path)
         
+        print(f"DEBUG: Submitted, transcript ID: {transcript.id}", flush=True)
         print("PROGRESS:40", flush=True)
         
         # Poll for completion with progress updates
@@ -66,9 +68,12 @@ def main():
         max_retries = 60  # 5 minutes max wait time
         retry_count = 0
         
+        print(f"DEBUG: Initial status: {transcript.status}", flush=True)
+        
         while transcript.status in ["queued", "processing"] and retry_count < max_retries:
             progress = min(progress + 2, 80)
             print(f"PROGRESS:{progress}", flush=True)
+            print(f"DEBUG: Status check {retry_count + 1}, current status: {transcript.status}", flush=True)
             time.sleep(5)  # Wait 5 seconds before checking again
             retry_count += 1
             
@@ -76,6 +81,7 @@ def main():
             try:
                 if transcript.id:
                     transcript = aai.Transcript.get_by_id(transcript.id)
+                    print(f"DEBUG: Updated status: {transcript.status}", flush=True)
                 else:
                     print("ERROR: No transcript ID available", file=sys.stderr, flush=True)
                     sys.exit(1)
