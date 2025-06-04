@@ -15,6 +15,7 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [keywords, setKeywords] = useState<string>("");
   const { toast } = useToast();
 
   const validateFile = (file: File): boolean => {
@@ -90,6 +91,9 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     try {
       const formData = new FormData();
       formData.append('audio', selectedFile);
+      if (keywords.trim()) {
+        formData.append('keywords', keywords.trim());
+      }
 
       const response = await fetch('/api/transcriptions/upload', {
         method: 'POST',
@@ -166,6 +170,33 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
             onChange={handleFileInputChange}
             disabled={isDisabled}
           />
+        </CardContent>
+      </Card>
+
+      {/* Keywords input section */}
+      <Card className="mt-4">
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Tag className="w-5 h-5 text-blue-600" />
+              <Label htmlFor="keywords" className="text-sm font-medium text-slate-900">
+                自定義關鍵字（可選）
+              </Label>
+            </div>
+            <div className="space-y-2">
+              <Textarea
+                id="keywords"
+                placeholder="輸入專業詞彙以提高轉錄準確度，例如：公司名稱、產品名稱、技術術語等，用逗號分隔"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                className="min-h-[80px] resize-none"
+                disabled={isDisabled}
+              />
+              <p className="text-xs text-slate-500">
+                系統已包含常用商業詞彙。您可以添加特定領域的專業術語來獲得更準確的轉錄結果。
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

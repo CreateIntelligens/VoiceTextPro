@@ -10,6 +10,9 @@ import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions } 
 import { desc } from "drizzle-orm";
 import { z } from "zod";
 
+// Temporary in-memory storage for keywords per transcription
+const transcriptionKeywords = new Map<number, string>();
+
 const upload = multer({
   dest: "uploads/",
   limits: {
@@ -56,6 +59,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertTranscriptionSchema.parse(transcriptionData);
       const transcription = await storage.createTranscription(validatedData);
+
+      // Store keywords for later use in transcription
+      if (req.body.keywords) {
+        transcriptionKeywords.set(transcription.id, req.body.keywords);
+        console.log(`[UPLOAD] Custom keywords stored for transcription ${transcription.id}: ${req.body.keywords}`);
+      }
 
       res.json(transcription);
     } catch (error) {

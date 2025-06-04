@@ -48,17 +48,26 @@ def main():
         
         print("PROGRESS:20", flush=True)
         
-        # Configure transcription with Universal-1 model (latest high-accuracy model) and keyword prompts
-        keywords = ["商業", "會議", "策略", "客戶", "平台", "通路", "社群", "行銷", "經營", "管理", "分析", "方案", "問題", "解決", "市場", "競爭", "價值", "服務", "產品", "技術"]
+        # Configure transcription with Best model and keyword prompts
+        default_keywords = ["商業", "會議", "策略", "客戶", "平台", "通路", "社群", "行銷", "經營", "管理", "分析", "方案", "問題", "解決", "市場", "競爭", "價值", "服務", "產品", "技術"]
+        
+        # Parse custom keywords if provided
+        if custom_keywords:
+            user_keywords = [k.strip() for k in custom_keywords.split(",") if k.strip()]
+            keywords = user_keywords + default_keywords
+        else:
+            keywords = default_keywords
+        
+        print(f"DEBUG: Using {len(keywords)} keywords for better accuracy", flush=True)
         
         config = aai.TranscriptionConfig(
             speaker_labels=True,
             language_code="zh",
-            speech_model=aai.SpeechModel.universal_1,
+            speech_model=aai.SpeechModel.best,
             punctuate=True,
             format_text=True,
             word_boost=keywords,
-            boost_param="high"
+            boost_param=aai.WordBoost.high
         )
         
         print("PROGRESS:30", flush=True)
