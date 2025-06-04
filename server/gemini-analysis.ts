@@ -25,6 +25,48 @@ export class GeminiAnalyzer {
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
   }
 
+  async cleanTranscript(transcriptText: string): Promise<{
+    cleanedText: string;
+    improvements: string[];
+  }> {
+    const prompt = `
+請整理以下逐字稿內容，修正破碎或不完整的語句，使其成為流暢完整的文字。請保持原意不變，只改善文字的表達和結構。
+
+原始逐字稿：
+${transcriptText}
+
+請按照以下JSON格式回覆：
+
+{
+  "cleanedText": "整理後的完整逐字稿內容",
+  "improvements": [
+    "改善項目1（例如：修正語法錯誤）",
+    "改善項目2（例如：補充不完整的語句）",
+    "改善項目3（例如：統一用詞風格）"
+  ]
+}
+
+整理原則：
+1. 修正語法和標點符號錯誤
+2. 將破碎的語句組合成完整句子
+3. 統一語言風格，但保持口語化特色
+4. 補充必要的連接詞使語意更清楚
+5. 保持原始內容的意思和語氣
+6. 不添加原文中沒有的資訊
+`;
+
+    try {
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+      
+      return this.parseCleaningResponse(text);
+    } catch (error) {
+      console.error('Gemini cleaning error:', error);
+      throw new Error('Failed to clean transcript with Gemini');
+    }
+  }
+
   async analyzeTranscription(transcription: Transcription): Promise<AnalysisResult> {
     if (!transcription.segments || !transcription.speakers) {
       throw new Error('Transcription must have segments and speakers');
@@ -137,6 +179,33 @@ ${conversationText}
         speakerInsights: [],
         actionItems: [],
         topics: []
+      };
+    }
+  }
+
+  private parseCleaningResponse(response: string): {
+    cleanedText: string;
+    improvements: string[];
+  } {
+    try {
+      // Extract JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      return {
+        cleanedText: parsed.cleanedText || '無法生成整理後的文字',
+        improvements: Array.isArray(parsed.improvements) ? parsed.improvements : []
+      };
+    } catch (error) {
+      console.error('Failed to parse Gemini cleaning response:', error);
+      // Fallback response
+      return {
+        cleanedText: '文字整理過程中發生錯誤，請稍後再試。',
+        improvements: []
       };
     }
   }

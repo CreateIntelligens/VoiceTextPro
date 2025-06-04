@@ -270,6 +270,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clean transcription text with Gemini AI
+  app.post("/api/transcriptions/:id/clean", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transcription = await storage.getTranscription(id);
+
+      if (!transcription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+
+      if (transcription.status !== 'completed') {
+        return res.status(400).json({ message: "轉錄尚未完成，無法進行整理" });
+      }
+
+      if (!transcription.transcriptText) {
+        return res.status(400).json({ message: "沒有可整理的逐字稿內容" });
+      }
+
+      const analyzer = new GeminiAnalyzer();
+      const cleanedResult = await analyzer.cleanTranscript(transcription.transcriptText);
+
+      res.json(cleanedResult);
+    } catch (error) {
+      console.error("Gemini cleaning error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "逐字稿整理失敗" 
+      });
+    }
+  });
+
   // Delete transcription
   app.delete("/api/transcriptions/:id", async (req, res) => {
     try {

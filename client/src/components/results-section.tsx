@@ -5,6 +5,7 @@ import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, Chevro
 import { useToast } from "@/hooks/use-toast";
 import SpeakerEditor from "@/components/speaker-editor";
 import AIAnalysis from "@/components/ai-analysis";
+import TranscriptCleaner from "@/components/transcript-cleaner";
 import type { TranscriptionStatus, Speaker } from "@/lib/types";
 
 interface ResultsSectionProps {
@@ -19,6 +20,13 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
     setCurrentTranscription(prev => ({
       ...prev,
       speakers: updatedSpeakers
+    }));
+  };
+
+  const handleTranscriptCleaned = (cleanedText: string) => {
+    setCurrentTranscription(prev => ({
+      ...prev,
+      transcriptText: cleanedText
     }));
   };
 
@@ -138,6 +146,12 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
 
         {/* AI Analysis */}
         <AIAnalysis transcription={currentTranscription} />
+
+        {/* Transcript Cleaner */}
+        <TranscriptCleaner 
+          transcription={currentTranscription}
+          onTranscriptCleaned={handleTranscriptCleaned}
+        />
 
         {/* Transcript Text */}
         {currentTranscription.segments && currentTranscription.segments.length > 0 && (
