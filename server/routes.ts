@@ -289,8 +289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const analyzer = new GeminiAnalyzer();
-      const customKeywords = transcription.customKeywords ? JSON.parse(transcription.customKeywords) : [];
-      const cleanedResult = await analyzer.cleanTranscript(transcription.transcriptText, customKeywords);
+      const cleanedResult = await analyzer.cleanTranscript(transcription.transcriptText);
 
       res.json(cleanedResult);
     } catch (error) {

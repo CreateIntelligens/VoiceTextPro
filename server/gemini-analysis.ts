@@ -25,19 +25,15 @@ export class GeminiAnalyzer {
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
   }
 
-  async cleanTranscript(transcriptText: string, customKeywords?: string[]): Promise<{
+  async cleanTranscript(transcriptText: string): Promise<{
     cleanedText: string;
     improvements: string[];
   }> {
-    const keywordsSection = customKeywords && customKeywords.length > 0 
-      ? `\n\n重要關鍵字參考：\n${customKeywords.join('、')}\n請特別注意修正逐字稿中與這些關鍵字相似但錯誤的詞彙。`
-      : '';
-
     const prompt = `
 請整理以下逐字稿內容，將破碎的語音識別結果轉換成完整、流暢、專業的文字記錄。
 
 原始逐字稿：
-${transcriptText}${keywordsSection}
+${transcriptText}
 
 請按照以下JSON格式回覆：
 
