@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MicOff, Languages, Users, Zap } from "lucide-react";
+import { MicOff, Languages, Users, Zap, History } from "lucide-react";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 import UploadSection from "@/components/upload-section";
 import ProcessingSection from "@/components/processing-section";
 import ResultsSection from "@/components/results-section";
@@ -67,6 +69,10 @@ export default function TranscriptionPage() {
               <h1 className="text-xl font-semibold text-slate-900">語音轉文字平台</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <Link href="/results" className="inline-flex items-center px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors">
+                <History className="w-4 h-4 mr-2" />
+                查看記錄
+              </Link>
               <span className="text-sm text-slate-600">Powered by AssemblyAI</span>
             </div>
           </div>
