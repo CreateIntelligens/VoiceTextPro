@@ -154,42 +154,92 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
         />
 
         {/* Transcript Text */}
-        {currentTranscription.segments && currentTranscription.segments.length > 0 && (
-          <div className="space-y-4" id="transcriptContent">
-            {currentTranscription.segments.map((segment, index) => {
-              const speaker = currentTranscription.speakers?.find(s => s.id === segment.speaker);
-              return (
-                <div key={index} className="flex space-x-4 group">
-                  <div className="flex-shrink-0 text-xs text-slate-500 font-mono mt-1 w-16">
-                    {segment.timestamp}
-                  </div>
-                  <div className="flex-shrink-0">
-                    <div 
-                      className="w-3 h-3 rounded-full mt-2"
-                      style={{ backgroundColor: speaker?.color || '#64748B' }}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div 
-                      className="rounded-lg p-4 border-l-4"
-                      style={{ 
-                        backgroundColor: speaker?.color ? `${speaker.color}10` : '#F1F5F9',
-                        borderLeftColor: speaker?.color || '#64748B'
-                      }}
-                    >
-                      <div 
-                        className="text-xs font-medium mb-1"
-                        style={{ color: speaker?.color || '#64748B' }}
-                      >
-                        {speaker?.label || '未知講者'} • {segment.confidence}% 信心度
-                      </div>
-                      <p className="text-slate-800 leading-relaxed">{segment.text}</p>
-                    </div>
-                  </div>
+        {currentTranscription.transcriptText && (
+          <Card className="mb-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center">
+                  <FileText className="w-5 h-5 mr-2 text-blue-600" />
+                  完整逐字稿
+                </CardTitle>
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-500">
+                    {currentTranscription.transcriptText.length} 字元
+                  </span>
+                  <Button
+                    onClick={() => {
+                      navigator.clipboard.writeText(currentTranscription.transcriptText);
+                      toast({
+                        title: "已複製",
+                        description: "逐字稿內容已複製到剪貼簿",
+                      });
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    複製
+                  </Button>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto">
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                  {currentTranscription.transcriptText}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Segment-based Transcript */}
+        {currentTranscription.segments && currentTranscription.segments.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center">
+                <Users className="w-5 h-5 mr-2 text-green-600" />
+                分段對話記錄
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4" id="transcriptContent">
+                {currentTranscription.segments.map((segment, index) => {
+                  const speaker = currentTranscription.speakers?.find(s => s.id === segment.speaker);
+                  return (
+                    <div key={index} className="flex space-x-4 group">
+                      <div className="flex-shrink-0 text-xs text-slate-500 font-mono mt-1 w-16">
+                        {segment.timestamp}
+                      </div>
+                      <div className="flex-shrink-0">
+                        <div 
+                          className="w-3 h-3 rounded-full mt-2"
+                          style={{ backgroundColor: speaker?.color || '#64748B' }}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div 
+                          className="rounded-lg p-4 border-l-4"
+                          style={{ 
+                            backgroundColor: speaker?.color ? `${speaker.color}10` : '#F1F5F9',
+                            borderLeftColor: speaker?.color || '#64748B'
+                          }}
+                        >
+                          <div 
+                            className="text-xs font-medium mb-1"
+                            style={{ color: speaker?.color || '#64748B' }}
+                          >
+                            {speaker?.label || '未知講者'} • {segment.confidence}% 信心度
+                          </div>
+                          <p className="text-slate-800 leading-relaxed">{segment.text}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {(!transcription.segments || transcription.segments.length === 0) && (

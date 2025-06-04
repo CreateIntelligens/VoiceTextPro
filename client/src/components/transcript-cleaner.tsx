@@ -148,11 +148,13 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
                 <FileText className="w-4 h-4 mr-2 text-gray-600" />
                 原始逐字稿
               </h4>
-              <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto border">
+              <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto border">
                 <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {transcription.transcriptText?.substring(0, 1000)}
-                  {transcription.transcriptText && transcription.transcriptText.length > 1000 && '...'}
+                  {transcription.transcriptText}
                 </p>
+              </div>
+              <div className="mt-2 text-xs text-gray-500 text-center">
+                原始字數: {transcription.transcriptText?.length || 0} 字元
               </div>
             </div>
             
@@ -161,11 +163,13 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
                 <Wand2 className="w-4 h-4 mr-2 text-indigo-600" />
                 整理後逐字稿
               </h4>
-              <div className="bg-indigo-50 rounded-lg p-4 max-h-64 overflow-y-auto border border-indigo-200">
+              <div className="bg-indigo-50 rounded-lg p-4 max-h-96 overflow-y-auto border border-indigo-200">
                 <p className="text-sm text-indigo-900 leading-relaxed whitespace-pre-wrap">
-                  {cleanedResult.cleanedText.substring(0, 1000)}
-                  {cleanedResult.cleanedText.length > 1000 && '...'}
+                  {cleanedResult.cleanedText}
                 </p>
+              </div>
+              <div className="mt-2 text-xs text-indigo-600 text-center">
+                整理後字數: {cleanedResult.cleanedText.length} 字元
               </div>
             </div>
           </div>
