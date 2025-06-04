@@ -87,7 +87,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pythonProcess = spawn("python3", ["server/transcription_real.py", filePath, id.toString()]);
       
       // Import and start auto-monitoring
-      const { startMonitoring } = require("./auto_monitor");
       let assemblyaiId = null;
 
       let outputBuffer = "";

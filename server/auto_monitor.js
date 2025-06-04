@@ -1,5 +1,5 @@
-const { spawn } = require('child_process');
-const { storage } = require('./storage');
+import { spawn } from 'child_process';
+import { storage } from './storage.js';
 
 let monitoringProcesses = new Map();
 
@@ -162,4 +162,4 @@ except Exception as e:
   }, 30 * 60 * 1000);
 }
 
-module.exports = { startMonitoring };
+export { startMonitoring };
