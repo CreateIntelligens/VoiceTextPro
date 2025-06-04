@@ -102,56 +102,44 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
           <div className="bg-slate-50 rounded-lg p-4 text-center">
             <Clock className="w-6 h-6 text-slate-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-slate-900">
-              {transcription.duration ? formatDuration(transcription.duration) : '--'}
+              {currentTranscription.duration ? formatDuration(currentTranscription.duration) : '--'}
             </div>
             <div className="text-sm text-slate-600">音頻長度</div>
           </div>
           <div className="bg-slate-50 rounded-lg p-4 text-center">
             <FileText className="w-6 h-6 text-slate-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-slate-900">
-              {transcription.wordCount?.toLocaleString() || '--'}
+              {currentTranscription.wordCount?.toLocaleString() || '--'}
             </div>
             <div className="text-sm text-slate-600">總字數</div>
           </div>
           <div className="bg-slate-50 rounded-lg p-4 text-center">
             <TrendingUp className="w-6 h-6 text-slate-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-slate-900">
-              {transcription.confidence || '--'}%
+              {currentTranscription.confidence || '--'}%
             </div>
             <div className="text-sm text-slate-600">準確度</div>
           </div>
           <div className="bg-slate-50 rounded-lg p-4 text-center">
             <Users className="w-6 h-6 text-slate-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-slate-900">
-              {transcription.speakers?.length || '--'}
+              {currentTranscription.speakers?.length || '--'}
             </div>
             <div className="text-sm text-slate-600">對話者</div>
           </div>
         </div>
 
-        {/* Speaker Legend */}
-        {transcription.speakers && transcription.speakers.length > 0 && (
-          <div className="mb-6">
-            <h4 className="text-sm font-medium text-slate-700 mb-3">對話者標識</h4>
-            <div className="flex flex-wrap gap-3">
-              {transcription.speakers.map((speaker) => (
-                <div key={speaker.id} className="flex items-center space-x-2 bg-slate-50 rounded-full px-3 py-1">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: speaker.color }}
-                  />
-                  <span className="text-sm font-medium text-slate-700">{speaker.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Speaker Editor */}
+        <SpeakerEditor 
+          transcription={currentTranscription}
+          onSpeakersUpdated={handleSpeakersUpdated}
+        />
 
         {/* Transcript Text */}
-        {transcription.segments && transcription.segments.length > 0 && (
+        {currentTranscription.segments && currentTranscription.segments.length > 0 && (
           <div className="space-y-4" id="transcriptContent">
-            {transcription.segments.map((segment, index) => {
-              const speaker = transcription.speakers?.find(s => s.id === segment.speaker);
+            {currentTranscription.segments.map((segment, index) => {
+              const speaker = currentTranscription.speakers?.find(s => s.id === segment.speaker);
               return (
                 <div key={index} className="flex space-x-4 group">
                   <div className="flex-shrink-0 text-xs text-slate-500 font-mono mt-1 w-16">
