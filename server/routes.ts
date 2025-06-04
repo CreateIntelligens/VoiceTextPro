@@ -100,7 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[LOG-${id}] Using custom keywords: ${customKeywords}`);
       }
       
-      const args = ["server/transcription_real.py", filePath, id.toString()];
+      const args = ["fixed_transcription.py", filePath, id.toString()];
       if (customKeywords) {
         args.push(customKeywords);
       }
