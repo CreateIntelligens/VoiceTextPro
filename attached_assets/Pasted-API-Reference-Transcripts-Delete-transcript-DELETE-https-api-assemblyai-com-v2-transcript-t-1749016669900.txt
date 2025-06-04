@@ -1,0 +1,474 @@
+API Reference
+Transcripts
+Delete transcript
+
+DELETE
+https://api.assemblyai.com/v2/transcript/:transcript_id
+DELETE
+/v2/transcript/:transcript_id
+
+curl -X DELETE https://api.assemblyai.com \
+     -H "Authorization: <Authorization>"
+Try it
+200
+Example_0
+
+{
+  "id": "47b95ba5-8889-44d8-bc80-5de38306e582",
+  "audio_url": "http://deleted_by_user",
+  "status": "completed",
+  "webhook_auth": false,
+  "auto_highlights": false,
+  "redact_pii": false,
+  "summarization": false,
+  "language_model": "assemblyai_default",
+  "acoustic_model": "assemblyai_default",
+  "language_code": null,
+  "language_detection": false,
+  "language_confidence_threshold": null,
+  "language_confidence": null,
+  "speech_model": null,
+  "text": "Deleted by user.",
+  "words": null,
+  "utterances": null,
+  "confidence": null,
+  "audio_duration": 390,
+  "punctuate": null,
+  "format_text": null,
+  "disfluencies": true,
+  "webhook_url": "http://deleted_by_user",
+  "webhook_status_code": null,
+  "webhook_auth_header_name": null,
+  "auto_highlights_result": null,
+  "audio_start_from": null,
+  "audio_end_at": null,
+  "boost_param": null,
+  "filter_profanity": null,
+  "redact_pii_audio": null,
+  "redact_pii_audio_quality": null,
+  "redact_pii_policies": null,
+  "redact_pii_sub": null,
+  "speaker_labels": null,
+  "speakers_expected": null,
+  "content_safety": null,
+  "content_safety_labels": null,
+  "iab_categories": null,
+  "iab_categories_result": null,
+  "custom_spelling": null,
+  "auto_chapters": false,
+  "chapters": null,
+  "summary_type": null,
+  "summary_model": null,
+  "summary": null,
+  "topics": null,
+  "sentiment_analysis": false,
+  "sentiment_analysis_results": null,
+  "entity_detection": false,
+  "entities": null,
+  "speech_threshold": null,
+  "throttled": null,
+  "error": null,
+  "dual_channel": null,
+  "speed_boost": null,
+  "word_boost": null,
+  "custom_topics": null
+}
+To delete your transcriptions on our EU server, replace api.assemblyai.com with api.eu.assemblyai.com.
+Remove the data from the transcript and mark it as deleted.
+
+Path parameters
+transcript_id
+string
+Required
+ID of the transcript
+
+Headers
+Authorization
+string
+Required
+Response
+The deleted transcript response
+
+id
+string
+format: "uuid"
+The unique identifier of your transcript
+
+audio_url
+string
+format: "url"
+The URL of the media that was transcribed
+
+status
+enum
+The status of your transcript. Possible values are queued, processing, completed, or error.
+
+Allowed values:
+queued
+processing
+completed
+error
+webhook_auth
+boolean
+Whether webhook authentication details were provided
+
+auto_highlights
+boolean
+Whether Key Phrases is enabled, either true or false
+
+redact_pii
+boolean
+Whether PII Redaction is enabled, either true or false
+
+summarization
+boolean
+Whether Summarization is enabled, either true or false
+
+language_model
+string
+Deprecated
+The language model that was used for the transcript
+
+acoustic_model
+string
+Deprecated
+The acoustic model that was used for the transcript
+
+language_code
+enum
+Optional
+The language of your audio file. Possible values are found in Supported Languages. The default value is ‘en_us’.
+
+
+Show 102 enum values
+language_detection
+boolean
+Optional
+Whether Automatic language detection is enabled, either true or false
+
+language_confidence_threshold
+double
+Optional
+The confidence threshold for the automatically detected language. An error will be returned if the language confidence is below this threshold.
+
+language_confidence
+double
+Optional
+>=0
+<=1
+The confidence score for the detected language, between 0.0 (low confidence) and 1.0 (high confidence)
+
+speech_model
+enum
+Optional
+The speech model used for the transcription. When null, the default model is used.
+
+Allowed values:
+best
+nano
+slam-1
+universal
+text
+string
+Optional
+The textual transcript of your media file
+
+words
+list of objects
+Optional
+An array of temporally-sequential word objects, one for each word in the transcript. See Speech recognition for more information.
+
+
+Show 6 properties
+utterances
+list of objects
+Optional
+When multichannel or speaker_labels is enabled, a list of turn-by-turn utterance objects. See Speaker diarization and Multichannel transcription for more information.
+
+
+Show 7 properties
+confidence
+double
+Optional
+>=0
+<=1
+The confidence score for the transcript, between 0.0 (low confidence) and 1.0 (high confidence)
+
+audio_duration
+integer
+Optional
+The duration of this transcript object’s media file, in seconds
+
+punctuate
+boolean
+Optional
+Whether Automatic Punctuation is enabled, either true or false
+
+format_text
+boolean
+Optional
+Whether Text Formatting is enabled, either true or false
+
+disfluencies
+boolean
+Optional
+Transcribe Filler Words, like “umm”, in your media file; can be true or false
+
+multichannel
+boolean
+Optional
+Whether Multichannel transcription was enabled in the transcription request, either true or false
+
+audio_channels
+integer
+Optional
+The number of audio channels in the audio file. This is only present when multichannel is enabled.
+
+webhook_url
+string
+Optional
+format: "url"
+The URL to which we send webhook requests. We sends two different types of webhook requests. One request when a transcript is completed or failed, and one request when the redacted audio is ready if redact_pii_audio is enabled.
+
+webhook_status_code
+integer
+Optional
+The status code we received from your server when delivering the transcript completed or failed webhook request, if a webhook URL was provided
+
+webhook_auth_header_name
+string
+Optional
+The header name to be sent with the transcript completed or failed webhook requests
+
+auto_highlights_result
+object
+Optional
+An array of results for the Key Phrases model, if it is enabled. See Key Phrases for more information.
+
+
+Show 2 properties
+audio_start_from
+integer
+Optional
+The point in time, in milliseconds, in the file at which the transcription was started
+
+audio_end_at
+integer
+Optional
+The point in time, in milliseconds, in the file at which the transcription was terminated
+
+boost_param
+string
+Optional
+The word boost parameter value
+
+filter_profanity
+boolean
+Optional
+Whether Profanity Filtering is enabled, either true or false
+
+redact_pii_audio
+boolean
+Optional
+Whether a redacted version of the audio file was generated, either true or false. See PII redaction for more information.
+
+redact_pii_audio_quality
+enum
+Optional
+The audio quality of the PII-redacted audio file, if redact_pii_audio is enabled. See PII redaction for more information.
+
+Allowed values:
+mp3
+wav
+redact_pii_policies
+list of enums
+Optional
+The list of PII Redaction policies that were enabled, if PII Redaction is enabled. See PII redaction for more information.
+
+
+Show 44 enum values
+redact_pii_sub
+enum
+Optional
+The replacement logic for detected PII, can be “entity_type” or “hash”. See PII redaction for more details.
+
+Allowed values:
+entity_name
+hash
+speaker_labels
+boolean
+Optional
+Whether Speaker diarization is enabled, can be true or false
+
+speakers_expected
+integer
+Optional
+Tell the speaker label model how many speakers it should attempt to identify, up to 10. See Speaker diarization for more details.
+
+content_safety
+boolean
+Optional
+Whether Content Moderation is enabled, can be true or false
+
+content_safety_labels
+object
+Optional
+An array of results for the Content Moderation model, if it is enabled. See Content moderation for more information.
+
+
+Show 4 properties
+iab_categories
+boolean
+Optional
+Whether Topic Detection is enabled, can be true or false
+
+iab_categories_result
+object
+Optional
+The result of the Topic Detection model, if it is enabled. See Topic Detection for more information.
+
+
+Show 3 properties
+custom_spelling
+list of objects
+Optional
+Customize how words are spelled and formatted using to and from values
+
+
+Show 2 properties
+keyterms_prompt
+list of strings
+Optional
+Improve accuracy with up to 1000 domain-specific words or phrases (maximum 6 words per phrase).
+
+auto_chapters
+boolean
+Optional
+Whether Auto Chapters is enabled, can be true or false
+
+chapters
+list of objects
+Optional
+An array of temporally sequential chapters for the audio file
+
+
+Show 5 properties
+summary_type
+string
+Optional
+The type of summary generated, if Summarization is enabled
+
+summary_model
+string
+Optional
+The Summarization model used to generate the summary, if Summarization is enabled
+
+summary
+string
+Optional
+The generated summary of the media file, if Summarization is enabled
+
+topics
+list of strings
+Optional
+The list of custom topics provided if custom topics is enabled
+
+sentiment_analysis
+boolean
+Optional
+Whether Sentiment Analysis is enabled, can be true or false
+
+sentiment_analysis_results
+list of objects
+Optional
+An array of results for the Sentiment Analysis model, if it is enabled. See Sentiment Analysis for more information.
+
+
+Show 7 properties
+entity_detection
+boolean
+Optional
+Whether Entity Detection is enabled, can be true or false
+
+entities
+list of objects
+Optional
+An array of results for the Entity Detection model, if it is enabled. See Entity detection for more information.
+
+
+Show 4 properties
+speech_threshold
+double
+Optional
+Defaults to null. Reject audio files that contain less than this fraction of speech. Valid values are in the range [0, 1] inclusive.
+
+throttled
+boolean
+Optional
+True while a request is throttled and false when a request is no longer throttled
+
+error
+string
+Optional
+Error message of why the transcript failed
+
+dual_channel
+boolean
+Optional
+Deprecated
+Whether Dual channel transcription was enabled in the transcription request, either true or false
+
+speed_boost
+boolean
+Optional
+Deprecated
+Whether speed boost is enabled
+
+word_boost
+list of strings
+Optional
+Deprecated
+The list of custom vocabulary to boost transcription probability for
+
+prompt
+string
+Optional
+Deprecated
+This parameter does not currently have any functionality attached to it.
+
+custom_topics
+boolean
+Optional
+Deprecated
+Whether custom topics is enabled, either true or false
+
+Errors
+
+400
+Bad Request Error
+
+401
+Unauthorized Error
+
+404
+Not Found Error
+
+429
+Too Many Requests Error
+
+500
+Internal Server Error
+
+503
+Service Unavailable Error
+
+504
+Gateway Timeout Error
+Was this page helpful?
+Yes
+No
+Previous
+Run a task using LeMUR
+
+Next
+Built with

@@ -3,7 +3,6 @@
 import sys
 import time
 import assemblyai as aai
-import requests
 import json
 
 def check_transcription_status(transcript_id, transcription_db_id):
