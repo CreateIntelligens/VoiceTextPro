@@ -28,11 +28,42 @@ export class DatabaseStorage implements IStorage {
     
     if (!transcription) return undefined;
     
-    // Parse JSON fields
+    let speakers = undefined;
+    let segments = undefined;
+    
+    // Handle JSONB fields - they come as parsed objects from the database
+    if (transcription.speakers) {
+      if (Array.isArray(transcription.speakers)) {
+        speakers = transcription.speakers;
+      } else if (typeof transcription.speakers === 'string') {
+        try {
+          speakers = JSON.parse(transcription.speakers);
+        } catch (error) {
+          console.error('Speakers parse error for transcription', transcription.id, error);
+        }
+      } else {
+        speakers = transcription.speakers;
+      }
+    }
+    
+    if (transcription.segments) {
+      if (Array.isArray(transcription.segments)) {
+        segments = transcription.segments;
+      } else if (typeof transcription.segments === 'string') {
+        try {
+          segments = JSON.parse(transcription.segments);
+        } catch (error) {
+          console.error('Segments parse error for transcription', transcription.id, error);
+        }
+      } else {
+        segments = transcription.segments;
+      }
+    }
+    
     return {
       ...transcription,
-      speakers: transcription.speakers ? JSON.parse(transcription.speakers as string) : undefined,
-      segments: transcription.segments ? JSON.parse(transcription.segments as string) : undefined,
+      speakers,
+      segments,
     };
   }
 
@@ -56,27 +87,35 @@ export class DatabaseStorage implements IStorage {
       let speakers = undefined;
       let segments = undefined;
       
-      // Safe parse speakers
+      // Handle JSONB fields - they come as parsed objects from the database
       if (transcription.speakers) {
-        try {
-          const speakersStr = transcription.speakers as string;
-          if (speakersStr.startsWith('[') || speakersStr.startsWith('{')) {
-            speakers = JSON.parse(speakersStr);
+        if (Array.isArray(transcription.speakers)) {
+          speakers = transcription.speakers;
+        } else if (typeof transcription.speakers === 'string') {
+          try {
+            speakers = JSON.parse(transcription.speakers);
+          } catch (error) {
+            console.error('Speakers parse error for transcription', transcription.id, error);
           }
-        } catch (error) {
-          console.error('Speakers parse error for transcription', transcription.id, error);
+        } else {
+          // Already a parsed object from JSONB
+          speakers = transcription.speakers;
         }
       }
       
-      // Safe parse segments
+      // Handle JSONB fields - they come as parsed objects from the database
       if (transcription.segments) {
-        try {
-          const segmentsStr = transcription.segments as string;
-          if (segmentsStr.startsWith('[') || segmentsStr.startsWith('{')) {
-            segments = JSON.parse(segmentsStr);
+        if (Array.isArray(transcription.segments)) {
+          segments = transcription.segments;
+        } else if (typeof transcription.segments === 'string') {
+          try {
+            segments = JSON.parse(transcription.segments);
+          } catch (error) {
+            console.error('Segments parse error for transcription', transcription.id, error);
           }
-        } catch (error) {
-          console.error('Segments parse error for transcription', transcription.id, error);
+        } else {
+          // Already a parsed object from JSONB
+          segments = transcription.segments;
         }
       }
       
