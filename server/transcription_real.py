@@ -26,12 +26,13 @@ def get_speaker_color(speaker_index):
     return colors[speaker_index % len(colors)]
 
 def main():
-    if len(sys.argv) != 3:
-        print("ERROR: Usage: python transcription_real.py <audio_file_path> <transcription_id>", file=sys.stderr, flush=True)
+    if len(sys.argv) < 3:
+        print("ERROR: Usage: python transcription_real.py <audio_file_path> <transcription_id> [keywords]", file=sys.stderr, flush=True)
         sys.exit(1)
     
     audio_file_path = sys.argv[1]
     transcription_id = sys.argv[2]
+    custom_keywords = sys.argv[3] if len(sys.argv) > 3 else ""
     
     # Set API key
     aai.settings.api_key = "0f0da6a87ee34439b8188dc991414cca"
@@ -47,13 +48,17 @@ def main():
         
         print("PROGRESS:20", flush=True)
         
-        # Configure transcription for Chinese with speaker detection and punctuation
+        # Configure transcription with Universal-1 model (latest high-accuracy model) and keyword prompts
+        keywords = ["商業", "會議", "策略", "客戶", "平台", "通路", "社群", "行銷", "經營", "管理", "分析", "方案", "問題", "解決", "市場", "競爭", "價值", "服務", "產品", "技術"]
+        
         config = aai.TranscriptionConfig(
             speaker_labels=True,
             language_code="zh",
-            speech_model=aai.SpeechModel.best,
+            speech_model=aai.SpeechModel.universal_1,
             punctuate=True,
-            format_text=True
+            format_text=True,
+            word_boost=keywords,
+            boost_param="high"
         )
         
         print("PROGRESS:30", flush=True)

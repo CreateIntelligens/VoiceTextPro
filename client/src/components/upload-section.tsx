@@ -1,7 +1,9 @@
 import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, File, X, CloudUpload } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Upload, File, X, CloudUpload, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface UploadSectionProps {
