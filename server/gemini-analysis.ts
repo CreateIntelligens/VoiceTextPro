@@ -49,8 +49,32 @@ export class GeminiAnalyzer {
       throw new Error('Missing speakers or segments data');
     }
 
-    const speakers = JSON.parse(transcription.speakers as string);
-    const segments = JSON.parse(transcription.segments as string);
+    // Check data types without logging objects that cause JSON errors
+    
+    let speakers: any[];
+    let segments: any[];
+    
+    try {
+      // Handle different possible formats
+      if (Array.isArray(transcription.speakers)) {
+        speakers = transcription.speakers;
+      } else if (typeof transcription.speakers === 'string') {
+        speakers = JSON.parse(transcription.speakers);
+      } else {
+        speakers = transcription.speakers as any;
+      }
+
+      if (Array.isArray(transcription.segments)) {
+        segments = transcription.segments;
+      } else if (typeof transcription.segments === 'string') {
+        segments = JSON.parse(transcription.segments);
+      } else {
+        segments = transcription.segments as any;
+      }
+    } catch (error) {
+      console.error('Error parsing speakers/segments:', error);
+      throw new Error('Invalid speakers or segments data format');
+    }
 
     const speakerList = speakers
       .map((s: any) => `- ${s.id}: ${s.label}`)
