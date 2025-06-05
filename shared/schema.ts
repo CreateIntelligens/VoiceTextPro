@@ -18,6 +18,15 @@ export const transcriptions = pgTable("transcriptions", {
   duration: integer("duration"), // Audio duration in seconds
   wordCount: integer("word_count"),
   errorMessage: text("error_message"),
+  // Advanced features
+  summary: text("summary"), // Auto-generated summary
+  summaryType: text("summary_type"), // bullets, paragraph, headline
+  autoHighlights: jsonb("auto_highlights"), // Key phrases and highlights
+  autoChapters: jsonb("auto_chapters"), // Auto-generated chapters
+  topicsDetection: jsonb("topics_detection"), // Detected topics and IAB categories
+  sentimentAnalysis: jsonb("sentiment_analysis"), // Sentiment analysis results
+  entityDetection: jsonb("entity_detection"), // Named entities (persons, locations, etc.)
+  contentSafety: jsonb("content_safety"), // Content moderation results
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -40,6 +49,14 @@ export const updateTranscriptionSchema = createInsertSchema(transcriptions).pick
   duration: true,
   wordCount: true,
   errorMessage: true,
+  summary: true,
+  summaryType: true,
+  autoHighlights: true,
+  autoChapters: true,
+  topicsDetection: true,
+  sentimentAnalysis: true,
+  entityDetection: true,
+  contentSafety: true,
 }).partial();
 
 export type InsertTranscription = z.infer<typeof insertTranscriptionSchema>;
