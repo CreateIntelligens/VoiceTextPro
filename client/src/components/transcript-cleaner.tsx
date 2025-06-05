@@ -60,68 +60,31 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
     if (!cleanedResult) return;
 
     try {
-      // 保留所有原始講者和段落結構，但將文字內容替換為整理後的文字
+      // 將整理後的完整文字替換為單個段落，保留第一個原始講者
       const originalSpeakers = transcription.speakers || [];
-      const originalSegments = transcription.segments || [];
+      const firstSpeaker = originalSpeakers[0] || {
+        id: 'speaker_1',
+        label: '講者 A', 
+        color: '#3B82F6'
+      };
       
-      // 將整理後的文字按段落分割
-      const cleanedParagraphs = cleanedResult.cleanedText.split('\n\n').filter(p => p.trim());
-      
-      // 如果有原始段落，保留講者和時間結構，替換文字內容
-      let updatedSegments;
-      if (originalSegments.length > 0 && cleanedParagraphs.length > 0) {
-        updatedSegments = originalSegments.map((segment, index) => {
-          if (index < cleanedParagraphs.length) {
-            return {
-              ...segment,
-              text: cleanedParagraphs[index].trim(),
-              confidence: 100
-            };
-          } else {
-            // 如果整理後段落較少，後面的段落設為空
-            return {
-              ...segment,
-              text: '',
-              confidence: 100
-            };
-          }
-        });
-        
-        // 如果整理後段落較多，添加額外段落
-        if (cleanedParagraphs.length > originalSegments.length) {
-          const additionalParagraphs = cleanedParagraphs.slice(originalSegments.length);
-          const lastSegment = originalSegments[originalSegments.length - 1];
-          
-          additionalParagraphs.forEach((paragraph, index) => {
-            updatedSegments.push({
-              text: paragraph.trim(),
-              speaker: lastSegment.speaker,
-              start: lastSegment.end + (index * 1000),
-              end: lastSegment.end + ((index + 1) * 1000),
-              confidence: 100,
-              timestamp: `${Math.floor((lastSegment.end + (index * 1000)) / 60000).toString().padStart(2, '0')}:${Math.floor(((lastSegment.end + (index * 1000)) % 60000) / 1000).toString().padStart(2, '0')}`
-            });
-          });
-        }
-      } else {
-        // 如果沒有原始段落，創建新的段落結構
-        updatedSegments = cleanedParagraphs.map((paragraph, index) => ({
-          text: paragraph.trim(),
-          speaker: originalSpeakers[0]?.id || 'speaker_1',
-          start: index * 10000,
-          end: (index + 1) * 10000,
-          confidence: 100,
-          timestamp: `${Math.floor(index / 6).toString().padStart(2, '0')}:${((index % 6) * 10).toString().padStart(2, '0')}`
-        }));
-      }
+      // 創建單個段落包含完整的整理後文字
+      const cleanedSegment = [{
+        text: cleanedResult.cleanedText,
+        speaker: firstSpeaker.id,
+        start: 0,
+        end: 1000,
+        confidence: 100,
+        timestamp: '00:00'
+      }];
 
       const response = await fetch(`/api/transcriptions/${transcription.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           transcriptText: cleanedResult.cleanedText,
-          segments: updatedSegments,
-          speakers: originalSpeakers // 保留原始講者信息
+          segments: cleanedSegment,
+          speakers: originalSpeakers // 保留所有原始講者信息
         })
       });
 

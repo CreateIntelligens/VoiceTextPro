@@ -323,34 +323,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const data = await response.json();
       
-      function formatTimestamp(milliseconds: number): string {
-        const totalSeconds = Math.floor(milliseconds / 1000);
+      // Restore original segments and speakers from utterances
+      const originalSegments = data.utterances?.map((utterance: any) => {
+        const totalSeconds = Math.floor(utterance.start / 1000);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
-        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-      }
+        const timestamp = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        return {
+          text: utterance.text,
+          speaker: utterance.speaker,
+          start: utterance.start,
+          end: utterance.end,
+          confidence: Math.round(utterance.confidence * 100),
+          timestamp: timestamp
+        };
+      }) || [];
 
-      function getSpeakerColor(index: number): string {
-        const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16'];
-        return colors[index % colors.length];
-      }
+      // Get unique speakers and create speaker objects
+      const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16'];
+      const speakerIds = data.utterances?.map((u: any) => u.speaker) || [];
+      const uniqueSpeakerIds: string[] = [];
+      speakerIds.forEach((id: string) => {
+        if (!uniqueSpeakerIds.includes(id)) {
+          uniqueSpeakerIds.push(id);
+        }
+      });
       
-      // Restore original segments and speakers
-      const originalSegments = data.utterances?.map((utterance: any, index: number) => ({
-        text: utterance.text,
-        speaker: utterance.speaker,
-        start: utterance.start,
-        end: utterance.end,
-        confidence: Math.round(utterance.confidence * 100),
-        timestamp: formatTimestamp(utterance.start)
-      })) || [];
-
-      const originalSpeakers = [...new Set(data.utterances?.map((u: any) => u.speaker) || [])]
-        .map((speakerId, index) => ({
-          id: speakerId,
-          label: `講者 ${String.fromCharCode(65 + index)}`,
-          color: getSpeakerColor(index)
-        }));
+      const originalSpeakers = uniqueSpeakerIds.map((speakerId, index) => ({
+        id: speakerId,
+        label: `講者 ${speakerId}`,
+        color: colors[index % colors.length]
+      }));
 
       // Update transcription with original data
       const updatedTranscription = await storage.updateTranscription(id, {
