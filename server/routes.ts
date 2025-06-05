@@ -40,8 +40,7 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Initialize admin user
-  await AuthService.initializeAdmin();
+  // Note: Admin user will be initialized on first login attempt
 
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
