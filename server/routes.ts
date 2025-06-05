@@ -305,8 +305,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[LOG-${id}] Using custom keywords: ${customKeywords}`);
       }
       
-      const args = ["simple_transcription.py", filePath, id.toString()];
-      if (customKeywords) {
+      // Check if we should use recovery mode for stuck transcriptions
+      const useRecovery = req.body.useRecovery || false;
+      const scriptName = useRecovery ? "recovery_transcription.py" : "simple_transcription.py";
+      
+      const args = [scriptName, filePath, id.toString()];
+      if (customKeywords && !useRecovery) {
         args.push(customKeywords);
       }
       const pythonProcess = spawn("python3", args);
