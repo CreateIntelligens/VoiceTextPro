@@ -31,12 +31,49 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     }
   }, []);
 
+  const validateFile = (file: File): boolean => {
+    // 支援 iPhone 語音備忘錄和其他常見音頻格式
+    const allowedTypes = [
+      'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/aac', 'audio/flac', 'audio/mpeg',
+      'audio/mp4', 'audio/x-m4a', 'audio/mpeg4-generic', 'audio/aiff', 'audio/x-aiff',
+      'audio/ogg', 'audio/webm', 'audio/3gpp', 'audio/amr'
+    ];
+    const allowedExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.mp4', '.aiff', '.aif', '.ogg', '.webm', '.3gp', '.amr'];
+    const maxSize = 100 * 1024 * 1024; // 100MB
+
+    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(extension)) {
+      toast({
+        title: "檔案格式不支援",
+        description: "請選擇支援的音頻格式，包括 iPhone 語音備忘錄 (M4A) 等格式。",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (file.size > maxSize) {
+      toast({
+        title: "檔案過大",
+        description: "檔案大小不能超過 100MB。",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleFileSelect = useCallback((file: File) => {
+    if (validateFile(file)) {
+      setSelectedFile(file);
+    }
+  }, []);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    if (!isDisabled) {
-      setIsDragOver(true);
-    }
-  }, [isDisabled]);
+    setIsDragOver(true);
+  }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -47,45 +84,16 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     e.preventDefault();
     setIsDragOver(false);
     
-    if (isDisabled) return;
-
     const files = Array.from(e.dataTransfer.files);
-    const audioFile = files.find(file => 
-      file.type.startsWith('audio/') || 
-      /\.(mp3|wav|m4a|aac|flac|mp4|aiff|aif|ogg|webm|3gp|amr)$/i.test(file.name)
-    );
-
-    if (audioFile) {
-      if (audioFile.size > 100 * 1024 * 1024) { // 100MB limit
-        toast({
-          title: "檔案過大",
-          description: "檔案大小不能超過 100MB",
-          variant: "destructive",
-        });
-        return;
-      }
-      setSelectedFile(audioFile);
-    } else {
-      toast({
-        title: "不支援的檔案格式",
-        description: "請選擇音頻檔案（MP3、WAV、M4A 等）",
-        variant: "destructive",
-      });
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
     }
-  }, [isDisabled, toast]);
+  }, [handleFileSelect]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 100 * 1024 * 1024) { // 100MB limit
-        toast({
-          title: "檔案過大",
-          description: "檔案大小不能超過 100MB",
-          variant: "destructive",
-        });
-        return;
-      }
-      setSelectedFile(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileSelect(files[0]);
     }
   };
 
@@ -172,6 +180,14 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     }
   };
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   const handleRecordingComplete = async (audioBlob: Blob, filename: string) => {
     setIsUploading(true);
     try {
@@ -213,14 +229,6 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     }
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   return (
     <div className="mb-8">
       <div className="text-center mb-6">
@@ -249,87 +257,181 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
 
         <TabsContent value="upload" className="space-y-4">
           <Card 
-            className={`border-2 border-dashed transition-colors duration-200 cursor-pointer ${
-              isDragOver 
-                ? 'border-primary bg-blue-50' 
-                : 'border-slate-300 hover:border-primary'
-            } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+        className={`border-2 border-dashed transition-colors duration-200 cursor-pointer ${
+          isDragOver 
+            ? 'border-primary bg-blue-50' 
+            : 'border-slate-300 hover:border-primary'
+        } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <CardContent className="p-8 text-center">
+          <div className="mb-4">
+            <CloudUpload className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">拖拽檔案至此處或點擊上傳</h3>
+          <p className="text-slate-600 mb-4">最大檔案大小：100MB</p>
+          <Button 
+            onClick={() => !isDisabled && document.getElementById('audioFile')?.click()}
+            disabled={isDisabled}
+            className="bg-primary hover:bg-blue-700"
           >
-            <CardContent className="p-6 sm:p-8 text-center">
-              <div className="mb-4">
-                <CloudUpload className="w-12 h-12 sm:w-16 sm:h-16 text-slate-400 mx-auto mb-4" />
-              </div>
-              <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">拖拽檔案至此處或點擊上傳</h3>
-              <p className="text-sm sm:text-base text-slate-600 mb-4">支援 MP3、WAV、M4A 等格式，最大檔案大小：100MB</p>
-              <Button 
-                onClick={() => !isDisabled && document.getElementById('audioFile')?.click()}
-                disabled={isDisabled}
-                className="bg-primary hover:bg-blue-700"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                選擇檔案
-              </Button>
-              <input
-                type="file"
-                id="audioFile"
-                accept=".mp3,.wav,.m4a,.aac,.flac,.mp4,.aiff,.aif,.ogg,.webm,.3gp,.amr"
-                className="hidden"
-                onChange={handleFileInputChange}
-                disabled={isDisabled}
-              />
-            </CardContent>
-          </Card>
+            <Upload className="w-4 h-4 mr-2" />
+            選擇檔案
+          </Button>
+          <input
+            type="file"
+            id="audioFile"
+            accept=".mp3,.wav,.m4a,.aac,.flac,.mp4,.aiff,.aif,.ogg,.webm,.3gp,.amr"
+            className="hidden"
+            onChange={handleFileInputChange}
+            disabled={isDisabled}
+          />
+        </CardContent>
+      </Card>
 
-          {/* Selected file preview */}
-          {selectedFile && (
-            <Card className="mt-4">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <File className="w-8 h-8 text-blue-600" />
-                    <div>
-                      <p className="font-medium text-slate-900 break-all">{selectedFile.name}</p>
-                      <p className="text-sm text-slate-500">{formatFileSize(selectedFile.size)}</p>
-                    </div>
-                  </div>
+      {/* Keywords input section */}
+      <Card className="mt-4">
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Tag className="w-5 h-5 text-blue-600" />
+                <Label htmlFor="keywords" className="text-sm font-medium text-slate-900">
+                  自定義關鍵字（可選）
+                </Label>
+                {getKeywordCount() > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {getKeywordCount()} 個關鍵字
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                {savedKeywords && savedKeywords !== keywords && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSelectedFile(null)}
-                    disabled={isUploading || isDisabled}
+                    onClick={handleLoadSavedKeywords}
+                    className="text-xs"
                   >
-                    <X className="w-4 h-4" />
+                    載入已儲存
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {selectedFile && (
-            <div className="mt-6 text-center">
-              <Button
-                onClick={handleUpload}
-                disabled={isUploading || isDisabled}
-                className="bg-success hover:bg-emerald-700 text-white font-semibold px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg w-full sm:w-auto"
-                size="lg"
-              >
-                {isUploading ? (
-                  <>
-                    <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    上傳中...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4 mr-2" />
-                    開始轉錄
-                  </>
                 )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSaveKeywords}
+                  disabled={!keywords.trim() || keywords === savedKeywords}
+                  className="text-xs"
+                >
+                  <Save className="w-3 h-3 mr-1" />
+                  儲存
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetKeywords}
+                  disabled={!keywords.trim()}
+                  className="text-xs"
+                >
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                  清除
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <Textarea
+                id="keywords"
+                placeholder="輸入英文專業詞彙以提高轉錄準確度，例如：AiTAGO, Fanpokka, LINE, LIFF 等&#10;多個關鍵字請用逗號分隔，每行一個或用逗號分隔"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                className="min-h-[100px] resize-none"
+                disabled={isDisabled}
+              />
+              
+              <div className="bg-blue-50 rounded-lg p-3 space-y-2">
+                <div className="flex items-start space-x-2">
+                  <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-blue-800 space-y-1">
+                    <p><strong>使用說明：</strong></p>
+                    <ul className="space-y-1 ml-2">
+                      <li>• 輸入英文關鍵字（公司名稱、產品名稱、技術術語等）</li>
+                      <li>• 多個關鍵字用<strong>逗號分隔</strong>：AiTAGO, LINE, LIFF</li>
+                      <li>• 或<strong>每行一個</strong>關鍵字</li>
+                      <li>• 點擊「儲存」按鈕保存設定，下次自動載入</li>
+                      <li>• 系統僅支援英文字母、數字、連字號和底線</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              {getKeywordCount() > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {validateKeywords(keywords).slice(0, 10).map((keyword, index) => (
+                    <Badge key={index} variant="outline" className="text-xs">
+                      {keyword}
+                    </Badge>
+                  ))}
+                  {validateKeywords(keywords).length > 10 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{validateKeywords(keywords).length - 10} 更多
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedFile && (
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <File className="w-8 h-8 text-primary" />
+                <div>
+                  <p className="font-medium text-slate-900">{selectedFile.name}</p>
+                  <p className="text-sm text-slate-600">{formatFileSize(selectedFile.size)}</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedFile(null)}
+                disabled={isUploading || isDisabled}
+              >
+                <X className="w-4 h-4" />
               </Button>
             </div>
-          )}
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedFile && (
+        <div className="mt-6 text-center">
+          <Button
+            onClick={handleUpload}
+            disabled={isUploading || isDisabled}
+            className="bg-success hover:bg-emerald-700 text-white font-semibold px-8 py-4 text-lg"
+            size="lg"
+          >
+            {isUploading ? (
+              <>
+                <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                上傳中...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4 mr-2" />
+                開始轉錄
+              </>
+            )}
+          </Button>
+        </div>
+      )}
         </TabsContent>
       </Tabs>
 
