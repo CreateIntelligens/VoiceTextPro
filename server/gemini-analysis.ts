@@ -99,29 +99,38 @@ ${transcriptText}
       const speakerLabels = originalSpeakers.map(s => s.label).join('、');
       
       const prompt = `
-你是一位專業的對話分析專家。請將以下整理後的文字，根據語意和邏輯智能分配給不同的講者。
+你是一位專業的會議逐字稿分析專家。請將以下整理後的會議內容，根據語意邏輯和對話結構智能分配給不同講者，並創建合理的分段。
 
-原始講者：${speakerLabels}
+可用講者：
+${originalSpeakers.map(s => `- ${s.id}: ${s.label}`).join('\n')}
 
-整理後文字：
+整理後的會議內容：
 ${cleanedText}
 
-請分析文字內容，根據語意轉換、話題變化、語氣變化等線索，將文字分配給不同講者。
+分析指導原則：
+1. 主導發言（提出問題、做決策、總結觀點）→ 講者A
+2. 技術解釋和具體實施說明 → 講者B  
+3. 市場分析和客戶需求討論 → 講者C
+4. 專案進度和時程安排 → 講者D
+5. 補充意見、回應和提問 → 講者E
 
-要求：
-1. 根據語意邏輯分段，每個段落分配給一個講者
-2. 保持文字的完整性和連貫性
-3. 合理分配給不同講者，避免某個講者說話時間過長
-4. 段落應該具有完整的語意
-5. 分析語氣、話題轉換、提問等線索來判斷講者變化
+分段要求：
+- 每個段落50-150字，保持完整語意
+- 根據話題轉換、提問回答、語氣變化分配講者
+- 確保每位講者都有合理的發言機會
+- 保持對話的自然流程和邏輯順序
+- 分段時考慮實際會議中的發言模式
 
-請以 JSON 格式回應：
+請以JSON格式回應，必須包含多個分段和多位講者：
 {
   "segments": [
     {
-      "text": "段落文字內容",
-      "speakerId": "講者ID（如A、B、C等）",
-      "reasoning": "分配理由"
+      "text": "完整的段落內容",
+      "speakerId": "A"
+    },
+    {
+      "text": "另一段落內容", 
+      "speakerId": "B"
     }
   ]
 }
@@ -370,6 +379,7 @@ ${conversationText}
     try {
       let jsonText = response.trim();
       
+      // Remove markdown formatting
       jsonText = jsonText
         .replace(/```json\s*/g, '')
         .replace(/```\s*/g, '')
@@ -422,11 +432,26 @@ ${conversationText}
       
       const parsed = JSON.parse(jsonText);
       
-      return {
-        segments: parsed.segments || []
-      };
+      // Validate segments array
+      if (parsed.segments && Array.isArray(parsed.segments)) {
+        // Filter valid segments
+        const validSegments = parsed.segments.filter(seg => 
+          seg.text && typeof seg.text === 'string' && seg.text.trim().length > 0 &&
+          seg.speakerId && typeof seg.speakerId === 'string'
+        );
+        
+        console.log(`Parsed ${validSegments.length} valid segments from AI response`);
+        
+        return {
+          segments: validSegments
+        };
+      }
+      
+      throw new Error('Invalid segments format');
     } catch (error) {
-      console.error('Failed to parse segment response:', error);
+      console.error('Failed to parse segment response:', error, 'Response:', response.substring(0, 500));
+      
+      // Return empty segments array on error
       return {
         segments: []
       };
