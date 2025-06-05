@@ -205,15 +205,15 @@ export default function Admin() {
   const pendingApplications = applications.filter(app => app.status === 'pending');
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">管理員面板</h1>
-          <p className="text-gray-600">管理用戶帳號和申請</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">管理員面板</h1>
+          <p className="text-sm sm:text-base text-gray-600">管理用戶帳號和申請</p>
         </div>
 
         {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">待處理申請</CardTitle>
@@ -261,47 +261,53 @@ export default function Admin() {
 
         {/* Pending Applications */}
         {pendingApplications.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center">
+          <Card className="mb-6 sm:mb-8">
+            <CardHeader className="px-4 sm:px-6">
+              <CardTitle className="flex items-center text-lg sm:text-xl">
                 <UserPlus className="w-5 h-5 mr-2 text-orange-600" />
                 待處理申請 ({pendingApplications.length})
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 sm:px-6">
               <div className="space-y-4">
                 {pendingApplications.map((application) => (
-                  <div key={application.id} className="border rounded-lg p-4 bg-white">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
+                  <div key={application.id} className="border rounded-lg p-3 sm:p-4 bg-white">
+                    <div className="space-y-3 sm:space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center mb-2">
+                        <div className="flex items-center mb-2 sm:mb-0">
                           <Mail className="w-4 h-4 text-gray-400 mr-2" />
-                          <span className="font-medium">{application.email}</span>
-                          {application.name && (
-                            <span className="text-gray-500 ml-2">({application.name})</span>
-                          )}
+                          <span className="font-medium text-sm sm:text-base break-all">{application.email}</span>
                         </div>
-                        <div className="flex items-center text-sm text-gray-500 mb-3">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          申請時間：{new Date(application.appliedAt).toLocaleString('zh-TW')}
-                        </div>
-                        {application.reason && (
-                          <div className="bg-gray-50 p-3 rounded mb-3">
-                            <p className="text-sm"><strong>申請理由：</strong>{application.reason}</p>
-                          </div>
+                        {application.name && (
+                          <span className="text-gray-500 text-sm sm:ml-2">({application.name})</span>
                         )}
-                        <div className="flex items-center space-x-4">
-                          <Input
-                            type="password"
-                            placeholder="為新用戶設定密碼"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            className="max-w-xs"
-                          />
+                      </div>
+                      
+                      <div className="flex items-center text-xs sm:text-sm text-gray-500">
+                        <Calendar className="w-4 h-4 mr-1" />
+                        申請時間：{new Date(application.appliedAt).toLocaleString('zh-TW')}
+                      </div>
+                      
+                      {application.reason && (
+                        <div className="bg-gray-50 p-3 rounded">
+                          <p className="text-xs sm:text-sm"><strong>申請理由：</strong>{application.reason}</p>
+                        </div>
+                      )}
+                      
+                      <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                        <Input
+                          type="password"
+                          placeholder="為新用戶設定密碼"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full sm:max-w-xs"
+                        />
+                        <div className="flex space-x-2">
                           <Button
                             onClick={() => handleApproveApplication(application.id)}
                             disabled={processingId === application.id || !newPassword}
-                            className="bg-green-600 hover:bg-green-700"
+                            className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
+                            size="sm"
                           >
                             {processingId === application.id ? (
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
@@ -314,6 +320,8 @@ export default function Admin() {
                             variant="destructive"
                             onClick={() => handleRejectApplication(application.id)}
                             disabled={processingId === application.id}
+                            className="flex-1 sm:flex-none"
+                            size="sm"
                           >
                             <X className="w-4 h-4 mr-2" />
                             拒絕
@@ -330,30 +338,67 @@ export default function Admin() {
 
         {/* Users List */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
+          <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="flex items-center text-lg sm:text-xl">
               <Users className="w-5 h-5 mr-2 text-blue-600" />
               用戶列表 ({users.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
+          <CardContent className="px-4 sm:px-6">
+            {/* Mobile Card Layout */}
+            <div className="block sm:hidden space-y-4">
+              {users.map((user) => (
+                <div key={user.id} className="border rounded-lg p-4 bg-white">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="font-medium text-sm break-all">{user.email}</div>
+                      {user.name && (
+                        <div className="text-gray-500 text-sm mt-1">{user.name}</div>
+                      )}
+                    </div>
+                    <div className="ml-2">
+                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                        {user.role === 'admin' ? '管理員' : '用戶'}
+                      </Badge>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                    <span>狀態：</span>
+                    {getStatusBadge(user.status)}
+                  </div>
+                  
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div>創建：{new Date(user.createdAt).toLocaleDateString('zh-TW')}</div>
+                    <div>
+                      最後登入：{user.lastLoginAt 
+                        ? new Date(user.lastLoginAt).toLocaleDateString('zh-TW')
+                        : '從未登入'
+                      }
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table Layout */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-2">Email</th>
-                    <th className="text-left py-2">姓名</th>
-                    <th className="text-left py-2">角色</th>
-                    <th className="text-left py-2">狀態</th>
-                    <th className="text-left py-2">創建時間</th>
-                    <th className="text-left py-2">最後登入</th>
+                    <th className="text-left py-2 text-sm font-medium">Email</th>
+                    <th className="text-left py-2 text-sm font-medium">姓名</th>
+                    <th className="text-left py-2 text-sm font-medium">角色</th>
+                    <th className="text-left py-2 text-sm font-medium">狀態</th>
+                    <th className="text-left py-2 text-sm font-medium">創建時間</th>
+                    <th className="text-left py-2 text-sm font-medium">最後登入</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((user) => (
                     <tr key={user.id} className="border-b">
-                      <td className="py-3">{user.email}</td>
-                      <td className="py-3">{user.name || '-'}</td>
+                      <td className="py-3 text-sm break-all">{user.email}</td>
+                      <td className="py-3 text-sm">{user.name || '-'}</td>
                       <td className="py-3">
                         <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                           {user.role === 'admin' ? '管理員' : '用戶'}

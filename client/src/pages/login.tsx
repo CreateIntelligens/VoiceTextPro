@@ -100,15 +100,16 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-            <FileText className="w-6 h-6 text-white" />
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader className="text-center px-4 sm:px-6">
+          <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-full flex items-center justify-center mb-4">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">
-            智能語音轉錄平台
+          <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+            <span className="hidden sm:inline">智能語音轉錄平台</span>
+            <span className="sm:hidden">轉錄平台</span>
           </CardTitle>
-          <p className="text-gray-600">
+          <p className="text-sm sm:text-base text-gray-600">
             {isLogin ? '登入您的帳號' : '申請新帳號'}
           </p>
         </CardHeader>
