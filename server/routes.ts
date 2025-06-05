@@ -305,7 +305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[LOG-${id}] Using custom keywords: ${customKeywords}`);
       }
       
-      const args = ["advanced_transcription.py", filePath, id.toString()];
+      const args = ["simple_transcription.py", filePath, id.toString()];
       if (customKeywords) {
         args.push(customKeywords);
       }
