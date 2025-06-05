@@ -138,16 +138,16 @@ export default function TranscriptionResultsPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
           {/* Left Sidebar - Transcription History */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 order-2 lg:order-1">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">轉錄記錄</CardTitle>
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="text-base sm:text-lg">轉錄記錄</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="space-y-1 max-h-96 overflow-y-auto">
+                <div className="space-y-1 max-h-80 sm:max-h-96 overflow-y-auto">
                   {transcriptions.length === 0 ? (
                     <div className="p-4 text-center text-slate-500">
                       <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />

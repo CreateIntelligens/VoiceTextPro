@@ -23,9 +23,9 @@ export default function TranscriptionPage() {
   const { data: transcription, refetch } = useQuery<TranscriptionStatus>({
     queryKey: ["/api/transcriptions", currentTranscriptionId],
     enabled: !!currentTranscriptionId,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Continue polling while processing
-      return data?.status === "processing" ? 2000 : false;
+      return query.state.data?.status === "processing" ? 2000 : false;
     },
   });
 
