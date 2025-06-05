@@ -78,12 +78,11 @@ def start_transcription(upload_url, api_key, custom_keywords=""):
     """Start transcription with advanced features"""
     print("🚀 Starting transcription with advanced features...")
     
-    # Build request data
+    # Build request data with automatic language detection
     data = {
         "audio_url": upload_url,
         "speaker_labels": True,
         "language_detection": True,
-        "language_code": "zh",
         "punctuate": True,
         "format_text": True,
         "disfluencies": False,
