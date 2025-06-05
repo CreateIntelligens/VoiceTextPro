@@ -387,7 +387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "找不到轉錄記錄" });
       }
 
-      const originalSpeakers = transcription.speakers || [];
+      const originalSpeakers = Array.isArray(transcription.speakers) ? transcription.speakers : [];
       if (originalSpeakers.length === 0) {
         return res.status(400).json({ message: "沒有原始講者資料" });
       }

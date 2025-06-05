@@ -60,47 +60,28 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
     if (!cleanedResult) return;
 
     try {
-      // 將整理後的完整文字替換為單個段落，保留第一個原始講者
-      const originalSpeakers = transcription.speakers || [];
-      const firstSpeaker = originalSpeakers[0] || {
-        id: 'speaker_1',
-        label: '講者 A', 
-        color: '#3B82F6'
-      };
-      
-      // 創建單個段落包含完整的整理後文字
-      const cleanedSegment = [{
-        text: cleanedResult.cleanedText,
-        speaker: firstSpeaker.id,
-        start: 0,
-        end: 1000,
-        confidence: 100,
-        timestamp: '00:00'
-      }];
-
-      const response = await fetch(`/api/transcriptions/${transcription.id}`, {
-        method: 'PATCH',
+      // 使用 AI 語意分析將整理後文字智能分配給不同講者
+      const response = await fetch(`/api/transcriptions/${transcription.id}/segment`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          transcriptText: cleanedResult.cleanedText,
-          segments: cleanedSegment,
-          speakers: originalSpeakers // 保留所有原始講者信息
+          cleanedText: cleanedResult.cleanedText
         })
       });
 
-      if (!response.ok) throw new Error('更新失敗');
+      if (!response.ok) throw new Error('AI 語意分段失敗');
 
       onTranscriptCleaned(cleanedResult.cleanedText);
       setShowComparison(false);
       
       toast({
         title: "逐字稿已更新",
-        description: "整理後的文字已替換分段對話記錄",
+        description: "AI 已智能分配整理後文字給各講者",
       });
     } catch (error) {
       toast({
         title: "更新失敗",
-        description: "無法套用整理後的逐字稿",
+        description: "AI 語意分段處理失敗，請稍後再試",
         variant: "destructive",
       });
     }
