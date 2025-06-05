@@ -284,7 +284,19 @@ def main():
             if transcript.status == aai.TranscriptStatus.processing:
                 update_progress(transcription_id, 60)
             time.sleep(5)
-            transcript = aai.Transcript.get_by_id(transcript.id)
+            # Refresh transcript status
+            transcript = transcriber.transcribe(audio_file_path, config=config)
+            if hasattr(transcript, 'id'):
+                # Get updated transcript by ID
+                response = requests.get(
+                    f'https://api.assemblyai.com/v2/transcript/{transcript.id}',
+                    headers={'authorization': api_key}
+                )
+                if response.ok:
+                    transcript_data = response.json()
+                    transcript.status = transcript_data.get('status')
+                    if transcript.status in ['completed', 'error']:
+                        break
         
         if transcript.status == aai.TranscriptStatus.error:
             print(f"✗ Transcription failed: {transcript.error}")
