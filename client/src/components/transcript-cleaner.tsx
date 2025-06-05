@@ -18,6 +18,7 @@ interface TranscriptCleanerProps {
 
 export default function TranscriptCleaner({ transcription, onTranscriptCleaned }: TranscriptCleanerProps) {
   const [isCleaning, setIsCleaning] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const [cleanedResult, setCleanedResult] = useState<CleanedResult | null>(null);
   const [showComparison, setShowComparison] = useState(false);
   const { toast } = useToast();
@@ -59,6 +60,8 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
   const handleApplyCleanedVersion = async () => {
     if (!cleanedResult) return;
 
+    setIsApplying(true);
+    
     try {
       // 使用 AI 語意分析將整理後文字智能分配給不同講者
       const response = await fetch(`/api/transcriptions/${transcription.id}/segment`, {
@@ -84,6 +87,8 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
         description: "AI 語意分段處理失敗，請稍後再試",
         variant: "destructive",
       });
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -194,10 +199,20 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
               </Button>
               <Button
                 onClick={handleApplyCleanedVersion}
-                className="bg-indigo-600 hover:bg-indigo-700"
+                disabled={isApplying}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
               >
-                <Check className="w-4 h-4 mr-2" />
-                套用整理結果
+                {isApplying ? (
+                  <>
+                    <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    AI 語意分段中...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 mr-2" />
+                    套用整理結果
+                  </>
+                )}
               </Button>
             </div>
           </div>
