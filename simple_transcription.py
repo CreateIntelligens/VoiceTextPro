@@ -86,10 +86,9 @@ def start_transcription(upload_url, api_key, custom_keywords=""):
         "punctuate": True,
         "format_text": True,
         "disfluencies": False,
-        # Advanced features
+        # Advanced features (Note: summarization and auto_chapters cannot be used together)
         "summarization": True,
         "auto_highlights": True,
-        "auto_chapters": True,
         "iab_categories": True,
         "sentiment_analysis": True,
         "entity_detection": True,
