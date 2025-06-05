@@ -372,6 +372,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Segment cleaned text with AI speaker assignment
+  app.post("/api/transcriptions/:id/segment", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { cleanedText } = req.body;
+
+      if (!cleanedText) {
+        return res.status(400).json({ message: "需要提供整理後的文字" });
+      }
+
+      const transcription = await storage.getTranscription(id);
+      if (!transcription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+
+      const originalSpeakers = transcription.speakers || [];
+      if (originalSpeakers.length === 0) {
+        return res.status(400).json({ message: "沒有原始講者資料" });
+      }
+
+      const analyzer = new GeminiAnalyzer();
+      const segmentResult = await analyzer.segmentCleanedText(cleanedText, originalSpeakers);
+
+      // Convert AI segments to our format
+      const updatedSegments = segmentResult.segments.map((segment: any, index: number) => ({
+        text: segment.text,
+        speaker: segment.speakerId,
+        start: index * 10000,
+        end: (index + 1) * 10000,
+        confidence: 100,
+        timestamp: `${Math.floor(index / 6).toString().padStart(2, '0')}:${((index % 6) * 10).toString().padStart(2, '0')}`
+      }));
+
+      // Update transcription with segmented content
+      const updatedTranscription = await storage.updateTranscription(id, {
+        transcriptText: cleanedText,
+        segments: updatedSegments,
+        speakers: originalSpeakers
+      });
+
+      res.json(updatedTranscription);
+    } catch (error) {
+      console.error("Segment transcription error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "AI 語意分段失敗" 
+      });
+    }
+  });
+
   // Delete transcription
   app.delete("/api/transcriptions/:id", async (req, res) => {
     try {

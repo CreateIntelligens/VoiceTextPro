@@ -92,6 +92,52 @@ ${transcriptText}
     }
   }
 
+  async segmentCleanedText(cleanedText: string, originalSpeakers: any[]): Promise<{
+    segments: any[];
+  }> {
+    try {
+      const speakerLabels = originalSpeakers.map(s => s.label).join('、');
+      
+      const prompt = `
+你是一位專業的對話分析專家。請將以下整理後的文字，根據語意和邏輯智能分配給不同的講者。
+
+原始講者：${speakerLabels}
+
+整理後文字：
+${cleanedText}
+
+請分析文字內容，根據語意轉換、話題變化、語氣變化等線索，將文字分配給不同講者。
+
+要求：
+1. 根據語意邏輯分段，每個段落分配給一個講者
+2. 保持文字的完整性和連貫性
+3. 合理分配給不同講者，避免某個講者說話時間過長
+4. 段落應該具有完整的語意
+5. 分析語氣、話題轉換、提問等線索來判斷講者變化
+
+請以 JSON 格式回應：
+{
+  "segments": [
+    {
+      "text": "段落文字內容",
+      "speakerId": "講者ID（如A、B、C等）",
+      "reasoning": "分配理由"
+    }
+  ]
+}
+`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      return this.parseSegmentResponse(text);
+    } catch (error) {
+      console.error('Gemini segmentation error:', error);
+      throw new Error('AI 語意分段時發生錯誤');
+    }
+  }
+
   async analyzeTranscription(transcription: Transcription): Promise<AnalysisResult> {
     if (!transcription.segments || !transcription.speakers) {
       throw new Error('Transcription must have segments and speakers');
@@ -314,6 +360,75 @@ ${conversationText}
       return {
         cleanedText: '文字整理過程中發生錯誤，請稍後再試。建議檢查文本長度或重新嘗試。',
         improvements: ['JSON 解析失敗', '建議重新執行整理功能']
+      };
+    }
+  }
+
+  private parseSegmentResponse(response: string): {
+    segments: any[];
+  } {
+    try {
+      let jsonText = response.trim();
+      
+      jsonText = jsonText
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .replace(/^\s*```.*$/gm, '')
+        .trim();
+      
+      const jsonStart = jsonText.indexOf('{');
+      let jsonEnd = -1;
+      
+      if (jsonStart !== -1) {
+        let braceCount = 0;
+        let inString = false;
+        let escapeNext = false;
+        
+        for (let i = jsonStart; i < jsonText.length; i++) {
+          const char = jsonText[i];
+          
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+          
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+          
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+          
+          if (!inString) {
+            if (char === '{') {
+              braceCount++;
+            } else if (char === '}') {
+              braceCount--;
+              if (braceCount === 0) {
+                jsonEnd = i + 1;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (jsonEnd !== -1) {
+          jsonText = jsonText.substring(jsonStart, jsonEnd);
+        }
+      }
+      
+      const parsed = JSON.parse(jsonText);
+      
+      return {
+        segments: parsed.segments || []
+      };
+    } catch (error) {
+      console.error('Failed to parse segment response:', error);
+      return {
+        segments: []
       };
     }
   }
