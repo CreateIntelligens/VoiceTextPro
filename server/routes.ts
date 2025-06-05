@@ -6,6 +6,7 @@ import fs from "fs/promises";
 import { spawn } from "child_process";
 import { storage } from "./storage";
 import { GeminiAnalyzer } from "./gemini-analysis";
+import { UsageTracker } from "./usage-tracker";
 import { db } from "./db";
 import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions } from "@shared/schema";
 import { desc } from "drizzle-orm";
@@ -417,6 +418,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Segment transcription error:", error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "AI 語意分段失敗" 
+      });
+    }
+  });
+
+  // Get usage statistics
+  app.get("/api/usage/stats", async (req, res) => {
+    try {
+      const usageTracker = new UsageTracker();
+      const stats = await usageTracker.getUsageStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Get usage stats error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "獲取使用統計失敗" 
+      });
+    }
+  });
+
+  // Get monthly usage trend
+  app.get("/api/usage/trend", async (req, res) => {
+    try {
+      const usageTracker = new UsageTracker();
+      const trend = await usageTracker.getMonthlyTrend();
+      res.json(trend);
+    } catch (error) {
+      console.error("Get usage trend error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "獲取使用趨勢失敗" 
       });
     }
   });
