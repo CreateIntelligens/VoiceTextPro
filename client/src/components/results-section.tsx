@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import SpeakerEditor from "@/components/speaker-editor";
 import AIAnalysis from "@/components/ai-analysis";
 import TranscriptCleaner from "@/components/transcript-cleaner";
+import AdvancedFeatures from "@/components/advanced-features";
 import type { TranscriptionStatus, Speaker } from "@/lib/types";
 
 interface ResultsSectionProps {
@@ -143,6 +144,9 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
           transcription={currentTranscription}
           onSpeakersUpdated={handleSpeakersUpdated}
         />
+
+        {/* Advanced Features */}
+        <AdvancedFeatures transcription={currentTranscription} />
 
         {/* AI Analysis */}
         <AIAnalysis transcription={currentTranscription} />

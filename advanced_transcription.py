@@ -258,8 +258,6 @@ def main():
             disfluencies=False,
             # Advanced features
             summarization=True,
-            summary_model="informative",
-            summary_type="paragraph",
             auto_highlights=True,
             auto_chapters=True,
             iab_categories=True,
@@ -286,7 +284,7 @@ def main():
             if transcript.status == aai.TranscriptStatus.processing:
                 update_progress(transcription_id, 60)
             time.sleep(5)
-            transcript = transcriber.get_transcript(transcript.id)
+            transcript = aai.Transcript.get_by_id(transcript.id)
         
         if transcript.status == aai.TranscriptStatus.error:
             print(f"✗ Transcription failed: {transcript.error}")
