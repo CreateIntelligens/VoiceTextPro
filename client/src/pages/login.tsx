@@ -46,7 +46,8 @@ export default function Login() {
         description: `歡迎回來，${data.user.name || data.user.email}`,
       });
       
-      setLocation('/');
+      // Force page reload to trigger auth check
+      window.location.href = '/';
     } catch (error) {
       toast({
         title: "登入失敗",

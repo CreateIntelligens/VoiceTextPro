@@ -167,8 +167,8 @@ export class AuthService {
         return;
       }
 
-      const { MailService } = await import('@sendgrid/mail');
-      const mailService = new MailService();
+      const sgMail = await import('@sendgrid/mail');
+      const mailService = sgMail.default;
       mailService.setApiKey(process.env.SENDGRID_API_KEY);
 
       const adminEmail = 'dy052340@gmail.com';
