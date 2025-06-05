@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Upload, File, X, CloudUpload, Tag, Save, RotateCcw, Info } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Upload, File, X, CloudUpload, Tag, Save, RotateCcw, Info, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AudioRecorder from "./audio-recorder";
 
 interface UploadSectionProps {
   onFileUploaded: (transcriptionId: number) => void;
@@ -186,14 +188,75 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const handleRecordingComplete = async (audioBlob: Blob, filename: string) => {
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, filename);
+      
+      const validKeywords = validateKeywords(keywords);
+      if (validKeywords.length > 0) {
+        formData.append('keywords', validKeywords.join(','));
+      }
+
+      const response = await fetch('/api/transcriptions/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '錄音上傳失敗');
+      }
+
+      const transcription = await response.json();
+      onFileUploaded(transcription.id);
+      
+      toast({
+        title: "錄音上傳成功",
+        description: validKeywords.length > 0 
+          ? `正在開始轉錄程序，已應用 ${validKeywords.length} 個關鍵字...`
+          : "正在開始轉錄程序...",
+      });
+    } catch (error) {
+      toast({
+        title: "錄音上傳失敗",
+        description: error instanceof Error ? error.message : "未知錯誤",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="mb-8">
       <div className="text-center mb-6">
-        <h2 className="text-3xl font-bold text-slate-900 mb-2">上傳語音檔案</h2>
-        <p className="text-slate-600">支援 iPhone 語音備忘錄、MP3、WAV、M4A 等多種音頻格式，獲得高品質的繁體中文語音轉錄</p>
+        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">音頻轉錄</h2>
+        <p className="text-sm sm:text-base text-slate-600">即時錄音或上傳音檔，獲得高品質的繁體中文語音轉錄</p>
       </div>
 
-      <Card 
+      <Tabs defaultValue="record" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="record" className="flex items-center space-x-2">
+            <Mic className="w-4 h-4" />
+            <span>即時錄音</span>
+          </TabsTrigger>
+          <TabsTrigger value="upload" className="flex items-center space-x-2">
+            <Upload className="w-4 h-4" />
+            <span>上傳檔案</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="record" className="space-y-4">
+          <AudioRecorder 
+            onRecordingComplete={handleRecordingComplete}
+            isDisabled={isDisabled || isUploading}
+          />
+        </TabsContent>
+
+        <TabsContent value="upload" className="space-y-4">
+          <Card 
         className={`border-2 border-dashed transition-colors duration-200 cursor-pointer ${
           isDragOver 
             ? 'border-primary bg-blue-50' 
@@ -369,6 +432,81 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
           </Button>
         </div>
       )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Shared Keywords Section */}
+      <Card className="mt-6">
+        <CardContent className="p-4 sm:p-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Tag className="w-5 h-5 text-blue-600" />
+                <Label htmlFor="keywords" className="text-sm font-medium text-slate-900">
+                  自定義關鍵字（可選）
+                </Label>
+                {getKeywordCount() > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {getKeywordCount()} 個關鍵字
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                {savedKeywords && savedKeywords !== keywords && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLoadSavedKeywords}
+                    className="text-xs"
+                  >
+                    <RotateCcw className="w-3 h-3 mr-1" />
+                    載入已儲存
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSaveKeywords}
+                  disabled={!keywords.trim() || keywords === savedKeywords}
+                  className="text-xs"
+                >
+                  <Save className="w-3 h-3 mr-1" />
+                  儲存
+                </Button>
+                {savedKeywords && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleResetKeywords}
+                    className="text-xs text-red-600 hover:text-red-700"
+                  >
+                    <X className="w-3 h-3 mr-1" />
+                    清除
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Textarea
+                id="keywords"
+                placeholder="輸入關鍵字，用逗號或換行分隔（例如：科技,AI,機器學習）"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                className="min-h-[80px] resize-none"
+                disabled={isDisabled}
+              />
+              <div className="flex items-start space-x-2 text-xs text-slate-500">
+                <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p>關鍵字可幫助提升轉錄準確度，特別是專業術語或人名。</p>
+                  <p className="mt-1">僅支援英文字母、數字和基本符號。重複的關鍵字會自動去除。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
