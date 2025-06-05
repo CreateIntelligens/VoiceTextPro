@@ -300,6 +300,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Restore original transcription data from AssemblyAI
+  app.post("/api/transcriptions/:id/restore", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transcription = await storage.getTranscription(id);
+
+      if (!transcription || !transcription.assemblyaiId) {
+        return res.status(404).json({ message: "找不到轉錄記錄或 AssemblyAI ID" });
+      }
+
+      // Fetch original data from AssemblyAI
+      const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcription.assemblyaiId}`, {
+        headers: {
+          'authorization': process.env.ASSEMBLYAI_API_KEY || ''
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('無法從 AssemblyAI 獲取原始資料');
+      }
+
+      const data = await response.json();
+      
+      function formatTimestamp(milliseconds: number): string {
+        const totalSeconds = Math.floor(milliseconds / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+
+      function getSpeakerColor(index: number): string {
+        const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16'];
+        return colors[index % colors.length];
+      }
+      
+      // Restore original segments and speakers
+      const originalSegments = data.utterances?.map((utterance: any, index: number) => ({
+        text: utterance.text,
+        speaker: utterance.speaker,
+        start: utterance.start,
+        end: utterance.end,
+        confidence: Math.round(utterance.confidence * 100),
+        timestamp: formatTimestamp(utterance.start)
+      })) || [];
+
+      const originalSpeakers = [...new Set(data.utterances?.map((u: any) => u.speaker) || [])]
+        .map((speakerId, index) => ({
+          id: speakerId,
+          label: `講者 ${String.fromCharCode(65 + index)}`,
+          color: getSpeakerColor(index)
+        }));
+
+      // Update transcription with original data
+      const updatedTranscription = await storage.updateTranscription(id, {
+        segments: originalSegments,
+        speakers: originalSpeakers,
+        transcriptText: data.text
+      });
+
+      res.json(updatedTranscription);
+    } catch (error) {
+      console.error("Restore transcription error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "恢復原始轉錄資料失敗" 
+      });
+    }
+  });
+
   // Delete transcription
   app.delete("/api/transcriptions/:id", async (req, res) => {
     try {
