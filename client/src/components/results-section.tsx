@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
