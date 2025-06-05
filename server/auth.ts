@@ -155,6 +155,56 @@ export class AuthService {
         message: `${name} (${email}) 申請建立帳號。申請理由：${reason}`,
       });
     }
+
+    // Send email notification to admin
+    await this.sendApplicationNotification(email, name, reason);
+  }
+
+  private static async sendApplicationNotification(email: string, name: string, reason: string): Promise<void> {
+    try {
+      if (!process.env.SENDGRID_API_KEY) {
+        console.log('SendGrid API key not configured, skipping email notification');
+        return;
+      }
+
+      const { MailService } = await import('@sendgrid/mail');
+      const mailService = new MailService();
+      mailService.setApiKey(process.env.SENDGRID_API_KEY);
+
+      const adminEmail = 'dy052340@gmail.com';
+      const msg = {
+        to: adminEmail,
+        from: 'noreply@transcription-platform.com',
+        subject: '新的帳號申請 - 智能語音轉錄平台',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">新的帳號申請</h2>
+            <p>有新用戶申請帳號，詳情如下：</p>
+            
+            <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p><strong>申請者 Email：</strong> ${email}</p>
+              <p><strong>申請者姓名：</strong> ${name || '未提供'}</p>
+              <p><strong>申請理由：</strong></p>
+              <div style="background-color: white; padding: 15px; border-radius: 4px; margin-top: 10px;">
+                ${reason || '未提供'}
+              </div>
+            </div>
+            
+            <p>請登入管理員面板處理此申請。</p>
+            
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
+              <p>此郵件由智能語音轉錄平台自動發送</p>
+            </div>
+          </div>
+        `
+      };
+
+      await mailService.send(msg);
+      console.log('Application notification email sent successfully');
+    } catch (error) {
+      console.error('Failed to send application notification email:', error);
+      // Don't throw error - application should still be created even if email fails
+    }
   }
 
   static async createUser(email: string, password: string, name: string, role: string = 'user'): Promise<any> {

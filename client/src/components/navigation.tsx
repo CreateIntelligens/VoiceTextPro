@@ -1,27 +1,36 @@
 import { Link, useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
-import { BarChart3, FileText, Home } from 'lucide-react';
-
-const navigationItems = [
-  {
-    name: '語音轉錄',
-    href: '/',
-    icon: Home
-  },
-  {
-    name: '轉錄結果',
-    href: '/results',
-    icon: FileText
-  },
-  {
-    name: '使用儀表板',
-    href: '/dashboard',
-    icon: BarChart3
-  }
-];
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { BarChart3, FileText, Home, Shield, LogOut, Bell } from 'lucide-react';
 
 export default function Navigation() {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
+
+  const navigationItems = [
+    {
+      name: '語音轉錄',
+      href: '/',
+      icon: Home
+    },
+    {
+      name: '轉錄結果',
+      href: '/results',
+      icon: FileText
+    },
+    {
+      name: '使用儀表板',
+      href: '/dashboard',
+      icon: BarChart3
+    },
+    ...(user?.role === 'admin' ? [{
+      name: '管理員面板',
+      href: '/admin',
+      icon: Shield
+    }] : [])
+  ];
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
@@ -49,10 +58,36 @@ export default function Navigation() {
                   >
                     <Icon className="w-4 h-4 mr-2" />
                     {item.name}
+                    {item.name === '管理員面板' && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        管理員
+                      </Badge>
+                    )}
                   </Link>
                 );
               })}
             </div>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <span>歡迎，{user?.name || user?.email}</span>
+              {user?.role === 'admin' && (
+                <Badge variant="default" className="text-xs">
+                  管理員
+                </Badge>
+              )}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={logout}
+              className="flex items-center"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              登出
+            </Button>
           </div>
         </div>
       </div>
