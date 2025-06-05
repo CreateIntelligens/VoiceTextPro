@@ -122,6 +122,8 @@ def start_transcription(upload_url, api_key, custom_keywords=""):
 def poll_transcription_status(transcript_id, api_key, transcription_id):
     """Poll transcription status until completion"""
     headers = {'authorization': api_key}
+    start_time = time.time()
+    max_wait_time = 1800  # 30 minutes timeout
     
     while True:
         response = requests.get(f'https://api.assemblyai.com/v2/transcript/{transcript_id}',
@@ -133,7 +135,8 @@ def poll_transcription_status(transcript_id, api_key, transcription_id):
         transcript_data = response.json()
         status = transcript_data['status']
         
-        print(f"⏳ Status: {status}")
+        elapsed_time = time.time() - start_time
+        print(f"⏳ Status: {status} (elapsed: {elapsed_time:.0f}s)")
         
         if status == 'completed':
             print("✅ Transcription completed successfully!")
@@ -142,9 +145,22 @@ def poll_transcription_status(transcript_id, api_key, transcription_id):
             error_msg = transcript_data.get('error', 'Unknown error')
             raise Exception(f"Transcription failed: {error_msg}")
         elif status == 'processing':
-            update_progress(transcription_id, 60)
+            # Update progress based on elapsed time
+            if elapsed_time < 60:
+                progress = 60
+            elif elapsed_time < 300:  # 5 minutes
+                progress = 70
+            elif elapsed_time < 600:  # 10 minutes
+                progress = 80
+            else:
+                progress = 90
+            update_progress(transcription_id, progress)
         
-        time.sleep(5)
+        # Check for timeout
+        if elapsed_time > max_wait_time:
+            raise Exception(f"Transcription timeout after {max_wait_time/60:.0f} minutes")
+        
+        time.sleep(10)  # Increased polling interval to reduce server load
 
 def process_advanced_features(transcript_data):
     """Process all advanced features from transcript data"""
