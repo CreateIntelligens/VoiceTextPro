@@ -7,9 +7,10 @@ import { spawn } from "child_process";
 import { storage } from "./storage";
 import { GeminiAnalyzer } from "./gemini-analysis";
 import { UsageTracker } from "./usage-tracker";
+import { AuthService, requireAuth, requireAdmin, type AuthenticatedRequest } from "./auth";
 import { db } from "./db";
-import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions } from "@shared/schema";
-import { desc } from "drizzle-orm";
+import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions, users, accountApplications, notifications, insertApplicationSchema } from "@shared/schema";
+import { desc, eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 // Temporary in-memory storage for keywords per transcription
@@ -39,6 +40,209 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize admin user
+  await AuthService.initializeAdmin();
+
+  // Authentication routes
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email 和密碼為必填項目" });
+      }
+
+      const result = await AuthService.login(email, password);
+      if (!result) {
+        return res.status(401).json({ message: "Email 或密碼錯誤" });
+      }
+
+      res.cookie('auth_token', result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+
+      res.json({ user: result.user, token: result.token });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "登入失敗" });
+    }
+  });
+
+  app.post("/api/auth/logout", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.auth_token;
+      
+      if (token) {
+        await AuthService.logout(token);
+      }
+
+      res.clearCookie('auth_token');
+      res.json({ message: "登出成功" });
+    } catch (error) {
+      console.error("Logout error:", error);
+      res.status(500).json({ message: "登出失敗" });
+    }
+  });
+
+  app.post("/api/auth/apply", async (req, res) => {
+    try {
+      const validatedData = insertApplicationSchema.parse(req.body);
+      
+      await AuthService.applyForAccount(
+        validatedData.email,
+        validatedData.name || '',
+        validatedData.reason || ''
+      );
+
+      res.json({ message: "申請已提交，請等待管理員審核" });
+    } catch (error) {
+      console.error("Application error:", error);
+      res.status(400).json({ 
+        message: error instanceof Error ? error.message : "申請失敗" 
+      });
+    }
+  });
+
+  app.get("/api/auth/me", requireAuth, async (req: AuthenticatedRequest, res) => {
+    res.json({ user: req.user });
+  });
+
+  // Admin routes for user management
+  app.get("/api/admin/applications", requireAdmin, async (req, res) => {
+    try {
+      const applications = await db
+        .select()
+        .from(accountApplications)
+        .orderBy(desc(accountApplications.appliedAt));
+
+      res.json(applications);
+    } catch (error) {
+      console.error("Get applications error:", error);
+      res.status(500).json({ message: "獲取申請列表失敗" });
+    }
+  });
+
+  app.post("/api/admin/applications/:id/approve", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const applicationId = parseInt(req.params.id);
+      const { password } = req.body;
+
+      if (!password) {
+        return res.status(400).json({ message: "需要設定密碼" });
+      }
+
+      const [application] = await db
+        .select()
+        .from(accountApplications)
+        .where(eq(accountApplications.id, applicationId))
+        .limit(1);
+
+      if (!application) {
+        return res.status(404).json({ message: "找不到申請記錄" });
+      }
+
+      if (application.status !== 'pending') {
+        return res.status(400).json({ message: "申請已被處理" });
+      }
+
+      // Create user account
+      await AuthService.createUser(application.email, password, application.name || '');
+
+      // Update application status
+      await db
+        .update(accountApplications)
+        .set({
+          status: 'approved',
+          reviewedAt: new Date(),
+          reviewedBy: req.user!.id,
+        })
+        .where(eq(accountApplications.id, applicationId));
+
+      res.json({ message: "帳號已成功開通" });
+    } catch (error) {
+      console.error("Approve application error:", error);
+      res.status(500).json({ message: "開通帳號失敗" });
+    }
+  });
+
+  app.post("/api/admin/applications/:id/reject", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const applicationId = parseInt(req.params.id);
+
+      await db
+        .update(accountApplications)
+        .set({
+          status: 'rejected',
+          reviewedAt: new Date(),
+          reviewedBy: req.user!.id,
+        })
+        .where(eq(accountApplications.id, applicationId));
+
+      res.json({ message: "申請已拒絕" });
+    } catch (error) {
+      console.error("Reject application error:", error);
+      res.status(500).json({ message: "拒絕申請失敗" });
+    }
+  });
+
+  app.get("/api/admin/users", requireAdmin, async (req, res) => {
+    try {
+      const userList = await db
+        .select({
+          id: users.id,
+          email: users.email,
+          name: users.name,
+          role: users.role,
+          status: users.status,
+          createdAt: users.createdAt,
+          lastLoginAt: users.lastLoginAt,
+        })
+        .from(users)
+        .orderBy(desc(users.createdAt));
+
+      res.json(userList);
+    } catch (error) {
+      console.error("Get users error:", error);
+      res.status(500).json({ message: "獲取用戶列表失敗" });
+    }
+  });
+
+  app.get("/api/notifications", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userNotifications = await db
+        .select()
+        .from(notifications)
+        .where(eq(notifications.userId, req.user!.id))
+        .orderBy(desc(notifications.createdAt));
+
+      res.json(userNotifications);
+    } catch (error) {
+      console.error("Get notifications error:", error);
+      res.status(500).json({ message: "獲取通知失敗" });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const notificationId = parseInt(req.params.id);
+
+      await db
+        .update(notifications)
+        .set({ isRead: true })
+        .where(and(
+          eq(notifications.id, notificationId),
+          eq(notifications.userId, req.user!.id)
+        ));
+
+      res.json({ message: "通知已標記為已讀" });
+    } catch (error) {
+      console.error("Mark notification read error:", error);
+      res.status(500).json({ message: "標記通知失敗" });
+    }
+  });
+
   // Create uploads directory if it doesn't exist
   try {
     await fs.access("uploads");
