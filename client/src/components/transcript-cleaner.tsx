@@ -60,23 +60,20 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
     if (!cleanedResult) return;
 
     try {
-      // 將整理後的文字轉換為段落格式，替換原有的分段對話
-      const cleanedParagraphs = cleanedResult.cleanedText
-        .split('\n\n')
-        .filter(paragraph => paragraph.trim().length > 0)
-        .map((paragraph, index) => ({
-          text: paragraph.trim(),
-          speaker: 'cleaned_transcript',
-          start: index * 1000,
-          end: (index + 1) * 1000,
-          confidence: 100,
-          timestamp: `${Math.floor(index / 60).toString().padStart(2, '0')}:${(index % 60).toString().padStart(2, '0')}`
-        }));
+      // 將整理後的完整文字作為單個段落顯示
+      const cleanedSegment = [{
+        text: cleanedResult.cleanedText,
+        speaker: 'cleaned_transcript',
+        start: 0,
+        end: 1000,
+        confidence: 100,
+        timestamp: '00:00'
+      }];
 
       // 創建清理後的講者信息
       const cleanedSpeaker = {
         id: 'cleaned_transcript',
-        label: '整理後內容',
+        label: 'AI 整理後內容',
         color: '#4F46E5'
       };
 
@@ -85,7 +82,7 @@ export default function TranscriptCleaner({ transcription, onTranscriptCleaned }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           transcriptText: cleanedResult.cleanedText,
-          segments: cleanedParagraphs,
+          segments: cleanedSegment,
           speakers: [cleanedSpeaker]
         })
       });
