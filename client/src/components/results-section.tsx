@@ -32,8 +32,13 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
   };
 
   const formatDuration = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -126,7 +131,7 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
           <div className="bg-slate-50 rounded-lg p-4 text-center">
             <TrendingUp className="w-6 h-6 text-slate-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-slate-900">
-              {currentTranscription.confidence || '--'}%
+              {currentTranscription.confidence ? Math.round(currentTranscription.confidence * 100) : '--'}%
             </div>
             <div className="text-sm text-slate-600">準確度</div>
           </div>
