@@ -134,10 +134,10 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         const audioContext = new AudioContext();
         const source = audioContext.createMediaStreamSource(stream);
         const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 1024;
-        analyser.smoothingTimeConstant = 0.1;
-        analyser.minDecibels = -90;
-        analyser.maxDecibels = -10;
+        analyser.fftSize = 512; // Smaller for faster response
+        analyser.smoothingTimeConstant = 0.3; // More smoothing for stable readings
+        analyser.minDecibels = -100; // Lower threshold for quiet sounds
+        analyser.maxDecibels = 0; // Higher ceiling for loud sounds
         source.connect(analyser);
         analyserRef.current = analyser;
         streamRef.current = stream;
@@ -256,10 +256,7 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     console.log('Audio monitoring setup successful');
     
     const updateVolumeLevel = () => {
-      console.log('Monitoring - isRecordingRef:', isRecordingRef.current, 'isPausedRef:', isPausedRef.current);
-      
       if (!analyserRef.current || !streamRef.current) {
-        console.log('Missing analyzer or stream');
         if (isRecordingRef.current && !isPausedRef.current) {
           animationRef.current = requestAnimationFrame(updateVolumeLevel);
         }
@@ -267,7 +264,6 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       }
       
       if (!isRecordingRef.current || isPausedRef.current) {
-        console.log('Not recording or paused, setting audio to 0');
         setAudioLevel(0);
         return;
       }
@@ -284,7 +280,7 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
           sum += dataArray[i];
         }
         const average = sum / bufferLength;
-        const volumeLevel = Math.min(100, (average / 255) * 200); // Increased sensitivity
+        const volumeLevel = Math.min(100, (average / 255) * 500); // Much higher sensitivity for quiet environments
         
         setAudioLevel(volumeLevel);
         
