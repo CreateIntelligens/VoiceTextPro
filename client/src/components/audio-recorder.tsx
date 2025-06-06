@@ -45,6 +45,8 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
   const animationRef = useRef<number | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isRecordingRef = useRef(false);
+  const isPausedRef = useRef(false);
 
   const { toast } = useToast();
 
@@ -178,6 +180,10 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       setIsPaused(false);
       setRecordingTime(0);
       
+      // Update refs immediately for monitoring functions
+      isRecordingRef.current = true;
+      isPausedRef.current = false;
+      
       mediaRecorder.start(100); // Collect data every 100ms
       
       // Start timer
@@ -250,14 +256,18 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     console.log('Audio monitoring setup successful');
     
     const updateVolumeLevel = () => {
+      console.log('Monitoring - isRecordingRef:', isRecordingRef.current, 'isPausedRef:', isPausedRef.current);
+      
       if (!analyserRef.current || !streamRef.current) {
-        if (isRecording && !isPaused) {
+        console.log('Missing analyzer or stream');
+        if (isRecordingRef.current && !isPausedRef.current) {
           animationRef.current = requestAnimationFrame(updateVolumeLevel);
         }
         return;
       }
       
-      if (!isRecording || isPaused) {
+      if (!isRecordingRef.current || isPausedRef.current) {
+        console.log('Not recording or paused, setting audio to 0');
         setAudioLevel(0);
         return;
       }
@@ -283,7 +293,7 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       }
       
       // Continue monitoring while recording
-      if (isRecording && !isPaused) {
+      if (isRecordingRef.current && !isPausedRef.current) {
         animationRef.current = requestAnimationFrame(updateVolumeLevel);
       }
     };
