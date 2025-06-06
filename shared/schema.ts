@@ -72,6 +72,9 @@ export const users = pgTable("users", {
   name: varchar("name", { length: 100 }),
   role: varchar("role", { length: 20 }).notNull().default("user"), // admin, user
   status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, active, suspended
+  isFirstLogin: boolean("is_first_login").notNull().default(true),
+  passwordResetToken: varchar("password_reset_token", { length: 255 }),
+  passwordResetExpires: timestamp("password_reset_expires"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   lastLoginAt: timestamp("last_login_at"),

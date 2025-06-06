@@ -4,6 +4,7 @@ import { db } from './db';
 import { users, userSessions, accountApplications, notifications } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import type { Request, Response, NextFunction } from 'express';
+import { EmailService } from './email-service';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -75,7 +76,7 @@ export class AuthService {
     };
   }
 
-  static async login(email: string, password: string): Promise<{ user: any; token: string } | null> {
+  static async login(email: string, password: string): Promise<{ user: any; token: string; isFirstLogin?: boolean } | null> {
     const [user] = await db
       .select()
       .from(users)
@@ -87,10 +88,14 @@ export class AuthService {
     const isValid = await this.verifyPassword(password, user.password);
     if (!isValid) return null;
 
-    // Update last login
+    // Check if it's first login and update
+    const isFirstLogin = user.isFirstLogin;
     await db
       .update(users)
-      .set({ lastLoginAt: new Date() })
+      .set({ 
+        lastLoginAt: new Date(),
+        isFirstLogin: false 
+      })
       .where(eq(users.id, user.id));
 
     const token = await this.createSession(user.id);
@@ -104,6 +109,7 @@ export class AuthService {
         status: user.status,
       },
       token,
+      isFirstLogin,
     };
   }
 
