@@ -88,7 +88,8 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       const audioContext = new AudioContext();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 2048; // Increase for better resolution
+      analyser.smoothingTimeConstant = 0.3; // Smooth the data
       source.connect(analyser);
       analyserRef.current = analyser;
       
@@ -220,7 +221,19 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     frequencyArrayRef.current = frequencyDataArray;
     
     const updateVisualization = () => {
-      if (!analyserRef.current || !isRecording || isPaused) return;
+      if (!analyserRef.current) {
+        animationRef.current = requestAnimationFrame(updateVisualization);
+        return;
+      }
+      
+      if (!isRecording || isPaused) {
+        // Reset visualization data when not recording
+        setWaveformData(new Array(64).fill(0));
+        setFrequencyData(new Array(32).fill(0));
+        setAudioLevel(0);
+        animationRef.current = requestAnimationFrame(updateVisualization);
+        return;
+      }
       
       // Get time domain data for waveform
       analyserRef.current.getByteTimeDomainData(timeDataArray);
@@ -237,7 +250,7 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         const index = Math.floor((i / 64) * timeDataArray.length);
         waveformSamples[i] = (timeDataArray[index] - 128) / 128; // Normalize to -1 to 1
       }
-      setWaveformData(waveformSamples);
+      setWaveformData([...waveformSamples]); // Force state update
       
       // Update frequency data (sample down to 32 bars)
       const frequencySamples = new Array(32);
@@ -245,7 +258,7 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         const index = Math.floor((i / 32) * frequencyDataArray.length);
         frequencySamples[i] = frequencyDataArray[index] / 255; // Normalize to 0 to 1
       }
-      setFrequencyData(frequencySamples);
+      setFrequencyData([...frequencySamples]); // Force state update
       
       animationRef.current = requestAnimationFrame(updateVisualization);
     };
