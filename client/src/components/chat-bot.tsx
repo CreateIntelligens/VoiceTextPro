@@ -27,8 +27,21 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/useAuth";
 import type { ChatSession, ChatMessage } from "@shared/schema";
+
+// Simple auth hook
+function useAuth() {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+  });
+
+  return {
+    user,
+    isLoading,
+    isAuthenticated: !!user,
+  };
+}
 
 interface ChatBotProps {
   className?: string;
@@ -50,13 +63,13 @@ export default function ChatBot({ className = "" }: ChatBotProps) {
   const { user, isAuthenticated } = useAuth();
 
   // Fetch chat sessions for current user
-  const { data: sessions = [] } = useQuery({
+  const { data: sessions = [] } = useQuery<ChatSession[]>({
     queryKey: ["/api/chat/sessions"],
     enabled: isAuthenticated && isOpen,
   });
 
   // Fetch messages for current session
-  const { data: messages = [] } = useQuery({
+  const { data: messages = [] } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat/messages", currentSession?.id],
     enabled: !!currentSession?.id,
   });
@@ -135,7 +148,8 @@ export default function ChatBot({ className = "" }: ChatBotProps) {
     createSessionMutation.mutate(newSessionData);
   };
 
-  const formatTime = (dateString: string) => {
+  const formatTime = (dateString: string | Date | null) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleTimeString('zh-TW', {
       hour: '2-digit',

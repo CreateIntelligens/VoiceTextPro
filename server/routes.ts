@@ -805,6 +805,263 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Chat bot API routes
+  app.get("/api/chat/sessions", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const sessions = await db
+        .select()
+        .from(chatSessions)
+        .where(eq(chatSessions.userId, userId))
+        .orderBy(desc(chatSessions.updatedAt));
+      
+      res.json(sessions);
+    } catch (error) {
+      console.error("Get chat sessions error:", error);
+      res.status(500).json({ message: "獲取對話記錄失敗" });
+    }
+  });
+
+  app.post("/api/chat/sessions", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const validatedData = insertChatSessionSchema.parse(req.body);
+      
+      const [session] = await db
+        .insert(chatSessions)
+        .values({
+          ...validatedData,
+          userId,
+        })
+        .returning();
+
+      await AdminLogger.log({
+        category: "chat",
+        action: "session_created",
+        description: `用戶創建新的客服對話：${validatedData.title || '未命名'}`,
+        severity: "info",
+        userId,
+        details: {
+          sessionId: session.sessionId,
+          category: validatedData.category,
+          priority: validatedData.priority
+        }
+      });
+
+      res.json(session);
+    } catch (error) {
+      console.error("Create chat session error:", error);
+      res.status(500).json({ message: "創建對話失敗" });
+    }
+  });
+
+  app.get("/api/chat/messages/:sessionId", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      const userId = req.user!.id;
+
+      // Verify session belongs to user
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)));
+
+      if (!session) {
+        return res.status(404).json({ message: "對話不存在" });
+      }
+
+      const messages = await db
+        .select()
+        .from(chatMessages)
+        .where(eq(chatMessages.sessionId, sessionId))
+        .orderBy(chatMessages.createdAt);
+
+      res.json(messages);
+    } catch (error) {
+      console.error("Get chat messages error:", error);
+      res.status(500).json({ message: "獲取對話訊息失敗" });
+    }
+  });
+
+  app.post("/api/chat/messages", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const validatedData = insertChatMessageSchema.parse(req.body);
+      
+      // Verify session belongs to user
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(and(eq(chatSessions.id, validatedData.sessionId), eq(chatSessions.userId, userId)));
+
+      if (!session) {
+        return res.status(404).json({ message: "對話不存在" });
+      }
+
+      const [message] = await db
+        .insert(chatMessages)
+        .values({
+          ...validatedData,
+          userId,
+        })
+        .returning();
+
+      // Update session timestamp
+      await db
+        .update(chatSessions)
+        .set({ updatedAt: new Date() })
+        .where(eq(chatSessions.id, validatedData.sessionId));
+
+      await AdminLogger.log({
+        category: "chat",
+        action: "message_sent",
+        description: `用戶在對話 ${session.title || session.sessionId} 中發送訊息`,
+        severity: "info",
+        userId,
+        details: {
+          sessionId: session.sessionId,
+          messageLength: validatedData.message.length,
+          messageType: validatedData.messageType
+        }
+      });
+
+      res.json(message);
+    } catch (error) {
+      console.error("Send chat message error:", error);
+      res.status(500).json({ message: "發送訊息失敗" });
+    }
+  });
+
+  // Admin chat management routes
+  app.get("/api/admin/chat/sessions", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const sessions = await db
+        .select({
+          id: chatSessions.id,
+          sessionId: chatSessions.sessionId,
+          title: chatSessions.title,
+          status: chatSessions.status,
+          priority: chatSessions.priority,
+          category: chatSessions.category,
+          assignedTo: chatSessions.assignedTo,
+          createdAt: chatSessions.createdAt,
+          updatedAt: chatSessions.updatedAt,
+          resolvedAt: chatSessions.resolvedAt,
+          userName: users.name,
+          userEmail: users.email,
+        })
+        .from(chatSessions)
+        .leftJoin(users, eq(chatSessions.userId, users.id))
+        .orderBy(desc(chatSessions.updatedAt));
+
+      res.json(sessions);
+    } catch (error) {
+      console.error("Get admin chat sessions error:", error);
+      res.status(500).json({ message: "獲取客服對話失敗" });
+    }
+  });
+
+  app.post("/api/admin/chat/sessions/:id/reply", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const sessionId = parseInt(req.params.id);
+      const { message } = req.body;
+      const adminId = req.user!.id;
+
+      if (!message || !message.trim()) {
+        return res.status(400).json({ message: "回覆內容不能為空" });
+      }
+
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(eq(chatSessions.id, sessionId));
+
+      if (!session) {
+        return res.status(404).json({ message: "對話不存在" });
+      }
+
+      const [reply] = await db
+        .insert(chatMessages)
+        .values({
+          sessionId,
+          userId: adminId,
+          message: message.trim(),
+          messageType: "admin",
+        })
+        .returning();
+
+      // Update session timestamp and assign to admin
+      await db
+        .update(chatSessions)
+        .set({ 
+          updatedAt: new Date(),
+          assignedTo: adminId
+        })
+        .where(eq(chatSessions.id, sessionId));
+
+      await AdminLogger.log({
+        category: "chat",
+        action: "admin_reply",
+        description: `管理員回覆客服對話：${session.title || session.sessionId}`,
+        severity: "info",
+        userId: adminId,
+        details: {
+          sessionId: session.sessionId,
+          replyLength: message.length
+        }
+      });
+
+      res.json(reply);
+    } catch (error) {
+      console.error("Admin chat reply error:", error);
+      res.status(500).json({ message: "發送回覆失敗" });
+    }
+  });
+
+  app.patch("/api/admin/chat/sessions/:id/status", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const sessionId = parseInt(req.params.id);
+      const { status } = req.body;
+      const adminId = req.user!.id;
+
+      if (!['active', 'resolved', 'archived'].includes(status)) {
+        return res.status(400).json({ message: "無效的狀態值" });
+      }
+
+      const updateData: any = { 
+        status, 
+        updatedAt: new Date(),
+        assignedTo: adminId
+      };
+
+      if (status === 'resolved') {
+        updateData.resolvedAt = new Date();
+      }
+
+      await db
+        .update(chatSessions)
+        .set(updateData)
+        .where(eq(chatSessions.id, sessionId));
+
+      await AdminLogger.log({
+        category: "chat",
+        action: "status_updated",
+        description: `管理員更新客服對話狀態為：${status}`,
+        severity: "info",
+        userId: adminId,
+        details: {
+          sessionId,
+          newStatus: status
+        }
+      });
+
+      res.json({ message: "狀態更新成功" });
+    } catch (error) {
+      console.error("Update chat session status error:", error);
+      res.status(500).json({ message: "更新狀態失敗" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
