@@ -223,9 +223,8 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
                       </div>
                       <div className="flex-1">
                         <div 
-                          className="rounded-lg p-4 border-l-4"
+                          className="rounded-lg p-4 border-l-4 bg-white shadow-sm border border-gray-100"
                           style={{ 
-                            backgroundColor: speaker?.color ? `${speaker.color}10` : '#F1F5F9',
                             borderLeftColor: speaker?.color || '#64748B'
                           }}
                         >
