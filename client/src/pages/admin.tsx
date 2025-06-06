@@ -40,11 +40,30 @@ interface User {
   lastLoginAt: string | null;
 }
 
+interface AdminTranscription {
+  id: number;
+  userId: number | null;
+  username: string | null;
+  userEmail: string | null;
+  filename: string;
+  originalName: string;
+  displayName: string | null;
+  fileSize: number;
+  status: string;
+  progress: number;
+  duration: number | null;
+  wordCount: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function Admin() {
   const { user, isAuthenticated } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [transcriptions, setTranscriptions] = useState<AdminTranscription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [transcriptionsLoading, setTranscriptionsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const { toast } = useToast();
@@ -84,6 +103,31 @@ export default function Admin() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTranscriptions = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/admin/transcriptions', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTranscriptions(data);
+      } else {
+        throw new Error('Failed to fetch transcriptions');
+      }
+    } catch (error) {
+      console.error('Failed to fetch transcriptions:', error);
+      toast({
+        title: "載入失敗",
+        description: "無法載入轉錄資料",
+        variant: "destructive",
+      });
+    } finally {
+      setTranscriptionsLoading(false);
     }
   };
 

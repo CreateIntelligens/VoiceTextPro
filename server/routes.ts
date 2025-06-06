@@ -745,6 +745,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin transcription management routes
+  app.get("/api/admin/transcriptions", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const allTranscriptions = await db
+        .select({
+          id: transcriptions.id,
+          userId: transcriptions.userId,
+          username: users.name,
+          userEmail: users.email,
+          filename: transcriptions.filename,
+          originalName: transcriptions.originalName,
+          displayName: transcriptions.displayName,
+          fileSize: transcriptions.fileSize,
+          status: transcriptions.status,
+          progress: transcriptions.progress,
+          duration: transcriptions.duration,
+          wordCount: transcriptions.wordCount,
+          createdAt: transcriptions.createdAt,
+          updatedAt: transcriptions.updatedAt,
+        })
+        .from(transcriptions)
+        .leftJoin(users, eq(transcriptions.userId, users.id))
+        .orderBy(desc(transcriptions.createdAt));
+      
+      await AdminLogger.log({
+        category: "admin",
+        action: "transcriptions_accessed",
+        description: "管理員查看所有用戶轉錄資料",
+        severity: "info",
+        details: {
+          adminId: req.user!.id,
+          transcriptionCount: allTranscriptions?.length || 0
+        }
+      });
+      
+      res.json(allTranscriptions);
+    } catch (error) {
+      console.error("Get admin transcriptions error:", error);
+      res.status(500).json({ message: "獲取轉錄資料失敗" });
+    }
+  });
+
+  app.delete("/api/admin/transcriptions/:id", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transcriptionId = parseInt(req.params.id);
+      const adminId = req.user!.id;
+
+      // Get transcription details before deletion
+      const [transcription] = await db
+        .select()
+        .from(transcriptions)
+        .where(eq(transcriptions.id, transcriptionId));
+
+      if (!transcription) {
+        return res.status(404).json({ message: "轉錄記錄不存在" });
+      }
+
+      await db.delete(transcriptions).where(eq(transcriptions.id, transcriptionId));
+
+      await AdminLogger.log({
+        category: "admin",
+        action: "transcription_deleted",
+        description: `管理員刪除轉錄記錄: ${transcription.originalName}`,
+        severity: "warning",
+        details: {
+          adminId,
+          transcriptionId,
+          originalUserId: transcription.userId,
+          filename: transcription.filename
+        }
+      });
+
+      res.json({ message: "轉錄記錄已刪除" });
+    } catch (error) {
+      console.error("Delete transcription error:", error);
+      res.status(500).json({ message: "刪除轉錄記錄失敗" });
+    }
+  });
+
   // Admin logs API routes - temporarily accessible for debugging
   app.get("/api/admin/logs", async (req, res) => {
     try {
