@@ -113,6 +113,19 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Admin logs table for system debugging and change tracking
+export const adminLogs = pgTable("admin_logs", {
+  id: serial("id").primaryKey(),
+  category: varchar("category", { length: 50 }).notNull(), // transcription, ui_fix, color_fix, ai_analysis, etc.
+  action: varchar("action", { length: 100 }).notNull(),
+  description: text("description").notNull(),
+  details: jsonb("details"), // Additional structured data
+  userId: integer("user_id").references(() => users.id),
+  transcriptionId: integer("transcription_id").references(() => transcriptionsWithUser.id),
+  severity: varchar("severity", { length: 20 }).notNull().default("info"), // info, warning, error, success
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Add user ownership to transcriptions
 export const transcriptionsWithUser = pgTable("transcriptions", {
   id: serial("id").primaryKey(),
@@ -155,6 +168,8 @@ export type User = typeof users.$inferSelect;
 export type InsertApplication = z.infer<typeof insertApplicationSchema>;
 export type AccountApplication = typeof accountApplications.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type AdminLog = typeof adminLogs.$inferSelect;
+export type InsertAdminLog = typeof adminLogs.$inferInsert;
 
 // Type definitions for transcript data
 export interface Speaker {
