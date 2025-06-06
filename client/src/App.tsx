@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import Navigation from "@/components/navigation";
+import ChatBot from "@/components/chat-bot";
 import TranscriptionPage from "@/pages/transcription";
 import TranscriptionResultsPage from "@/pages/transcription-results";
 import Dashboard from "@/pages/dashboard";
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
       </Switch>
+      <ChatBot />
     </div>
   );
 }
