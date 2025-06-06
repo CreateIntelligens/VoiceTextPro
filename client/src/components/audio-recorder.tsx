@@ -32,14 +32,19 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
   const [duration, setDuration] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0);
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const [frequencyData, setFrequencyData] = useState<number[]>(new Array(32).fill(0));
+  const [waveformData, setWaveformData] = useState<number[]>(new Array(64).fill(0));
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const frequencyArrayRef = useRef<Uint8Array | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const animationRef = useRef<number | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const { toast } = useToast();
 
@@ -207,19 +212,45 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
   const monitorAudioLevel = () => {
     if (!analyserRef.current) return;
     
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const timeDataArray = new Uint8Array(bufferLength);
+    const frequencyDataArray = new Uint8Array(bufferLength);
     
-    const updateLevel = () => {
+    dataArrayRef.current = timeDataArray;
+    frequencyArrayRef.current = frequencyDataArray;
+    
+    const updateVisualization = () => {
       if (!analyserRef.current || !isRecording || isPaused) return;
       
-      analyserRef.current.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+      // Get time domain data for waveform
+      analyserRef.current.getByteTimeDomainData(timeDataArray);
+      // Get frequency domain data for spectrum
+      analyserRef.current.getByteFrequencyData(frequencyDataArray);
+      
+      // Calculate audio level
+      const average = frequencyDataArray.reduce((a, b) => a + b) / frequencyDataArray.length;
       setAudioLevel(Math.min(100, (average / 128) * 100));
       
-      animationRef.current = requestAnimationFrame(updateLevel);
+      // Update waveform data (sample down to 64 points)
+      const waveformSamples = new Array(64);
+      for (let i = 0; i < 64; i++) {
+        const index = Math.floor((i / 64) * timeDataArray.length);
+        waveformSamples[i] = (timeDataArray[index] - 128) / 128; // Normalize to -1 to 1
+      }
+      setWaveformData(waveformSamples);
+      
+      // Update frequency data (sample down to 32 bars)
+      const frequencySamples = new Array(32);
+      for (let i = 0; i < 32; i++) {
+        const index = Math.floor((i / 32) * frequencyDataArray.length);
+        frequencySamples[i] = frequencyDataArray[index] / 255; // Normalize to 0 to 1
+      }
+      setFrequencyData(frequencySamples);
+      
+      animationRef.current = requestAnimationFrame(updateVisualization);
     };
     
-    updateLevel();
+    updateVisualization();
   };
 
   const playRecording = () => {
@@ -295,14 +326,64 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       </CardHeader>
       
       <CardContent className="px-4 sm:px-6 space-y-6">
-        {/* Audio Level Indicator */}
+        {/* Real-time Audio Visualization */}
         {isRecording && !isPaused && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span>音量</span>
-              <span>{Math.round(audioLevel)}%</span>
+          <div className="space-y-4">
+            {/* Audio Level Indicator */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>音量</span>
+                <span>{Math.round(audioLevel)}%</span>
+              </div>
+              <Progress value={audioLevel} className="h-2" />
             </div>
-            <Progress value={audioLevel} className="h-2" />
+
+            {/* Waveform Display */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-700">波形顯示</div>
+              <div className="h-16 bg-gray-900 rounded-lg p-2 flex items-center justify-center overflow-hidden">
+                <div className="flex items-center justify-center h-full space-x-1">
+                  {waveformData.map((amplitude, index) => (
+                    <div
+                      key={index}
+                      className="bg-gradient-to-t from-blue-400 to-purple-500 rounded-sm transition-all duration-75"
+                      style={{
+                        height: `${Math.max(2, Math.abs(amplitude) * 48)}px`,
+                        width: '2px',
+                        opacity: 0.8 + Math.abs(amplitude) * 0.2
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Frequency Spectrum Display */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-700">頻譜分析</div>
+              <div className="h-20 bg-gray-900 rounded-lg p-2 flex items-end justify-center space-x-1">
+                {frequencyData.map((magnitude, index) => (
+                  <div
+                    key={index}
+                    className="rounded-t-sm transition-all duration-100"
+                    style={{
+                      height: `${Math.max(2, magnitude * 64)}px`,
+                      width: '6px',
+                      background: `linear-gradient(to top, 
+                        ${magnitude > 0.7 ? '#ef4444' : 
+                          magnitude > 0.4 ? '#f59e0b' : 
+                          magnitude > 0.2 ? '#10b981' : '#3b82f6'
+                        } 0%, 
+                        ${magnitude > 0.7 ? '#fca5a5' : 
+                          magnitude > 0.4 ? '#fde68a' : 
+                          magnitude > 0.2 ? '#a7f3d0' : '#bfdbfe'
+                        } 100%)`,
+                      opacity: 0.7 + magnitude * 0.3
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

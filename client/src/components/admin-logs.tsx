@@ -132,9 +132,9 @@ export function AdminLogs() {
             </div>
           ) : (
             <div className="space-y-4">
-              {(logs as AdminLog[]).map((log: AdminLog) => (
+              {(logs as AdminLog[]).map((log: AdminLog, index: number) => (
                 <div
-                  key={log.id}
+                  key={`${log.id}-${log.createdAt}-${index}`}
                   className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
                   <div className="flex items-start justify-between mb-2">
