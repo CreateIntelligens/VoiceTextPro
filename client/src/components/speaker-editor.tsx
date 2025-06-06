@@ -127,7 +127,7 @@ export default function SpeakerEditor({ transcription, onSpeakersUpdated }: Spea
             >
               <div className="flex items-center space-x-3">
                 <div 
-                  className="w-4 h-4 rounded-full"
+                  className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: speaker.color }}
                 />
                 {editingSpeaker === speaker.id ? (
