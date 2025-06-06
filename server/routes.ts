@@ -453,6 +453,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get transcription by ID
   app.get("/api/transcriptions/:id", async (req, res) => {
     try {
+      // Disable caching to ensure fresh data
+      res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
+      
       const id = parseInt(req.params.id);
       const transcription = await storage.getTranscription(id);
 
@@ -490,6 +497,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all transcriptions
   app.get("/api/transcriptions", async (req, res) => {
     try {
+      // Disable caching to ensure fresh data
+      res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
+      
       const transcriptions = await storage.getAllTranscriptions();
       res.json(transcriptions);
     } catch (error) {

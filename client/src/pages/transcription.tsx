@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { MicOff, Languages, Users, Zap, History } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { MicOff, Languages, Users, Zap, History, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import UploadSection from "@/components/upload-section";
@@ -12,6 +12,7 @@ import type { TranscriptionStatus } from "@/lib/types";
 
 export default function TranscriptionPage() {
   const [currentTranscriptionId, setCurrentTranscriptionId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
 
   // Query for all transcriptions
   const { data: allTranscriptions = [] } = useQuery<TranscriptionStatus[]>({
@@ -61,6 +62,10 @@ export default function TranscriptionPage() {
   const handleSelectTranscription = (id: number) => {
     console.log('Selecting transcription:', id);
     setCurrentTranscriptionId(id);
+    // Force refresh of specific transcription data
+    if (id) {
+      refetch();
+    }
   };
 
   // Handle case where currentTranscription might be an array
