@@ -258,10 +258,7 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
           </div>
         )}
 
-        {/* LeMUR AI Analysis */}
-        <div className="mt-6">
-          <LemurAnalysis transcription={currentTranscription} />
-        </div>
+
       </CardContent>
     </Card>
   );
