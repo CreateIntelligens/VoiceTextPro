@@ -116,9 +116,7 @@ export default function LemurAnalysis({ transcription }: LemurAnalysisProps) {
   // Meeting insights mutation
   const meetingMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest(`/api/transcriptions/${transcription.id}/lemur/meeting-insights`, {
-        method: "POST",
-      });
+      return await apiRequest(`/api/transcriptions/${transcription.id}/lemur/meeting-insights`, "POST");
     },
     onSuccess: (insights) => {
       setMeetingInsights(insights);
@@ -139,9 +137,7 @@ export default function LemurAnalysis({ transcription }: LemurAnalysisProps) {
   // Interview analysis mutation
   const interviewMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest(`/api/transcriptions/${transcription.id}/lemur/interview-analysis`, {
-        method: "POST",
-      });
+      return await apiRequest(`/api/transcriptions/${transcription.id}/lemur/interview-analysis`, "POST");
     },
     onSuccess: (analysis) => {
       setInterviewAnalysis(analysis);
@@ -162,9 +158,7 @@ export default function LemurAnalysis({ transcription }: LemurAnalysisProps) {
   // Customer service analysis mutation
   const customerServiceMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest(`/api/transcriptions/${transcription.id}/lemur/customer-service-analysis`, {
-        method: "POST",
-      });
+      return await apiRequest(`/api/transcriptions/${transcription.id}/lemur/customer-service-analysis`, "POST");
     },
     onSuccess: (analysis) => {
       setCustomerServiceAnalysis(analysis);
@@ -277,7 +271,7 @@ export default function LemurAnalysis({ transcription }: LemurAnalysisProps) {
                 {qaMutation.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <MessageSquareQuestion className="w-4 h-4 mr-2" />
+                  <MessageSquare className="w-4 h-4 mr-2" />
                 )}
                 開始分析
               </Button>
@@ -508,7 +502,7 @@ export default function LemurAnalysis({ transcription }: LemurAnalysisProps) {
                 {customerServiceMutation.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <HeadphonesIcon className="w-4 h-4 mr-2" />
+                  <Headphones className="w-4 h-4 mr-2" />
                 )}
                 分析客服
               </Button>

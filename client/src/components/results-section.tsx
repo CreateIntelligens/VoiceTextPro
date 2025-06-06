@@ -257,6 +257,11 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
             <p>暫無轉錄內容</p>
           </div>
         )}
+
+        {/* LeMUR AI Analysis */}
+        <div className="mt-6">
+          <LemurAnalysis transcription={currentTranscription} />
+        </div>
       </CardContent>
     </Card>
   );
