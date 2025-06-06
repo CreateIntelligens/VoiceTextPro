@@ -68,6 +68,14 @@ export default function TranscriptionPage() {
     }
   };
 
+  const handleManualRefresh = () => {
+    // Invalidate all transcription-related queries to force fresh data
+    queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
+    if (currentTranscriptionId) {
+      queryClient.invalidateQueries({ queryKey: ["/api/transcriptions", currentTranscriptionId] });
+    }
+  };
+
   // Handle case where currentTranscription might be an array
   const actualTranscription = Array.isArray(currentTranscription) ? currentTranscription[0] : currentTranscription;
 
@@ -89,6 +97,17 @@ export default function TranscriptionPage() {
           {/* Left sidebar - Transcription list */}
           <div className="lg:col-span-1 order-2 lg:order-1">
             <div className="lg:sticky lg:top-4">
+              <div className="mb-4">
+                <Button 
+                  onClick={handleManualRefresh}
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  重新整理狀態
+                </Button>
+              </div>
               <TranscriptionList 
                 transcriptions={allTranscriptions}
                 onSelectTranscription={handleSelectTranscription}
