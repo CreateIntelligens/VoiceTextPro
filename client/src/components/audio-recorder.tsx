@@ -134,10 +134,10 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         const audioContext = new AudioContext();
         const source = audioContext.createMediaStreamSource(stream);
         const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 512; // Smaller for faster response
-        analyser.smoothingTimeConstant = 0.3; // More smoothing for stable readings
-        analyser.minDecibels = -100; // Lower threshold for quiet sounds
-        analyser.maxDecibels = 0; // Higher ceiling for loud sounds
+        analyser.fftSize = 256; // Even smaller for maximum sensitivity
+        analyser.smoothingTimeConstant = 0.1; // Less smoothing for immediate response
+        analyser.minDecibels = -120; // Extreme low threshold for whisper-level sounds
+        analyser.maxDecibels = 0; // Full range ceiling
         source.connect(analyser);
         analyserRef.current = analyser;
         streamRef.current = stream;
@@ -274,13 +274,19 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         const dataArray = new Uint8Array(bufferLength);
         analyserRef.current.getByteFrequencyData(dataArray);
         
-        // Calculate average volume
+        // Calculate volume with enhanced sensitivity for quiet speech
         let sum = 0;
+        let maxValue = 0;
         for (let i = 0; i < bufferLength; i++) {
           sum += dataArray[i];
+          maxValue = Math.max(maxValue, dataArray[i]);
         }
         const average = sum / bufferLength;
-        const volumeLevel = Math.min(100, (average / 255) * 500); // Much higher sensitivity for quiet environments
+        
+        // Use a combination of average and peak detection for better sensitivity
+        const baseLevel = (average / 255) * 2000; // Extreme amplification
+        const peakBoost = (maxValue / 255) * 500; // Additional boost from peaks
+        const volumeLevel = Math.min(100, baseLevel + peakBoost * 0.3);
         
         setAudioLevel(volumeLevel);
         
