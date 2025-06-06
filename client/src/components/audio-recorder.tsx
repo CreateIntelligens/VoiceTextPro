@@ -183,8 +183,11 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         setRecordingTime(prev => prev + 0.1);
       }, 100);
       
-      // Start audio level monitoring
-      monitorAudioLevel();
+      // Start audio level monitoring after a short delay to ensure recording is active
+      setTimeout(() => {
+        console.log('Starting delayed audio monitoring, isRecording:', isRecording);
+        monitorAudioLevel();
+      }, 200);
       
       toast({
         title: "開始錄音",
@@ -247,6 +250,8 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     console.log('Audio monitoring setup successful');
     
     const updateVolumeLevel = () => {
+      console.log('Update loop - isRecording:', isRecording, 'isPaused:', isPaused);
+      
       if (!analyserRef.current || !streamRef.current) {
         console.log('Missing analyzer or stream in update loop');
         if (isRecording && !isPaused) {
@@ -256,8 +261,9 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       }
       
       if (!isRecording || isPaused) {
+        console.log('Not recording or paused, setting volume to 0');
         setAudioLevel(0);
-        return; // Don't continue animation when not recording
+        return;
       }
       
       try {
@@ -272,9 +278,9 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
           sum += dataArray[i];
         }
         const average = sum / bufferLength;
-        const volumeLevel = Math.min(100, (average / 255) * 150); // Amplify sensitivity
+        const volumeLevel = Math.min(100, (average / 255) * 150);
         
-        console.log('Volume level:', volumeLevel.toFixed(1));
+        console.log('Raw average:', average, 'Volume level:', volumeLevel.toFixed(1));
         setAudioLevel(volumeLevel);
         
       } catch (error) {
@@ -283,6 +289,7 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       
       // Continue monitoring while recording
       if (isRecording && !isPaused) {
+        console.log('Continuing monitoring...');
         animationRef.current = requestAnimationFrame(updateVolumeLevel);
       }
     };
