@@ -549,7 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }) || [];
 
       // Get unique speakers and create speaker objects
-      const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16'];
+      const colors = ['hsl(220, 70%, 50%)', 'hsl(120, 70%, 50%)', 'hsl(0, 70%, 50%)', 'hsl(280, 70%, 50%)', 'hsl(45, 70%, 50%)', 'hsl(180, 70%, 50%)'];
       const speakerIds = data.utterances?.map((u: any) => u.speaker) || [];
       const uniqueSpeakerIds: string[] = [];
       speakerIds.forEach((id: string) => {
