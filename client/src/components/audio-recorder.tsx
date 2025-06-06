@@ -231,56 +231,32 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     if (!analyserRef.current) return;
     
     const bufferLength = analyserRef.current.frequencyBinCount;
-    const timeDataArray = new Uint8Array(bufferLength);
     const frequencyDataArray = new Uint8Array(bufferLength);
     
-    dataArrayRef.current = timeDataArray;
-    frequencyArrayRef.current = frequencyDataArray;
-    
-    const updateVisualization = () => {
+    const updateVolumeLevel = () => {
       if (!analyserRef.current) {
-        animationRef.current = requestAnimationFrame(updateVisualization);
+        animationRef.current = requestAnimationFrame(updateVolumeLevel);
         return;
       }
       
       if (!isRecording || isPaused) {
-        // Reset visualization data when not recording
-        setWaveformData(new Array(64).fill(0));
-        setFrequencyData(new Array(32).fill(0));
         setAudioLevel(0);
-        animationRef.current = requestAnimationFrame(updateVisualization);
+        animationRef.current = requestAnimationFrame(updateVolumeLevel);
         return;
       }
       
-      // Get time domain data for waveform
-      analyserRef.current.getByteTimeDomainData(timeDataArray);
-      // Get frequency domain data for spectrum
+      // Get frequency domain data for volume calculation
       analyserRef.current.getByteFrequencyData(frequencyDataArray);
       
-      // Calculate audio level
+      // Calculate average volume level
       const average = frequencyDataArray.reduce((a, b) => a + b) / frequencyDataArray.length;
-      setAudioLevel(Math.min(100, (average / 128) * 100));
+      const volumeLevel = Math.min(100, (average / 128) * 100);
+      setAudioLevel(volumeLevel);
       
-      // Update waveform data (sample down to 64 points)
-      const waveformSamples = new Array(64);
-      for (let i = 0; i < 64; i++) {
-        const index = Math.floor((i / 64) * timeDataArray.length);
-        waveformSamples[i] = (timeDataArray[index] - 128) / 128; // Normalize to -1 to 1
-      }
-      setWaveformData([...waveformSamples]); // Force state update
-      
-      // Update frequency data (sample down to 32 bars)
-      const frequencySamples = new Array(32);
-      for (let i = 0; i < 32; i++) {
-        const index = Math.floor((i / 32) * frequencyDataArray.length);
-        frequencySamples[i] = frequencyDataArray[index] / 255; // Normalize to 0 to 1
-      }
-      setFrequencyData([...frequencySamples]); // Force state update
-      
-      animationRef.current = requestAnimationFrame(updateVisualization);
+      animationRef.current = requestAnimationFrame(updateVolumeLevel);
     };
     
-    updateVisualization();
+    updateVolumeLevel();
   };
 
   const playRecording = () => {
@@ -359,63 +335,89 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       </CardHeader>
       
       <CardContent className="px-4 sm:px-6 space-y-6">
-        {/* Real-time Audio Visualization */}
+        {/* Beautiful Volume Visualization */}
         {isRecording && !isPaused && (
-          <div className="space-y-4">
-            {/* Audio Level Indicator */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>音量</span>
-                <span>{Math.round(audioLevel)}%</span>
+          <div className="space-y-6 p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border border-blue-100">
+            {/* Circular Volume Meter */}
+            <div className="flex flex-col items-center space-y-4">
+              <div className="relative w-24 h-24">
+                <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
+                  {/* Background circle */}
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke="#e5e7eb"
+                    strokeWidth="6"
+                  />
+                  {/* Volume level circle */}
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke={audioLevel > 80 ? "#ef4444" : audioLevel > 50 ? "#f59e0b" : "#22c55e"}
+                    strokeWidth="6"
+                    strokeDasharray={`${(audioLevel / 100) * 251.2} 251.2`}
+                    strokeLinecap="round"
+                    className="transition-all duration-300"
+                  />
+                </svg>
+                {/* Center content */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-800">
+                      {Math.round(audioLevel)}%
+                    </div>
+                  </div>
+                </div>
               </div>
-              <Progress value={audioLevel} className="h-2" />
-            </div>
 
-            {/* Waveform Display */}
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-gray-700">波形顯示</div>
-              <div className="h-16 bg-gray-900 rounded-lg p-2 flex items-center justify-center overflow-hidden">
-                <div className="flex items-center justify-center h-full space-x-1">
-                  {waveformData.map((amplitude, index) => (
-                    <div
-                      key={index}
-                      className="bg-gradient-to-t from-blue-400 to-purple-500 rounded-sm transition-all duration-75"
-                      style={{
-                        height: `${Math.max(2, Math.abs(amplitude) * 48)}px`,
-                        width: '2px',
-                        opacity: 0.8 + Math.abs(amplitude) * 0.2
-                      }}
-                    />
-                  ))}
+              {/* Volume status text */}
+              <div className="text-center">
+                <div className="text-sm font-medium text-gray-700">
+                  {audioLevel > 80 ? '🔊 很大聲' : 
+                   audioLevel > 50 ? '🔉 適中' : 
+                   audioLevel > 20 ? '🔈 輕聲' : '🔇 安靜'}
                 </div>
               </div>
             </div>
 
-            {/* Frequency Spectrum Display */}
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-gray-700">頻譜分析</div>
-              <div className="h-20 bg-gray-900 rounded-lg p-2 flex items-end justify-center space-x-1">
-                {frequencyData.map((magnitude, index) => (
+            {/* Linear Volume Bar */}
+            <div className="space-y-3">
+              <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="absolute left-0 top-0 h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${audioLevel}%`,
+                    background: audioLevel > 80 
+                      ? 'linear-gradient(90deg, #f59e0b 0%, #ef4444 100%)'
+                      : audioLevel > 50 
+                      ? 'linear-gradient(90deg, #22c55e 0%, #f59e0b 100%)'
+                      : 'linear-gradient(90deg, #3b82f6 0%, #22c55e 100%)'
+                  }}
+                />
+                {/* Level indicators */}
+                {[25, 50, 75].map((level) => (
                   <div
-                    key={index}
-                    className="rounded-t-sm transition-all duration-100"
-                    style={{
-                      height: `${Math.max(2, magnitude * 64)}px`,
-                      width: '6px',
-                      background: `linear-gradient(to top, 
-                        ${magnitude > 0.7 ? '#ef4444' : 
-                          magnitude > 0.4 ? '#f59e0b' : 
-                          magnitude > 0.2 ? '#10b981' : '#3b82f6'
-                        } 0%, 
-                        ${magnitude > 0.7 ? '#fca5a5' : 
-                          magnitude > 0.4 ? '#fde68a' : 
-                          magnitude > 0.2 ? '#a7f3d0' : '#bfdbfe'
-                        } 100%)`,
-                      opacity: 0.7 + magnitude * 0.3
-                    }}
+                    key={level}
+                    className="absolute top-0 w-0.5 h-full bg-white/60"
+                    style={{ left: `${level}%` }}
                   />
                 ))}
               </div>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>安靜</span>
+                <span>適中</span>
+                <span>大聲</span>
+              </div>
+            </div>
+
+            {/* Recording indicator */}
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-sm text-gray-600">正在監聽音量大小</span>
             </div>
           </div>
         )}
