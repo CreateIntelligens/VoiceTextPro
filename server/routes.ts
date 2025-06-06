@@ -351,36 +351,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await fs.mkdir("uploads", { recursive: true });
   }
 
-  // Upload audio file
-  app.post("/api/transcriptions/upload", requireAuth, upload.single("audio"), async (req: AuthenticatedRequest, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "未選擇檔案" });
+  // Upload audio file with enhanced error handling
+  app.post("/api/transcriptions/upload", requireAuth, (req: AuthenticatedRequest, res) => {
+    upload.single("audio")(req, res, async (err) => {
+      try {
+        // Handle multer errors
+        if (err) {
+          console.error("Multer upload error:", err);
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ message: "檔案大小超過限制（最大 100MB）" });
+          }
+          return res.status(400).json({ message: err.message || "檔案上傳失敗" });
+        }
+
+        if (!req.file) {
+          return res.status(400).json({ message: "未選擇檔案" });
+        }
+
+        console.log(`[UPLOAD] File uploaded: ${req.file.originalname}, size: ${req.file.size}`);
+
+        const transcriptionData = {
+          userId: req.user!.id,
+          filename: req.file.filename,
+          originalName: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
+          fileSize: req.file.size,
+        };
+
+        const validatedData = insertTranscriptionSchema.parse(transcriptionData);
+        const transcription = await storage.createTranscription(validatedData);
+
+        // Store keywords for later use in transcription
+        if (req.body.keywords) {
+          transcriptionKeywords.set(transcription.id, req.body.keywords);
+          console.log(`[UPLOAD] Custom keywords stored for transcription ${transcription.id}: ${req.body.keywords}`);
+        }
+
+        console.log(`[UPLOAD] Transcription created with ID: ${transcription.id}`);
+        res.json(transcription);
+      } catch (error) {
+        console.error("Upload processing error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ message: "資料驗證失敗", errors: error.errors });
+        }
+        res.status(500).json({ message: error instanceof Error ? error.message : "檔案上傳失敗" });
       }
-
-      const transcriptionData = {
-        userId: req.user!.id,
-        filename: req.file.filename,
-        originalName: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
-        fileSize: req.file.size,
-      };
-
-      const validatedData = insertTranscriptionSchema.parse(transcriptionData);
-      const transcription = await storage.createTranscription(validatedData);
-
-      // Store keywords for later use in transcription
-      if (req.body.keywords) {
-        transcriptionKeywords.set(transcription.id, req.body.keywords);
-        console.log(`[UPLOAD] Custom keywords stored for transcription ${transcription.id}: ${req.body.keywords}`);
-      }
-
-      res.json(transcription);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "資料驗證失敗", errors: error.errors });
-      }
-      res.status(500).json({ message: error instanceof Error ? error.message : "檔案上傳失敗" });
-    }
+    });
   });
 
   // Start transcription
