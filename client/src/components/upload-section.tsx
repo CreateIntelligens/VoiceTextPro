@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, File, X, CloudUpload, Tag, Save, RotateCcw, Info, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AudioRecorder from "./audio-recorder";
+import { KeywordInput } from "./keyword-input";
 
 interface UploadSectionProps {
   onFileUploaded: (transcriptionId: number) => void;
@@ -19,17 +20,7 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [keywords, setKeywords] = useState<string>("");
-  const [savedKeywords, setSavedKeywords] = useState<string>("");
   const { toast } = useToast();
-
-  // Load saved keywords on component mount
-  useEffect(() => {
-    const saved = localStorage.getItem('transcription-keywords');
-    if (saved) {
-      setSavedKeywords(saved);
-      setKeywords(saved);
-    }
-  }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -333,74 +324,19 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
         </TabsContent>
       </Tabs>
 
-      {/* Shared Keywords Section */}
+      {/* Enhanced Keywords Section */}
       <Card className="mt-6">
         <CardContent className="p-4 sm:p-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Tag className="w-5 h-5 text-blue-600" />
-                <Label htmlFor="keywords" className="text-sm font-medium text-slate-900">
-                  自定義關鍵字（可選）
-                </Label>
-                {getKeywordCount() > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {getKeywordCount()} 個關鍵字
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                {savedKeywords && savedKeywords !== keywords && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleLoadSavedKeywords}
-                    className="text-xs"
-                  >
-                    <RotateCcw className="w-3 h-3 mr-1" />
-                    載入已儲存
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSaveKeywords}
-                  disabled={!keywords.trim() || keywords === savedKeywords}
-                  className="text-xs"
-                >
-                  <Save className="w-3 h-3 mr-1" />
-                  儲存
-                </Button>
-                {savedKeywords && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleResetKeywords}
-                    className="text-xs text-red-600 hover:text-red-700"
-                  >
-                    <X className="w-3 h-3 mr-1" />
-                    清除
-                  </Button>
-                )}
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Textarea
-                id="keywords"
-                placeholder="輸入關鍵字，用逗號或換行分隔（例如：科技,AI,機器學習）"
-                value={keywords}
-                onChange={(e) => setKeywords(e.target.value)}
-                className="min-h-[80px] resize-none"
-                disabled={isDisabled}
-              />
-              <div className="flex items-start space-x-2 text-xs text-slate-500">
-                <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p>關鍵字可幫助提升轉錄準確度，特別是專業術語或人名。</p>
-                  <p className="mt-1">僅支援英文字母、數字和基本符號。重複的關鍵字會自動去除。</p>
-                </div>
-              </div>
+          <KeywordInput
+            value={keywords}
+            onChange={setKeywords}
+            placeholder="輸入關鍵字，用逗號分隔（例如：科技,AI,機器學習）"
+          />
+          <div className="mt-3 flex items-start space-x-2 text-xs text-slate-500">
+            <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+            <div>
+              <p>關鍵字可幫助提升轉錄準確度，特別是專業術語或人名。</p>
+              <p className="mt-1">僅支援英文字母、數字和基本符號。重複的關鍵字會自動去除。</p>
             </div>
           </div>
         </CardContent>

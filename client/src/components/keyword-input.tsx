@@ -31,10 +31,7 @@ export function KeywordInput({ value, onChange, placeholder = "輸入關鍵字�
   // Create new keyword set
   const createKeywordMutation = useMutation({
     mutationFn: async (data: { name: string; keywords: string }) => {
-      return apiRequest("/api/keywords", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      return apiRequest("/api/keywords", "POST", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/keywords"] });
@@ -57,18 +54,14 @@ export function KeywordInput({ value, onChange, placeholder = "輸入關鍵字�
   // Use keyword set
   const useKeywordMutation = useMutation({
     mutationFn: async (keywordId: number) => {
-      return apiRequest(`/api/keywords/${keywordId}/use`, {
-        method: "PATCH",
-      });
+      return apiRequest(`/api/keywords/${keywordId}/use`, "PATCH");
     },
   });
 
   // Delete keyword set
   const deleteKeywordMutation = useMutation({
     mutationFn: async (keywordId: number) => {
-      return apiRequest(`/api/keywords/${keywordId}`, {
-        method: "DELETE",
-      });
+      return apiRequest(`/api/keywords/${keywordId}`, "DELETE");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/keywords"] });
