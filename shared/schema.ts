@@ -171,6 +171,52 @@ export type Notification = typeof notifications.$inferSelect;
 export type AdminLog = typeof adminLogs.$inferSelect;
 export type InsertAdminLog = typeof adminLogs.$inferInsert;
 
+// Chat bot feedback system
+export const chatSessions = pgTable("chat_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  sessionId: varchar("session_id", { length: 100 }).notNull(),
+  title: varchar("title", { length: 200 }),
+  status: varchar("status", { length: 20 }).notNull().default("active"), // active, resolved, archived
+  priority: varchar("priority", { length: 20 }).notNull().default("medium"), // low, medium, high, urgent
+  category: varchar("category", { length: 50 }).notNull().default("general"), // general, bug, feature, question
+  assignedTo: integer("assigned_to").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+export const chatMessages = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => chatSessions.id),
+  userId: integer("user_id").references(() => users.id),
+  message: text("message").notNull(),
+  messageType: varchar("message_type", { length: 20 }).notNull().default("user"), // user, admin, system
+  attachments: jsonb("attachments"), // Array of file attachments
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Chat bot schemas
+export const insertChatSessionSchema = createInsertSchema(chatSessions).pick({
+  sessionId: true,
+  title: true,
+  category: true,
+  priority: true,
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).pick({
+  sessionId: true,
+  message: true,
+  messageType: true,
+  attachments: true,
+});
+
+export type InsertChatSession = z.infer<typeof insertChatSessionSchema>;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+
 // Type definitions for transcript data
 export interface Speaker {
   id: string;

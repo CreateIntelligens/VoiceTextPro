@@ -10,7 +10,7 @@ import { UsageTracker } from "./usage-tracker";
 import AdminLogger from "./admin-logger";
 import { AuthService, requireAuth, requireAdmin, type AuthenticatedRequest } from "./auth";
 import { db } from "./db";
-import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions, users, accountApplications, notifications, insertApplicationSchema } from "@shared/schema";
+import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions, users, accountApplications, notifications, insertApplicationSchema, chatSessions, chatMessages, insertChatSessionSchema, insertChatMessageSchema } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { z } from "zod";
 
