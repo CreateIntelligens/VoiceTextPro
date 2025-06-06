@@ -332,4 +332,29 @@ AdminLogger.log({
   }
 });
 
+AdminLogger.log({
+  category: "error_fix",
+  action: "audio_playback_error_fix",
+  description: "修復音頻播放時間設置錯誤：Failed to set currentTime property",
+  severity: "critical",
+  details: {
+    error_message: "Failed to set the 'currentTime' property on 'HTMLMediaElement': The provided double value is non-finite",
+    root_cause: "音頻時間值為NaN或Infinity導致HTMLMediaElement拒絕設置",
+    affected_features: ["音頻進度條點擊跳轉", "播放時間顯示", "音頻元數據載入"],
+    solutions: [
+      "添加isFinite()驗證所有時間值",
+      "格式化時間函數添加邊界檢查",
+      "進度條點擊處理增加範圍驗證",
+      "音頻事件處理器添加數值有效性檢查"
+    ],
+    validation_added: [
+      "clickedTime範圍檢查 (0 <= time <= duration)",
+      "duration有效性驗證",
+      "currentTime和duration的isFinite檢查",
+      "formatTime函數防護無效輸入"
+    ],
+    files_modified: ["client/src/components/audio-recorder.tsx"]
+  }
+});
+
 export default AdminLogger;

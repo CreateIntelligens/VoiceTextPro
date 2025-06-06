@@ -325,6 +325,9 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
   };
 
   const formatTime = (seconds: number): string => {
+    if (!isFinite(seconds) || seconds < 0) {
+      return '00:00';
+    }
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -489,12 +492,12 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
               ref={audioRef}
               src={audioUrl}
               onLoadedMetadata={() => {
-                if (audioRef.current) {
+                if (audioRef.current && isFinite(audioRef.current.duration)) {
                   setDuration(audioRef.current.duration);
                 }
               }}
               onTimeUpdate={() => {
-                if (audioRef.current) {
+                if (audioRef.current && isFinite(audioRef.current.currentTime)) {
                   setPlaybackTime(audioRef.current.currentTime);
                 }
               }}
@@ -510,12 +513,16 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
                 value={duration > 0 ? (playbackTime / duration) * 100 : 0} 
                 className="h-2 cursor-pointer"
                 onClick={(e) => {
-                  if (audioRef.current && duration > 0) {
+                  if (audioRef.current && duration > 0 && isFinite(duration)) {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
                     const clickedTime = (x / rect.width) * duration;
-                    audioRef.current.currentTime = clickedTime;
-                    setPlaybackTime(clickedTime);
+                    
+                    // Validate clickedTime is a finite number
+                    if (isFinite(clickedTime) && clickedTime >= 0 && clickedTime <= duration) {
+                      audioRef.current.currentTime = clickedTime;
+                      setPlaybackTime(clickedTime);
+                    }
                   }
                 }}
               />
