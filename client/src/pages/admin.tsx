@@ -75,6 +75,7 @@ export default function Admin() {
   useEffect(() => {
     if (isAuthenticated && user?.role === 'admin') {
       fetchData();
+      fetchTranscriptions();
     }
   }, [isAuthenticated, user]);
 
