@@ -86,14 +86,17 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       
       // Setup audio analysis for level monitoring
       const audioContext = new AudioContext();
+      await audioContext.resume(); // Ensure context is active
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 1024; // Optimized for volume detection
-      analyser.smoothingTimeConstant = 0.1; // Less smoothing for responsive volume
-      analyser.minDecibels = -90;
-      analyser.maxDecibels = -10;
+      analyser.fftSize = 2048; // Higher resolution for better detection
+      analyser.smoothingTimeConstant = 0.3; // Moderate smoothing
+      analyser.minDecibels = -100;
+      analyser.maxDecibels = -30;
       source.connect(analyser);
       analyserRef.current = analyser;
+      
+      console.log('Audio analyzer setup complete');
       
       toast({
         title: "麥克風權限已授予",
@@ -234,13 +237,16 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
   };
 
   const monitorAudioLevel = () => {
-    if (!analyserRef.current) return;
+    if (!analyserRef.current || !streamRef.current) {
+      console.log('Audio analyzer or stream not available');
+      return;
+    }
     
     const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
     
     const updateVolumeLevel = () => {
-      if (!analyserRef.current) {
+      if (!analyserRef.current || !streamRef.current) {
         animationRef.current = requestAnimationFrame(updateVolumeLevel);
         return;
       }
@@ -251,20 +257,47 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         return;
       }
       
-      // Get time domain data for more accurate volume detection
-      analyserRef.current.getByteTimeDomainData(dataArray);
-      
-      // Calculate RMS (Root Mean Square) for accurate volume
-      let sum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        const sample = (dataArray[i] - 128) / 128; // Normalize to -1 to 1
-        sum += sample * sample;
+      // Check if stream is still active
+      const audioTracks = streamRef.current.getAudioTracks();
+      if (audioTracks.length === 0 || audioTracks[0].readyState !== 'live') {
+        console.log('Audio track not live');
+        animationRef.current = requestAnimationFrame(updateVolumeLevel);
+        return;
       }
-      const rms = Math.sqrt(sum / bufferLength);
       
-      // Convert RMS to percentage with logarithmic scaling for better sensitivity
-      const volumeLevel = Math.min(100, Math.max(0, rms * 300)); // Amplify for visibility
-      setAudioLevel(volumeLevel);
+      try {
+        // Use both time and frequency domain for better detection
+        const timeArray = new Uint8Array(bufferLength);
+        analyserRef.current.getByteTimeDomainData(timeArray);
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // Calculate volume using RMS of time domain data
+        let rmsSum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const sample = (timeArray[i] - 128) / 128;
+          rmsSum += sample * sample;
+        }
+        const rms = Math.sqrt(rmsSum / bufferLength);
+        
+        // Also calculate frequency domain average
+        let freqSum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          freqSum += dataArray[i];
+        }
+        const freqAverage = freqSum / bufferLength;
+        
+        // Use the higher of the two measurements for better sensitivity
+        const rmsVolume = rms * 500; // Amplify RMS
+        const freqVolume = (freqAverage / 255) * 100;
+        const volumeLevel = Math.min(100, Math.max(0, Math.max(rmsVolume, freqVolume)));
+        
+        // Always log for debugging
+        console.log('RMS:', rmsVolume.toFixed(2), 'Freq:', freqVolume.toFixed(2), 'Final:', volumeLevel.toFixed(2));
+        
+        setAudioLevel(volumeLevel);
+      } catch (error) {
+        console.error('Error reading audio data:', error);
+      }
       
       animationRef.current = requestAnimationFrame(updateVolumeLevel);
     };
