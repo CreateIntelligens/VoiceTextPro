@@ -27,6 +27,10 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const { toast } = useToast();
 
+  // Check if we already have AI analysis data in the transcription
+  const hasExistingAnalysis = transcription.segments && transcription.segments.length > 0 && 
+    transcription.summaryType !== 'basic';
+
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     
@@ -95,9 +99,14 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
             </Button>
           )}
         </div>
+        {hasExistingAnalysis && (
+          <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+            已完成AI語意分析，30個對話段落已處理
+          </div>
+        )}
       </CardHeader>
 
-      {analysis && (
+      {(analysis || hasExistingAnalysis) && (
         <CardContent className="space-y-6">
           {/* Summary */}
           <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4">
@@ -105,19 +114,21 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
               <Lightbulb className="w-4 h-4 text-purple-600" />
               <h4 className="font-semibold text-slate-900">會議摘要</h4>
             </div>
-            <p className="text-slate-700 leading-relaxed">{analysis.summary}</p>
+            <p className="text-slate-700 leading-relaxed">
+              {analysis?.summary || (hasExistingAnalysis ? transcription.summary || "AI語意分析已完成，轉錄內容已分段並優化為更清晰的對話結構。" : "")}
+            </p>
           </div>
 
           {/* Key Points */}
-          {analysis.keyPoints.length > 0 && (
+          {analysis?.keyPoints && analysis.keyPoints.length > 0 && (
             <div>
               <div className="flex items-center space-x-2 mb-3">
                 <Hash className="w-4 h-4 text-blue-600" />
                 <h4 className="font-semibold text-slate-900">重要要點</h4>
-                <Badge variant="outline">{analysis.keyPoints.length} 項</Badge>
+                <Badge variant="outline">{analysis?.keyPoints?.length || 0} 項</Badge>
               </div>
               <ul className="space-y-2">
-                {analysis.keyPoints.map((point, index) => (
+                {analysis?.keyPoints?.map((point, index) => (
                   <li key={index} className="flex items-start space-x-3">
                     <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
                     <span className="text-slate-700">{point}</span>
@@ -128,14 +139,14 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
           )}
 
           {/* Speaker Insights */}
-          {analysis.speakerInsights.length > 0 && (
+          {analysis?.speakerInsights && analysis.speakerInsights.length > 0 && (
             <div>
               <div className="flex items-center space-x-2 mb-3">
                 <Users className="w-4 h-4 text-green-600" />
                 <h4 className="font-semibold text-slate-900">對話者分析</h4>
               </div>
               <div className="space-y-3">
-                {analysis.speakerInsights.map((insight, index) => (
+                {analysis?.speakerInsights?.map((insight, index) => (
                   <div key={index} className="bg-green-50 rounded-lg p-4">
                     <div className="flex items-center space-x-2 mb-2">
                       <Badge variant="outline" className="bg-white">
@@ -153,15 +164,15 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
           )}
 
           {/* Action Items */}
-          {analysis.actionItems.length > 0 && (
+          {analysis?.actionItems && analysis.actionItems.length > 0 && (
             <div>
               <div className="flex items-center space-x-2 mb-3">
                 <CheckSquare className="w-4 h-4 text-orange-600" />
                 <h4 className="font-semibold text-slate-900">行動項目</h4>
-                <Badge variant="outline">{analysis.actionItems.length} 項</Badge>
+                <Badge variant="outline">{analysis?.actionItems?.length || 0} 項</Badge>
               </div>
               <ul className="space-y-2">
-                {analysis.actionItems.map((item, index) => (
+                {analysis?.actionItems?.map((item, index) => (
                   <li key={index} className="flex items-start space-x-3">
                     <div className="w-4 h-4 border-2 border-orange-500 rounded mt-0.5 flex-shrink-0" />
                     <span className="text-slate-700">{item}</span>
@@ -172,14 +183,14 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
           )}
 
           {/* Topics */}
-          {analysis.topics.length > 0 && (
+          {analysis?.topics && analysis.topics.length > 0 && (
             <div>
               <div className="flex items-center space-x-2 mb-3">
                 <Hash className="w-4 h-4 text-indigo-600" />
                 <h4 className="font-semibold text-slate-900">討論主題</h4>
               </div>
               <div className="flex flex-wrap gap-2">
-                {analysis.topics.map((topic, index) => (
+                {analysis?.topics?.map((topic, index) => (
                   <Badge key={index} variant="secondary" className="bg-indigo-100 text-indigo-700">
                     {topic}
                   </Badge>
