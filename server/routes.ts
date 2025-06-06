@@ -276,13 +276,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Upload audio file
-  app.post("/api/transcriptions/upload", upload.single("audio"), async (req, res) => {
+  app.post("/api/transcriptions/upload", requireAuth, upload.single("audio"), async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "未選擇檔案" });
       }
 
       const transcriptionData = {
+        userId: req.user!.id,
         filename: req.file.filename,
         originalName: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
         fileSize: req.file.size,
