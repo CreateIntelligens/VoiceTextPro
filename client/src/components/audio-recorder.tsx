@@ -493,15 +493,22 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         {/* Recording Controls */}
         <div className="flex flex-wrap justify-center gap-3">
           {!isRecording ? (
-            <Button
-              onClick={startRecording}
-              disabled={isDisabled}
-              className="bg-red-600 hover:bg-red-700 text-white flex-1 sm:flex-none"
-              size="lg"
-            >
-              <Mic className="w-5 h-5 mr-2" />
-              開始錄音
-            </Button>
+            <>
+              <Button
+                onClick={startRecording}
+                disabled={isDisabled}
+                className="bg-red-600 hover:bg-red-700 text-white flex-1 sm:flex-none"
+                size="lg"
+              >
+                <Mic className="w-5 h-5 mr-2" />
+                開始錄音
+              </Button>
+              <AudioSettingsPanel
+                settings={audioSettings}
+                onSettingsChange={setAudioSettings}
+                isRecording={isRecording}
+              />
+            </>
           ) : (
             <>
               <Button
