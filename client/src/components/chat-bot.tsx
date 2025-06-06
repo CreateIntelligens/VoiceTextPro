@@ -184,22 +184,24 @@ export default function ChatBot({ className = "" }: ChatBotProps) {
     <>
       {/* Chat Bot Toggle Button */}
       {!isOpen && (
-        <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
+        <div className={`fixed bottom-4 right-4 md:bottom-6 md:right-6 z-50 ${className}`}>
           <Button
             onClick={() => setIsOpen(true)}
-            className="w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg transition-all duration-200 hover:scale-105"
+            className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg transition-all duration-200 hover:scale-105"
             size="lg"
           >
-            <MessageCircle className="w-6 h-6 text-white" />
+            <MessageCircle className="w-5 h-5 md:w-6 md:h-6 text-white" />
           </Button>
         </div>
       )}
 
       {/* Chat Bot Window */}
       {isOpen && (
-        <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
+        <div className={`fixed inset-x-4 bottom-4 md:bottom-6 md:right-6 md:left-auto md:inset-x-auto z-50 ${className}`}>
           <div className={`bg-white rounded-lg shadow-2xl border transition-all duration-200 ${
-            isMinimized ? 'w-80 h-16' : 'w-96 h-[500px]'
+            isMinimized 
+              ? 'w-full md:w-80 h-16' 
+              : 'w-full md:w-96 h-[calc(100vh-2rem)] md:h-[500px] max-h-[600px]'
           }`}>
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b bg-blue-600 text-white rounded-t-lg">
