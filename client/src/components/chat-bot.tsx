@@ -56,11 +56,21 @@ export default function ChatBot({ className = "" }: ChatBotProps) {
   });
 
   // Fetch messages for current session
-  const { data: messages = [] } = useQuery<ChatMessage[]>({
-    queryKey: ["/api/chat/messages", currentSession?.id],
+  const { data: messages = [], isLoading: messagesLoading, error: messagesError } = useQuery<ChatMessage[]>({
+    queryKey: [`/api/chat/messages/${currentSession?.id}`],
     enabled: !!currentSession?.id,
     refetchInterval: 1000, // Refresh every second for real-time updates
   });
+
+  // Debug logging
+  useEffect(() => {
+    if (currentSession) {
+      console.log("Current session:", currentSession.id);
+      console.log("Messages:", messages);
+      console.log("Messages loading:", messagesLoading);
+      console.log("Messages error:", messagesError);
+    }
+  }, [currentSession, messages, messagesLoading, messagesError]);
 
   // Create new chat session
   const createSessionMutation = useMutation({
@@ -349,30 +359,37 @@ export default function ChatBot({ className = "" }: ChatBotProps) {
                   <>
                     <ScrollArea className="flex-1 p-4">
                       <div className="space-y-4">
-                        {messages.map((message: ChatMessage) => (
-                          <div
-                            key={message.id}
-                            className={`flex ${message.messageType === 'user' ? 'justify-end' : 'justify-start'}`}
-                          >
-                            <div className={`max-w-[80%] rounded-lg p-3 ${
-                              message.messageType === 'user' 
-                                ? 'bg-blue-600 text-white' 
-                                : 'bg-slate-100 text-slate-900'
-                            }`}>
-                              <div className="flex items-center space-x-2 mb-1">
-                                {message.messageType === 'user' ? (
-                                  <User className="w-4 h-4" />
-                                ) : (
-                                  <Bot className="w-4 h-4" />
-                                )}
-                                <span className="text-xs opacity-75">
-                                  {formatTime(message.createdAt)}
-                                </span>
+                        {Array.isArray(messages) && messages.length > 0 ? (
+                          messages.map((message: ChatMessage) => (
+                            <div
+                              key={message.id}
+                              className={`flex ${message.messageType === 'user' ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div className={`max-w-[80%] rounded-lg p-3 ${
+                                message.messageType === 'user' 
+                                  ? 'bg-blue-600 text-white' 
+                                  : 'bg-slate-100 text-slate-900'
+                              }`}>
+                                <div className="flex items-center space-x-2 mb-1">
+                                  {message.messageType === 'user' ? (
+                                    <User className="w-4 h-4" />
+                                  ) : (
+                                    <Bot className="w-4 h-4" />
+                                  )}
+                                  <span className="text-xs opacity-75">
+                                    {formatTime(message.createdAt)}
+                                  </span>
+                                </div>
+                                <p className="text-sm">{message.message}</p>
                               </div>
-                              <p className="text-sm">{message.message}</p>
                             </div>
+                          ))
+                        ) : (
+                          <div className="text-center text-slate-500 py-8">
+                            <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">開始對話...</p>
                           </div>
-                        ))}
+                        )}
                         <div ref={messagesEndRef} />
                       </div>
                     </ScrollArea>
