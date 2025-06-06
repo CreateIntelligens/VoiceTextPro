@@ -80,29 +80,7 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     }
   };
 
-  const handleSaveKeywords = () => {
-    const trimmedKeywords = keywords.trim();
-    localStorage.setItem('transcription-keywords', trimmedKeywords);
-    setSavedKeywords(trimmedKeywords);
-    toast({
-      title: "關鍵字已儲存",
-      description: "下次使用時會自動載入這些關鍵字",
-    });
-  };
 
-  const handleResetKeywords = () => {
-    setKeywords("");
-    localStorage.removeItem('transcription-keywords');
-    setSavedKeywords("");
-    toast({
-      title: "關鍵字已清除",
-      description: "已移除所有儲存的關鍵字",
-    });
-  };
-
-  const handleLoadSavedKeywords = () => {
-    setKeywords(savedKeywords);
-  };
 
   const validateKeywords = (keywordString: string): string[] => {
     if (!keywordString.trim()) return [];
