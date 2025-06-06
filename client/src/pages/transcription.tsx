@@ -16,7 +16,7 @@ export default function TranscriptionPage() {
   // Query for all transcriptions
   const { data: allTranscriptions = [] } = useQuery<TranscriptionStatus[]>({
     queryKey: ["/api/transcriptions"],
-    refetchInterval: 3000,
+    refetchInterval: 2000, // More frequent updates
   });
 
   // Query for current transcription status
@@ -26,8 +26,9 @@ export default function TranscriptionPage() {
     refetchInterval: (query) => {
       // Continue polling while processing
       const status = query.state.data?.status;
-      return status === "processing" || status === "pending" ? 2000 : false;
+      return status === "processing" || status === "pending" ? 1500 : false;
     },
+    staleTime: 0, // Always consider data stale for fresh updates
   });
 
   // Also try to get transcription from the list if available

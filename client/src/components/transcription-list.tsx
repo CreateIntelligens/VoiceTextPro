@@ -177,7 +177,14 @@ export default function TranscriptionList({
           className={`cursor-pointer transition-colors hover:border-blue-300 ${
             selectedId === transcription.id ? 'border-blue-500 bg-blue-50' : ''
           }`}
-          onClick={() => onSelectTranscription(transcription.id)}
+          onClick={(e) => {
+            // 防止在編輯模式下點擊卡片
+            if (editingId === transcription.id) {
+              e.preventDefault();
+              return;
+            }
+            onSelectTranscription(transcription.id);
+          }}
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
