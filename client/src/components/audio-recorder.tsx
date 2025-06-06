@@ -122,6 +122,18 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         setAudioUrl(null);
       }
       
+      // Ensure audio analyzer is properly set up for this stream
+      if (!analyserRef.current || !streamRef.current) {
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = 0.3;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+        streamRef.current = stream;
+      }
+      
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
@@ -144,6 +156,11 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         
         if (timerRef.current) {
           clearInterval(timerRef.current);
+        }
+        
+        // Stop visualization
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
         }
       };
       
