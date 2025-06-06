@@ -60,10 +60,19 @@ export default function FirstTimePasswordChange({ onPasswordChanged }: FirstTime
     setIsLoading(true);
 
     try {
-      await apiRequest('/api/auth/change-password', {
+      const response = await fetch('/api/auth/change-password', {
         method: 'POST',
-        body: { newPassword },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({ newPassword }),
       });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '請求失敗');
+      }
 
       toast({
         title: '密碼更改成功',

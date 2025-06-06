@@ -35,10 +35,16 @@ export default function ForgotPasswordDialog() {
     setIsLoading(true);
     
     try {
-      await apiRequest('/api/auth/forgot-password', {
+      const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
-        body: { email },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || '請求失敗');
+      }
 
       toast({
         title: '重置成功',

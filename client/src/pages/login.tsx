@@ -5,12 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Mail, User, FileText } from 'lucide-react';
+import { Lock, Mail, User, FileText, Eye, EyeOff } from 'lucide-react';
+import ForgotPasswordDialog from '@/components/forgot-password-dialog';
+import FirstTimePasswordChange from '@/components/first-time-password-change';
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showFirstTimePasswordChange, setShowFirstTimePasswordChange] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -39,15 +43,25 @@ export default function Login() {
         throw new Error(data.message || '登入失敗');
       }
 
-      // Store token and redirect
+      // Store token
       localStorage.setItem('auth_token', data.token);
-      toast({
-        title: "登入成功",
-        description: `歡迎回來，${data.user.name || data.user.email}`,
-      });
       
-      // Force page reload to trigger auth check
-      window.location.href = '/';
+      // Check if this is first time login
+      if (data.isFirstLogin) {
+        setShowFirstTimePasswordChange(true);
+        toast({
+          title: "首次登入",
+          description: "請設置一個新的安全密碼",
+        });
+      } else {
+        toast({
+          title: "登入成功",
+          description: `歡迎回來，${data.user.name || data.user.email}`,
+        });
+        
+        // Force page reload to trigger auth check
+        window.location.href = '/';
+      }
     } catch (error) {
       toast({
         title: "登入失敗",
@@ -151,18 +165,30 @@ export default function Login() {
 
             {isLogin && (
               <div>
-                <Label htmlFor="password">密碼</Label>
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="password">密碼</Label>
+                  <ForgotPasswordDialog />
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="請輸入您的密碼"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="pl-10"
+                    className="pl-10 pr-10"
                     required
                   />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
                 </div>
               </div>
             )}
