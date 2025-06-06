@@ -139,10 +139,6 @@ export default function TranscriptionList({
     }
   };
 
-  // Debug logging for transcriptions
-  console.log('TranscriptionList - transcriptions:', transcriptions);
-  console.log('TranscriptionList - transcriptions.length:', transcriptions.length);
-
   if (!transcriptions || transcriptions.length === 0) {
     return (
       <Card className="mb-8">
