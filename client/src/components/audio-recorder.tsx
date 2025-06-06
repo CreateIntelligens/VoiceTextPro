@@ -15,6 +15,7 @@ import {
   Volume2,
   Settings 
 } from 'lucide-react';
+import AudioSettingsPanel, { AudioSettings } from './audio-settings-panel';
 
 interface AudioRecorderProps {
   onRecordingComplete: (audioBlob: Blob, filename: string) => void;
@@ -48,6 +49,18 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
   const isRecordingRef = useRef(false);
   const isPausedRef = useRef(false);
 
+  // Audio settings state
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>({
+    sensitivity: 1000,
+    autoGainControl: true,
+    noiseSuppression: false,
+    echoCancellation: true,
+    minDecibels: -120,
+    maxDecibels: 0,
+    smoothingTimeConstant: 0.1,
+    fftSize: 256
+  });
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -75,11 +88,11 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          sampleRate: 48000, // Higher sample rate for better quality
+          sampleRate: 48000,
           channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: false // Disable AGC for more dynamic range
+          echoCancellation: audioSettings.echoCancellation,
+          noiseSuppression: audioSettings.noiseSuppression,
+          autoGainControl: audioSettings.autoGainControl
         }
       });
       
@@ -91,10 +104,10 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       await audioContext.resume(); // Ensure context is active
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048; // Higher resolution for better detection
-      analyser.smoothingTimeConstant = 0.3; // Moderate smoothing
-      analyser.minDecibels = -100;
-      analyser.maxDecibels = -30;
+      analyser.fftSize = audioSettings.fftSize;
+      analyser.smoothingTimeConstant = audioSettings.smoothingTimeConstant;
+      analyser.minDecibels = audioSettings.minDecibels;
+      analyser.maxDecibels = audioSettings.maxDecibels;
       source.connect(analyser);
       analyserRef.current = analyser;
       
@@ -283,9 +296,9 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         }
         const average = sum / bufferLength;
         
-        // Use a combination of average and peak detection for better sensitivity
-        const baseLevel = (average / 255) * 2000; // Extreme amplification
-        const peakBoost = (maxValue / 255) * 500; // Additional boost from peaks
+        // Use dynamic sensitivity from settings
+        const baseLevel = (average / 255) * audioSettings.sensitivity;
+        const peakBoost = (maxValue / 255) * (audioSettings.sensitivity * 0.25);
         const volumeLevel = Math.min(100, baseLevel + peakBoost * 0.3);
         
         setAudioLevel(volumeLevel);
