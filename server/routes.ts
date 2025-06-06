@@ -6,6 +6,7 @@ import fs from "fs/promises";
 import { spawn } from "child_process";
 import { storage } from "./storage";
 import { GeminiAnalyzer } from "./gemini-analysis";
+import { AssemblyAILemur } from "./assemblyai-lemur";
 import { UsageTracker } from "./usage-tracker";
 import AdminLogger from "./admin-logger";
 import { AuthService, requireAuth, requireAdmin, type AuthenticatedRequest } from "./auth";
@@ -586,8 +587,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all transcriptions
-  app.get("/api/transcriptions", async (req, res) => {
+  // Get all transcriptions (user-specific or all for admin)
+  app.get("/api/transcriptions", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       // Disable caching to ensure fresh data
       res.set({
@@ -596,7 +597,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Expires': '0'
       });
       
-      const transcriptions = await storage.getAllTranscriptions();
+      let transcriptions;
+      
+      // Admin can see all transcriptions, regular users only see their own
+      if (req.user!.role === 'admin') {
+        transcriptions = await storage.getAllTranscriptions();
+      } else {
+        transcriptions = await storage.getUserTranscriptions(req.user!.id);
+      }
+      
       res.json(transcriptions);
     } catch (error) {
       console.error("Failed to get transcriptions:", error);

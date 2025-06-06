@@ -8,6 +8,7 @@ export interface IStorage {
   getTranscription(id: number): Promise<Transcription | undefined>;
   updateTranscription(id: number, updates: UpdateTranscription): Promise<Transcription | undefined>;
   getAllTranscriptions(): Promise<Transcription[]>;
+  getUserTranscriptions(userId: number): Promise<Transcription[]>;
   deleteTranscription(id: number): Promise<boolean>;
 }
 
@@ -115,6 +116,54 @@ export class DatabaseStorage implements IStorage {
           }
         } else {
           // Already a parsed object from JSONB
+          segments = transcription.segments;
+        }
+      }
+      
+      return {
+        ...transcription,
+        speakers,
+        segments,
+      };
+    });
+  }
+
+  async getUserTranscriptions(userId: number): Promise<Transcription[]> {
+    const results = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.userId, userId))
+      .orderBy(desc(transcriptions.createdAt));
+
+    return results.map(transcription => {
+      let speakers = undefined;
+      let segments = undefined;
+      
+      // Handle JSONB fields
+      if (transcription.speakers) {
+        if (Array.isArray(transcription.speakers)) {
+          speakers = transcription.speakers;
+        } else if (typeof transcription.speakers === 'string') {
+          try {
+            speakers = JSON.parse(transcription.speakers);
+          } catch (error) {
+            console.error('Speakers parse error for transcription', transcription.id, error);
+          }
+        } else {
+          speakers = transcription.speakers;
+        }
+      }
+      
+      if (transcription.segments) {
+        if (Array.isArray(transcription.segments)) {
+          segments = transcription.segments;
+        } else if (typeof transcription.segments === 'string') {
+          try {
+            segments = JSON.parse(transcription.segments);
+          } catch (error) {
+            console.error('Segments parse error for transcription', transcription.id, error);
+          }
+        } else {
           segments = transcription.segments;
         }
       }
