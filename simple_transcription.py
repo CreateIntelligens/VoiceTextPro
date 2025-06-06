@@ -160,7 +160,13 @@ def poll_transcription_status(transcript_id, api_key, transcription_id):
         if elapsed_time > max_wait_time:
             raise Exception(f"Transcription timeout after {max_wait_time/60:.0f} minutes")
         
-        time.sleep(10)  # Increased polling interval to reduce server load
+        # Adaptive polling interval for faster response
+        if elapsed_time < 60:
+            time.sleep(3)  # Check every 3 seconds for first minute
+        elif elapsed_time < 300:
+            time.sleep(5)  # Every 5 seconds for next 4 minutes
+        else:
+            time.sleep(8)  # Every 8 seconds after 5 minutes
 
 def process_advanced_features(transcript_data):
     """Process all advanced features from transcript data"""

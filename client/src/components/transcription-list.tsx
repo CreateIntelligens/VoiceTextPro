@@ -188,7 +188,10 @@ export default function TranscriptionList({
                     <div className="flex items-center space-x-2">
                       <Input
                         value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setEditingName(e.target.value);
+                        }}
                         className="h-8"
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => {
@@ -196,6 +199,8 @@ export default function TranscriptionList({
                           if (e.key === 'Enter') saveEdit();
                           if (e.key === 'Escape') cancelEdit();
                         }}
+                        onFocus={(e) => e.stopPropagation()}
+                        onBlur={(e) => e.stopPropagation()}
                         autoFocus
                       />
                       <Button 

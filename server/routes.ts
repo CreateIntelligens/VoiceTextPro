@@ -306,13 +306,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[LOG-${id}] Using custom keywords: ${customKeywords}`);
       }
       
-      // Check if we should use recovery mode for stuck transcriptions
+      // Check if we should use recovery mode or fast mode
       const useRecovery = req.body.useRecovery || false;
-      const scriptName = useRecovery ? "recovery_transcription.py" : "simple_transcription.py";
+      const useFast = req.body.useFast !== false; // Default to fast mode
       
-      const args = [scriptName, filePath, id.toString()];
-      if (customKeywords && !useRecovery) {
-        args.push(customKeywords);
+      let scriptName, args;
+      
+      if (useRecovery) {
+        scriptName = "recovery_transcription.py";
+        args = [scriptName, filePath, id.toString()];
+      } else if (useFast) {
+        // Use optimized fast transcription with file upload
+        scriptName = "fast_transcription.py";
+        // First upload the file, then use the upload URL
+        const uploadUrl = await uploadAudioFile(filePath);
+        args = [scriptName, id.toString(), uploadUrl, process.env.ASSEMBLYAI_API_KEY];
+        if (customKeywords) {
+          args.push(customKeywords);
+        }
+      } else {
+        scriptName = "simple_transcription.py";
+        args = [scriptName, filePath, id.toString()];
+        if (customKeywords) {
+          args.push(customKeywords);
+        }
       }
       const pythonProcess = spawn("python3", args);
       
