@@ -33,9 +33,10 @@ interface NavigationSection {
 
 interface SidebarNavigationProps {
   className?: string;
+  onMobileClose?: () => void;
 }
 
-export default function SidebarNavigation({ className }: SidebarNavigationProps) {
+export default function SidebarNavigation({ className, onMobileClose }: SidebarNavigationProps) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
