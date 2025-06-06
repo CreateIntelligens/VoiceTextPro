@@ -356,15 +356,15 @@ export default function Admin() {
           </Card>
         )}
 
-        {/* Users List */}
-        <Card>
-          <CardHeader className="px-4 sm:px-6">
-            <CardTitle className="flex items-center text-lg sm:text-xl">
-              <Users className="w-5 h-5 mr-2 text-blue-600" />
-              用戶列表 ({users.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 sm:px-6">
+            {/* Users List */}
+            <Card>
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="flex items-center text-lg sm:text-xl">
+                  <Users className="w-5 h-5 mr-2 text-blue-600" />
+                  用戶列表 ({users.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 sm:px-6">
             {/* Mobile Card Layout */}
             <div className="block sm:hidden space-y-4">
               {users.map((user) => (
@@ -438,9 +438,9 @@ export default function Admin() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="users" className="mt-6">
