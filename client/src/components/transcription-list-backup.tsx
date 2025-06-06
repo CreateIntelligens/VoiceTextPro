@@ -1,10 +1,20 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Calendar, CheckCircle, Clock, AlertCircle, Edit2, Trash2, FileAudio } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { 
+  MoreVertical, 
+  Edit2, 
+  Trash2, 
+  CheckCircle, 
+  AlertCircle, 
+  Loader2,
+  FileAudio,
+  Calendar,
+  Clock
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,13 +37,18 @@ export default function TranscriptionList({
   selectedId 
 }: TranscriptionListProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingName, setEditingName] = useState("");
+  const [editingName, setEditingName] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const updateNameMutation = useMutation({
     mutationFn: async ({ id, displayName }: { id: number; displayName: string }) => {
-      const response = await apiRequest(`/api/transcriptions/${id}`, "PATCH", { displayName });
+      const response = await fetch(`/api/transcriptions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName }),
+      });
+      if (!response.ok) throw new Error('Update failed');
       return response.json();
     },
     onSuccess: () => {
@@ -44,10 +59,10 @@ export default function TranscriptionList({
         description: "轉錄記錄名稱已更新",
       });
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "更新失敗",
-        description: error instanceof Error ? error.message : "無法更新轉錄記錄名稱",
+        description: "無法更新轉錄記錄名稱",
         variant: "destructive",
       });
     },
@@ -55,7 +70,11 @@ export default function TranscriptionList({
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest(`/api/transcriptions/${id}`, "DELETE");
+      const response = await fetch(`/api/transcriptions/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error('Delete failed');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
@@ -64,10 +83,10 @@ export default function TranscriptionList({
         description: "轉錄記錄已刪除",
       });
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "刪除失敗",
-        description: error instanceof Error ? error.message : "無法刪除轉錄記錄",
+        description: "無法刪除轉錄記錄",
         variant: "destructive",
       });
     },
@@ -75,7 +94,7 @@ export default function TranscriptionList({
 
   const startEdit = (transcription: TranscriptionStatus) => {
     setEditingId(transcription.id);
-    setEditingName(transcription.displayName || transcription.originalName || transcription.filename);
+    setEditingName(transcription.displayName || transcription.originalName);
   };
 
   const saveEdit = () => {
@@ -95,53 +114,49 @@ export default function TranscriptionList({
     }
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case "processing":
+        return <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />;
+      case "error":
+        return <AlertCircle className="w-4 h-4 text-red-600" />;
+      default:
+        return <Clock className="w-4 h-4 text-yellow-600" />;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge variant="default" className="bg-green-100 text-green-800">已完成</Badge>;
+      case "processing":
+        return <Badge variant="default" className="bg-blue-100 text-blue-800">處理中</Badge>;
+      case "error":
+        return <Badge variant="destructive">錯誤</Badge>;
+      default:
+        return <Badge variant="secondary">等待中</Badge>;
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('zh-TW', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'processing':
-        return <Clock className="w-5 h-5 text-blue-500 animate-spin" />;
-      case 'error':
-        return <AlertCircle className="w-5 h-5 text-red-500" />;
-      default:
-        return <Clock className="w-5 h-5 text-slate-400" />;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="default" className="bg-green-100 text-green-800">已完成</Badge>;
-      case 'processing':
-        return <Badge variant="default" className="bg-blue-100 text-blue-800">處理中</Badge>;
-      case 'error':
-        return <Badge variant="destructive">錯誤</Badge>;
-      default:
-        return <Badge variant="secondary">待處理</Badge>;
-    }
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   };
 
   if (transcriptions.length === 0) {
     return (
-      <Card className="mb-8">
+      <Card className="border-dashed">
         <CardContent className="flex flex-col items-center justify-center p-8">
           <FileAudio className="w-12 h-12 text-slate-400 mb-4" />
           <h3 className="text-lg font-medium text-slate-900 mb-2">尚無轉錄記錄</h3>
@@ -163,6 +178,7 @@ export default function TranscriptionList({
             selectedId === transcription.id ? 'border-blue-500 bg-blue-50' : ''
           }`}
           onClick={(e) => {
+            // 防止在編輯模式下點擊卡片
             if (editingId === transcription.id) {
               e.preventDefault();
               return;
@@ -262,24 +278,12 @@ export default function TranscriptionList({
                         e.stopPropagation();
                         startEdit(transcription);
                       }}>
-                        <Edit2 className="w-4 h-4 mr-2" />
                         重新命名
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(transcription.id);
-                        }}
-                        className="text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        刪除
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               </div>
-            )}
           </CardContent>
         </Card>
       ))}
