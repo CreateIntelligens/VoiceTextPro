@@ -17,7 +17,11 @@ import {
   Calendar,
   Shield,
   AlertTriangle,
-  Bug
+  Bug,
+  FileAudio,
+  Trash2,
+  Eye,
+  Download
 } from 'lucide-react';
 
 interface Application {
@@ -260,7 +264,7 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="applications" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="applications" className="flex items-center gap-2">
               <UserPlus className="w-4 h-4" />
               申請管理
@@ -268,6 +272,10 @@ export default function Admin() {
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               用戶管理
+            </TabsTrigger>
+            <TabsTrigger value="transcriptions" className="flex items-center gap-2">
+              <FileAudio className="w-4 h-4" />
+              轉錄管理
             </TabsTrigger>
             <TabsTrigger value="logs" className="flex items-center gap-2">
               <Bug className="w-4 h-4" />
@@ -497,6 +505,84 @@ export default function Admin() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">用戶管理功能</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="transcriptions" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileAudio className="w-5 h-5" />
+                  轉錄資料管理
+                </CardTitle>
+                <Button 
+                  onClick={fetchTranscriptions}
+                  disabled={transcriptionsLoading}
+                  className="ml-auto"
+                >
+                  {transcriptionsLoading ? "載入中..." : "重新載入"}
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {transcriptionsLoading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-2 text-gray-600">載入轉錄資料中...</p>
+                  </div>
+                ) : transcriptions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileAudio className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">目前沒有轉錄資料</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {transcriptions.map((transcription) => (
+                      <div key={transcription.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3">
+                              <div>
+                                <h3 className="font-medium text-gray-900">
+                                  {transcription.displayName || transcription.originalName}
+                                </h3>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+                                  <span>用戶: {transcription.userEmail || '未知用戶'}</span>
+                                  <span>狀態: {transcription.status}</span>
+                                  {transcription.wordCount && (
+                                    <span>字數: {transcription.wordCount}</span>
+                                  )}
+                                  {transcription.duration && (
+                                    <span>時長: {Math.round(transcription.duration / 60)}分鐘</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-gray-400 mt-1">
+                                  建立時間: {new Date(transcription.createdAt).toLocaleString('zh-TW')}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge 
+                              variant={
+                                transcription.status === 'completed' ? 'default' : 
+                                transcription.status === 'error' ? 'destructive' : 'secondary'
+                              }
+                            >
+                              {transcription.status}
+                            </Badge>
+                            <Button variant="outline" size="sm">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
