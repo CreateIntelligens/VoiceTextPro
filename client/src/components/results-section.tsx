@@ -168,11 +168,11 @@ export default function ResultsSection({ transcription }: ResultsSectionProps) {
                 </CardTitle>
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-gray-500">
-                    {currentTranscription.transcriptText.length} 字元
+                    {currentTranscription.transcriptText?.length || 0} 字元
                   </span>
                   <Button
                     onClick={() => {
-                      navigator.clipboard.writeText(currentTranscription.transcriptText);
+                      navigator.clipboard.writeText(currentTranscription.transcriptText || "");
                       toast({
                         title: "已複製",
                         description: "逐字稿內容已複製到剪貼簿",
