@@ -7,6 +7,7 @@ import SpeakerEditor from "@/components/speaker-editor";
 import AIAnalysis from "@/components/ai-analysis";
 import TranscriptCleaner from "@/components/transcript-cleaner";
 import AdvancedFeatures from "@/components/advanced-features";
+import LemurAnalysis from "@/components/lemur-analysis";
 import type { TranscriptionStatus, Speaker } from "@/lib/types";
 
 interface ResultsSectionProps {
