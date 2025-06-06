@@ -3,8 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { AdminLogs } from '@/components/admin-logs';
 import { 
   Users, 
   UserPlus, 
@@ -14,7 +16,8 @@ import {
   Mail, 
   Calendar,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  Bug
 } from 'lucide-react';
 
 interface Application {
@@ -209,12 +212,29 @@ export default function Admin() {
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">管理員面板</h1>
-          <p className="text-sm sm:text-base text-gray-600">管理用戶帳號和申請</p>
+          <p className="text-sm sm:text-base text-gray-600">管理用戶帳號、申請和系統日誌</p>
         </div>
 
-        {/* Statistics */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <Card>
+        <Tabs defaultValue="applications" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="applications" className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              申請管理
+            </TabsTrigger>
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              用戶管理
+            </TabsTrigger>
+            <TabsTrigger value="logs" className="flex items-center gap-2">
+              <Bug className="w-4 h-4" />
+              系統日誌
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="applications" className="mt-6">
+            {/* Statistics */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+              <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">待處理申請</CardTitle>
               <AlertTriangle className="w-4 h-4 text-orange-600" />
@@ -421,6 +441,26 @@ export default function Admin() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="users" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  用戶管理
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">用戶管理功能</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="logs" className="mt-6">
+            <AdminLogs />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

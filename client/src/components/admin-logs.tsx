@@ -23,7 +23,7 @@ interface AdminLog {
 export function AdminLogs() {
   const queryClient = useQueryClient();
 
-  const { data: logs = [], isLoading, refetch } = useQuery({
+  const { data: logs = [], isLoading, refetch } = useQuery<AdminLog[]>({
     queryKey: ["/api/admin/logs"],
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
@@ -126,7 +126,7 @@ export function AdminLogs() {
             </div>
           ) : (
             <div className="space-y-4">
-              {logs.map((log: AdminLog) => (
+              {(logs as AdminLog[]).map((log: AdminLog) => (
                 <div
                   key={log.id}
                   className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
