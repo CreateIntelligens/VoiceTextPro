@@ -27,21 +27,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 import type { ChatSession, ChatMessage } from "@shared/schema";
-
-// Simple auth hook
-function useAuth() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["/api/auth/me"],
-    retry: false,
-  });
-
-  return {
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-  };
-}
 
 interface ChatBotProps {
   className?: string;
