@@ -1062,6 +1062,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User keyword management routes
+  app.get("/api/keywords", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const keywords = await db.select()
+        .from(userKeywords)
+        .where(eq(userKeywords.userId, req.user!.id))
+        .orderBy(desc(userKeywords.usageCount), desc(userKeywords.updatedAt));
+      res.json(keywords);
+    } catch (error) {
+      console.error("Get keywords error:", error);
+      res.status(500).json({ message: "Failed to fetch keywords" });
+    }
+  });
+
+  app.post("/api/keywords", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { name, keywords } = insertUserKeywordSchema.parse(req.body);
+      
+      const [newKeyword] = await db.insert(userKeywords)
+        .values({
+          userId: req.user!.id,
+          name,
+          keywords,
+        })
+        .returning();
+      
+      await AdminLogger.log({
+        category: "feature",
+        action: "keyword_set_created",
+        description: `用戶創建新的關鍵字集合: ${name}`,
+        severity: "info",
+        details: { userId: req.user!.id, keywordCount: keywords.split(',').length }
+      });
+      
+      res.json(newKeyword);
+    } catch (error) {
+      console.error("Create keyword error:", error);
+      res.status(500).json({ message: "Failed to create keyword set" });
+    }
+  });
+
+  app.patch("/api/keywords/:id/use", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const keywordId = parseInt(req.params.id);
+      
+      await db.update(userKeywords)
+        .set({ 
+          usageCount: sql`${userKeywords.usageCount} + 1`,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(userKeywords.id, keywordId),
+          eq(userKeywords.userId, req.user!.id)
+        ));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Update keyword usage error:", error);
+      res.status(500).json({ message: "Failed to update keyword usage" });
+    }
+  });
+
+  app.delete("/api/keywords/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const keywordId = parseInt(req.params.id);
+      
+      await db.delete(userKeywords)
+        .where(and(
+          eq(userKeywords.id, keywordId),
+          eq(userKeywords.userId, req.user!.id)
+        ));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete keyword error:", error);
+      res.status(500).json({ message: "Failed to delete keyword set" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
