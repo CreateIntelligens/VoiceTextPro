@@ -62,15 +62,12 @@ export default function ChatBot({ className = "" }: ChatBotProps) {
     refetchInterval: 1000, // Refresh every second for real-time updates
   });
 
-  // Debug logging
+  // Scroll to bottom when messages change
   useEffect(() => {
-    if (currentSession) {
-      console.log("Current session:", currentSession.id);
-      console.log("Messages:", messages);
-      console.log("Messages loading:", messagesLoading);
-      console.log("Messages error:", messagesError);
+    if (messages.length > 0 && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [currentSession, messages, messagesLoading, messagesError]);
+  }, [messages]);
 
   // Create new chat session
   const createSessionMutation = useMutation({

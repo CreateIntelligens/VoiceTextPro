@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const transcriptions = pgTable("transcriptions", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
   filename: text("filename").notNull(),
   originalName: text("original_name").notNull(),
   displayName: text("display_name"),
@@ -216,6 +217,25 @@ export type InsertChatSession = z.infer<typeof insertChatSessionSchema>;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type ChatSession = typeof chatSessions.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
+
+// User keywords table for saving and reusing keywords
+export const userKeywords = pgTable("user_keywords", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(), // User-defined name for keyword set
+  keywords: text("keywords").notNull(), // Comma-separated keywords
+  usageCount: integer("usage_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertUserKeywordSchema = createInsertSchema(userKeywords).pick({
+  name: true,
+  keywords: true,
+});
+
+export type UserKeyword = typeof userKeywords.$inferSelect;
+export type InsertUserKeyword = z.infer<typeof insertUserKeywordSchema>;
 
 // Type definitions for transcript data
 export interface Speaker {
