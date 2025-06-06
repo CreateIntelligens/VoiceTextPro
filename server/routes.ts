@@ -17,6 +17,31 @@ import { z } from "zod";
 // Temporary in-memory storage for keywords per transcription
 const transcriptionKeywords = new Map<number, string>();
 
+// Upload audio file to AssemblyAI
+async function uploadAudioFile(filePath: string): Promise<string> {
+  const apiKey = process.env.ASSEMBLYAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("ASSEMBLYAI_API_KEY not configured");
+  }
+
+  const fileBuffer = await fs.readFile(filePath);
+  
+  const response = await fetch('https://api.assemblyai.com/v2/upload', {
+    method: 'POST',
+    headers: {
+      'authorization': apiKey,
+    },
+    body: fileBuffer
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upload failed: ${response.status} - ${await response.text()}`);
+  }
+
+  const result = await response.json();
+  return result.upload_url;
+}
+
 const upload = multer({
   dest: "uploads/",
   limits: {
@@ -310,7 +335,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const useRecovery = req.body.useRecovery || false;
       const useFast = req.body.useFast !== false; // Default to fast mode
       
-      let scriptName, args;
+      let scriptName: string;
+      let args: string[];
       
       if (useRecovery) {
         scriptName = "recovery_transcription.py";
@@ -319,8 +345,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Use optimized fast transcription with file upload
         scriptName = "fast_transcription.py";
         // First upload the file, then use the upload URL
+        console.log(`[LOG-${id}] Uploading audio file for fast transcription...`);
         const uploadUrl = await uploadAudioFile(filePath);
-        args = [scriptName, id.toString(), uploadUrl, process.env.ASSEMBLYAI_API_KEY];
+        console.log(`[LOG-${id}] Audio uploaded, starting fast transcription...`);
+        args = [scriptName, id.toString(), uploadUrl, process.env.ASSEMBLYAI_API_KEY || ""];
         if (customKeywords) {
           args.push(customKeywords);
         }
