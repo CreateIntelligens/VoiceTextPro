@@ -59,6 +59,7 @@ export default function ChatBot({ className = "" }: ChatBotProps) {
   const { data: messages = [] } = useQuery<ChatMessage[]>({
     queryKey: ["/api/chat/messages", currentSession?.id],
     enabled: !!currentSession?.id,
+    refetchInterval: 1000, // Refresh every second for real-time updates
   });
 
   // Create new chat session
