@@ -825,6 +825,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin user management routes
+  app.patch("/api/admin/users/:id", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const updates = req.body;
+      
+      // Validate updates
+      const allowedFields = ['role', 'status', 'name'];
+      const validUpdates = Object.keys(updates)
+        .filter(key => allowedFields.includes(key))
+        .reduce((obj, key) => {
+          obj[key] = updates[key];
+          return obj;
+        }, {} as any);
+
+      if (Object.keys(validUpdates).length === 0) {
+        return res.status(400).json({ message: "沒有有效的更新欄位" });
+      }
+
+      // Update user
+      const [updatedUser] = await db
+        .update(users)
+        .set({
+          ...validUpdates,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId.toString()))
+        .returning();
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "找不到用戶" });
+      }
+
+      await AdminLogger.log({
+        category: "admin",
+        action: "user_updated",
+        description: `管理員更新用戶資訊: ${updatedUser.email}`,
+        severity: "info",
+        details: {
+          adminId: req.user!.id,
+          userId,
+          updates: validUpdates
+        }
+      });
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Update user error:", error);
+      res.status(500).json({ message: "更新用戶失敗" });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      // Prevent admin from deleting themselves
+      if (userId === req.user!.id) {
+        return res.status(400).json({ message: "無法刪除自己的帳號" });
+      }
+
+      // Get user info before deletion for logging
+      const [userToDelete] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId.toString()));
+
+      if (!userToDelete) {
+        return res.status(404).json({ message: "找不到用戶" });
+      }
+
+      // Delete user
+      await db
+        .delete(users)
+        .where(eq(users.id, userId.toString()));
+
+      await AdminLogger.log({
+        category: "admin",
+        action: "user_deleted",
+        description: `管理員刪除用戶: ${userToDelete.email}`,
+        severity: "warning",
+        details: {
+          adminId: req.user!.id,
+          deletedUserId: userId,
+          deletedUserEmail: userToDelete.email
+        }
+      });
+
+      res.json({ message: "用戶已刪除" });
+    } catch (error) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ message: "刪除用戶失敗" });
+    }
+  });
+
   // Admin logs API routes - temporarily accessible for debugging
   app.get("/api/admin/logs", async (req, res) => {
     try {

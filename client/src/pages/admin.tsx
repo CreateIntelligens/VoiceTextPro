@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { AdminLogs } from '@/components/admin-logs';
@@ -21,7 +24,10 @@ import {
   FileAudio,
   Trash2,
   Eye,
-  Download
+  Download,
+  Edit,
+  UserCog,
+  Crown
 } from 'lucide-react';
 
 interface Application {
@@ -70,6 +76,8 @@ export default function Admin() {
   const [transcriptionsLoading, setTranscriptionsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState<User | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -133,6 +141,78 @@ export default function Admin() {
       });
     } finally {
       setTranscriptionsLoading(false);
+    }
+  };
+
+  const handleEditUser = async (userId: number, updates: { role?: string; status?: string; name?: string }) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (response.ok) {
+        await fetchData();
+        setEditingUser(null);
+        toast({
+          title: "更新成功",
+          description: "用戶資訊已更新",
+        });
+      } else {
+        throw new Error('Failed to update user');
+      }
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      toast({
+        title: "更新失敗",
+        description: "無法更新用戶資訊",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        await fetchData();
+        setShowDeleteDialog(null);
+        toast({
+          title: "刪除成功",
+          description: "用戶已被刪除",
+        });
+      } else {
+        throw new Error('Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      toast({
+        title: "刪除失敗",
+        description: "無法刪除用戶",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRoleChange = (role: string) => {
+    if (editingUser) {
+      handleEditUser(editingUser.id, { role });
+    }
+  };
+
+  const handleStatusChange = (status: string) => {
+    if (editingUser) {
+      handleEditUser(editingUser.id, { status });
     }
   };
 
@@ -505,7 +585,142 @@ export default function Admin() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600">用戶管理功能</p>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-2 text-gray-600">載入用戶資料中...</p>
+                  </div>
+                ) : users.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">目前沒有用戶</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {users.map((u) => (
+                      <div key={u.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                {u.role === 'admin' ? (
+                                  <Crown className="w-5 h-5 text-yellow-600" />
+                                ) : (
+                                  <Users className="w-5 h-5 text-blue-600" />
+                                )}
+                              </div>
+                              <div>
+                                <h3 className="font-medium text-gray-900">{u.name || u.email}</h3>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+                                  <span>📧 {u.email}</span>
+                                  <span>🛡️ {u.role}</span>
+                                  <span>📅 {new Date(u.createdAt).toLocaleDateString('zh-TW')}</span>
+                                  {u.lastLoginAt && (
+                                    <span>🕒 最後登入: {new Date(u.lastLoginAt).toLocaleDateString('zh-TW')}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge 
+                              variant={u.status === 'active' ? 'default' : 'secondary'}
+                            >
+                              {u.status === 'active' ? '啟用' : '停用'}
+                            </Badge>
+                            <Badge 
+                              variant={u.role === 'admin' ? 'destructive' : 'outline'}
+                            >
+                              {u.role === 'admin' ? '管理員' : '用戶'}
+                            </Badge>
+                            
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => setEditingUser(u)}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>編輯用戶 - {u.name || u.email}</DialogTitle>
+                                  <DialogDescription>
+                                    修改用戶權限和狀態設定
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="text-sm font-medium">用戶角色</label>
+                                    <Select 
+                                      defaultValue={u.role} 
+                                      onValueChange={handleRoleChange}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="user">一般用戶</SelectItem>
+                                        <SelectItem value="admin">管理員</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium">帳號狀態</label>
+                                    <Select 
+                                      defaultValue={u.status} 
+                                      onValueChange={handleStatusChange}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="active">啟用</SelectItem>
+                                        <SelectItem value="inactive">停用</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => setShowDeleteDialog(u)}
+                              disabled={u.id === user?.id}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+
+                            <AlertDialog open={showDeleteDialog?.id === u.id} onOpenChange={() => setShowDeleteDialog(null)}>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>確認刪除用戶</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    您確定要刪除用戶 "{u.name || u.email}" 嗎？此操作無法復原。
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>取消</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteUser(u.id)}
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    刪除
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
