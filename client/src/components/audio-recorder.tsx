@@ -237,71 +237,57 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
   };
 
   const monitorAudioLevel = () => {
+    console.log('Starting audio level monitoring');
+    
     if (!analyserRef.current || !streamRef.current) {
       console.log('Audio analyzer or stream not available');
       return;
     }
     
-    const bufferLength = analyserRef.current.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    console.log('Audio monitoring setup successful');
     
     const updateVolumeLevel = () => {
       if (!analyserRef.current || !streamRef.current) {
-        animationRef.current = requestAnimationFrame(updateVolumeLevel);
+        console.log('Missing analyzer or stream in update loop');
+        if (isRecording && !isPaused) {
+          animationRef.current = requestAnimationFrame(updateVolumeLevel);
+        }
         return;
       }
       
       if (!isRecording || isPaused) {
         setAudioLevel(0);
-        animationRef.current = requestAnimationFrame(updateVolumeLevel);
-        return;
-      }
-      
-      // Check if stream is still active
-      const audioTracks = streamRef.current.getAudioTracks();
-      if (audioTracks.length === 0 || audioTracks[0].readyState !== 'live') {
-        console.log('Audio track not live');
-        animationRef.current = requestAnimationFrame(updateVolumeLevel);
-        return;
+        return; // Don't continue animation when not recording
       }
       
       try {
-        // Use both time and frequency domain for better detection
-        const timeArray = new Uint8Array(bufferLength);
-        analyserRef.current.getByteTimeDomainData(timeArray);
+        // Simple frequency domain analysis
+        const bufferLength = analyserRef.current.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
         analyserRef.current.getByteFrequencyData(dataArray);
         
-        // Calculate volume using RMS of time domain data
-        let rmsSum = 0;
+        // Calculate average volume
+        let sum = 0;
         for (let i = 0; i < bufferLength; i++) {
-          const sample = (timeArray[i] - 128) / 128;
-          rmsSum += sample * sample;
+          sum += dataArray[i];
         }
-        const rms = Math.sqrt(rmsSum / bufferLength);
+        const average = sum / bufferLength;
+        const volumeLevel = Math.min(100, (average / 255) * 150); // Amplify sensitivity
         
-        // Also calculate frequency domain average
-        let freqSum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          freqSum += dataArray[i];
-        }
-        const freqAverage = freqSum / bufferLength;
-        
-        // Use the higher of the two measurements for better sensitivity
-        const rmsVolume = rms * 500; // Amplify RMS
-        const freqVolume = (freqAverage / 255) * 100;
-        const volumeLevel = Math.min(100, Math.max(0, Math.max(rmsVolume, freqVolume)));
-        
-        // Always log for debugging
-        console.log('RMS:', rmsVolume.toFixed(2), 'Freq:', freqVolume.toFixed(2), 'Final:', volumeLevel.toFixed(2));
-        
+        console.log('Volume level:', volumeLevel.toFixed(1));
         setAudioLevel(volumeLevel);
+        
       } catch (error) {
         console.error('Error reading audio data:', error);
       }
       
-      animationRef.current = requestAnimationFrame(updateVolumeLevel);
+      // Continue monitoring while recording
+      if (isRecording && !isPaused) {
+        animationRef.current = requestAnimationFrame(updateVolumeLevel);
+      }
     };
     
+    // Start the monitoring loop
     updateVolumeLevel();
   };
 
