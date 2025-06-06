@@ -117,6 +117,112 @@ export class AuthService {
     await db.delete(userSessions).where(eq(userSessions.token, token));
   }
 
+  static async registerUser(email: string, name: string, role: string = 'user'): Promise<{ success: boolean; temporaryPassword?: string; error?: string }> {
+    try {
+      // Check if user already exists
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (existingUser) {
+        return { success: false, error: '此郵箱已註冊' };
+      }
+
+      // Generate random password
+      const temporaryPassword = EmailService.generateRandomPassword(12);
+      const hashedPassword = await this.hashPassword(temporaryPassword);
+
+      // Create user
+      const [newUser] = await db.insert(users).values({
+        email,
+        name,
+        password: hashedPassword,
+        role,
+        status: 'active',
+        isFirstLogin: true,
+      }).returning();
+
+      // Send welcome email with temporary password
+      const emailTemplate = EmailService.generateWelcomeEmail(email, name, temporaryPassword);
+      const emailSent = await EmailService.sendEmail(emailTemplate);
+
+      if (!emailSent) {
+        console.error('Failed to send welcome email to:', email);
+        // Don't fail registration if email fails
+      }
+
+      return { success: true, temporaryPassword };
+    } catch (error) {
+      console.error('User registration error:', error);
+      return { success: false, error: '註冊失敗，請稍後再試' };
+    }
+  }
+
+  static async resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Check if user exists
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!user) {
+        return { success: false, error: '找不到此郵箱對應的用戶' };
+      }
+
+      // Generate new random password
+      const newPassword = EmailService.generateRandomPassword(12);
+      const hashedPassword = await this.hashPassword(newPassword);
+
+      // Update user password and set first login flag
+      await db.update(users)
+        .set({ 
+          password: hashedPassword,
+          isFirstLogin: true,
+          passwordResetToken: null,
+          passwordResetExpires: null,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, user.id));
+
+      // Send password reset email
+      const emailTemplate = EmailService.generatePasswordResetEmail(email, user.name || '', newPassword);
+      const emailSent = await EmailService.sendEmail(emailTemplate);
+
+      if (!emailSent) {
+        console.error('Failed to send password reset email to:', email);
+        return { success: false, error: '郵件發送失敗，請稍後再試' };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Password reset error:', error);
+      return { success: false, error: '密碼重置失敗，請稍後再試' };
+    }
+  }
+
+  static async changePassword(userId: number, newPassword: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const hashedPassword = await this.hashPassword(newPassword);
+      
+      await db.update(users)
+        .set({ 
+          password: hashedPassword,
+          isFirstLogin: false,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+
+      return { success: true };
+    } catch (error) {
+      console.error('Change password error:', error);
+      return { success: false, error: '密碼更改失敗，請稍後再試' };
+    }
+  }
+
   static async applyForAccount(email: string, name: string, reason: string): Promise<void> {
     // Check if user already exists
     const existingUser = await db

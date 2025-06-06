@@ -111,6 +111,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User registration with automated email
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { email, name, role = 'user' } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email 為必填項目" });
+      }
+
+      const result = await AuthService.registerUser(email, name, role);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+
+      res.json({ 
+        message: "註冊成功！密碼已發送到您的郵箱",
+        success: true 
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "註冊失敗，請稍後再試" });
+    }
+  });
+
+  // Password reset request
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email 為必填項目" });
+      }
+
+      const result = await AuthService.resetPassword(email);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+
+      res.json({ 
+        message: "新密碼已發送到您的郵箱",
+        success: true 
+      });
+    } catch (error) {
+      console.error("Password reset error:", error);
+      res.status(500).json({ message: "密碼重置失敗，請稍後再試" });
+    }
+  });
+
+  // Change password (for first-time login or user-initiated changes)
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    try {
+      const { newPassword } = req.body;
+      const user = req.user;
+      
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ message: "密碼必須至少6個字符" });
+      }
+
+      const result = await AuthService.changePassword(user!.id, newPassword);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+
+      res.json({ 
+        message: "密碼更改成功",
+        success: true 
+      });
+    } catch (error) {
+      console.error("Change password error:", error);
+      res.status(500).json({ message: "密碼更改失敗，請稍後再試" });
+    }
+  });
+
   app.post("/api/auth/apply", async (req, res) => {
     try {
       const validatedData = insertApplicationSchema.parse(req.body);
