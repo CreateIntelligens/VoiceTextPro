@@ -25,7 +25,8 @@ export default function TranscriptionPage() {
     enabled: !!currentTranscriptionId,
     refetchInterval: (query) => {
       // Continue polling while processing
-      return query.state.data?.status === "processing" ? 2000 : false;
+      const status = query.state.data?.status;
+      return status === "processing" || status === "pending" ? 2000 : false;
     },
   });
 
@@ -65,7 +66,7 @@ export default function TranscriptionPage() {
   const actualTranscription = Array.isArray(currentTranscription) ? currentTranscription[0] : currentTranscription;
 
   const showUpload = !currentTranscriptionId || actualTranscription?.status === "error";
-  const showProcessing = actualTranscription?.status === "processing";
+  const showProcessing = actualTranscription?.status === "processing" || actualTranscription?.status === "pending";
   const showResults = actualTranscription?.status === "completed";
   const showError = actualTranscription?.status === "error";
 
