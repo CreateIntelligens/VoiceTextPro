@@ -979,6 +979,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/admin/create-user", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { email, name, role = 'user', password } = req.body;
+
+      if (!email || !name) {
+        return res.status(400).json({ message: "電子郵件和姓名為必填欄位" });
+      }
+
+      // Check if user already exists
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email));
+
+      if (existingUser) {
+        return res.status(400).json({ message: "此電子郵件已被使用" });
+      }
+
+      // Generate password if not provided
+      const finalPassword = password || AuthService.generateToken().substring(0, 12);
+      const hashedPassword = await AuthService.hashPassword(finalPassword);
+
+      // Create user
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          email,
+          name,
+          password: hashedPassword,
+          role,
+          status: 'active'
+        })
+        .returning();
+
+      await AdminLogger.log({
+        category: "admin",
+        action: "user_created",
+        description: `管理員創建新用戶帳號: ${email}`,
+        severity: "success",
+        details: {
+          adminId: req.user!.id,
+          newUserId: newUser.id,
+          email,
+          name,
+          role,
+          passwordGenerated: !password
+        }
+      });
+
+      res.json({
+        success: true,
+        temporaryPassword: password ? undefined : finalPassword,
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          name: newUser.name,
+          role: newUser.role,
+          status: newUser.status
+        }
+      });
+    } catch (error) {
+      console.error("Create user error:", error);
+      res.status(500).json({ message: "創建用戶失敗" });
+    }
+  });
+
   app.delete("/api/admin/users/:id", requireAdmin, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = parseInt(req.params.id);

@@ -78,6 +78,12 @@ export default function Admin() {
   const [newPassword, setNewPassword] = useState('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<User | null>(null);
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserRole, setNewUserRole] = useState('user');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [creatingUser, setCreatingUser] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -290,6 +296,62 @@ export default function Admin() {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!newUserEmail || !newUserName) {
+      toast({
+        title: "輸入錯誤",
+        description: "請填寫所有必填欄位",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingUser(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: newUserEmail,
+          name: newUserName,
+          role: newUserRole,
+          password: newUserPassword || undefined
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: "用戶創建成功",
+          description: result.temporaryPassword 
+            ? `帳號已創建，臨時密碼：${result.temporaryPassword}` 
+            : "用戶帳號已成功創建",
+        });
+        setShowCreateUserDialog(false);
+        setNewUserEmail('');
+        setNewUserName('');
+        setNewUserRole('user');
+        setNewUserPassword('');
+        fetchData();
+      } else {
+        const error = await response.json();
+        throw new Error(error.message);
+      }
+    } catch (error) {
+      toast({
+        title: "創建失敗",
+        description: error instanceof Error ? error.message : "無法創建用戶帳號",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -492,10 +554,95 @@ export default function Admin() {
             {/* Users List */}
             <Card>
               <CardHeader className="px-4 sm:px-6">
-                <CardTitle className="flex items-center text-lg sm:text-xl">
-                  <Users className="w-5 h-5 mr-2 text-blue-600" />
-                  用戶列表 ({users.length})
-                </CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
+                  <CardTitle className="flex items-center text-lg sm:text-xl">
+                    <Users className="w-5 h-5 mr-2 text-blue-600" />
+                    用戶列表 ({users.length})
+                  </CardTitle>
+                  <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-blue-600 hover:bg-blue-700">
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        新增用戶
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>新增用戶帳號</DialogTitle>
+                        <DialogDescription>
+                          為平台新增用戶帳號，系統將自動生成密碼。
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">電子郵件</label>
+                          <Input
+                            type="email"
+                            placeholder="輸入用戶電子郵件"
+                            value={newUserEmail}
+                            onChange={(e) => setNewUserEmail(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">姓名</label>
+                          <Input
+                            type="text"
+                            placeholder="輸入用戶姓名"
+                            value={newUserName}
+                            onChange={(e) => setNewUserName(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">角色</label>
+                          <Select value={newUserRole} onValueChange={setNewUserRole}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="選擇用戶角色" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="user">一般用戶</SelectItem>
+                              <SelectItem value="admin">管理員</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">密碼（選填）</label>
+                          <Input
+                            type="password"
+                            placeholder="留空將自動生成密碼"
+                            value={newUserPassword}
+                            onChange={(e) => setNewUserPassword(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowCreateUserDialog(false);
+                            setNewUserEmail('');
+                            setNewUserName('');
+                            setNewUserRole('user');
+                            setNewUserPassword('');
+                          }}
+                        >
+                          取消
+                        </Button>
+                        <Button
+                          onClick={handleCreateUser}
+                          disabled={!newUserEmail || !newUserName || creatingUser}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          {creatingUser ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          ) : (
+                            <UserPlus className="w-4 h-4 mr-2" />
+                          )}
+                          創建帳號
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
             {/* Mobile Card Layout */}
