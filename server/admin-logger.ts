@@ -387,4 +387,33 @@ AdminLogger.log({
   }
 });
 
+AdminLogger.log({
+  category: "audio_fix",
+  action: "volume_detection_and_quality_improvement",
+  description: "修復音量檢測不動問題並改善錄音音質",
+  severity: "critical",
+  details: {
+    issues: ["音量表顯示0%不動", "錄音收音音質較差"],
+    volume_detection_fixes: [
+      "改用RMS算法計算音量，更精確",
+      "使用時域數據替代頻域數據",
+      "調整音量放大倍數為300提升靈敏度",
+      "優化analyser設置: FFT=1024, smoothing=0.1"
+    ],
+    audio_quality_improvements: [
+      "提升採樣率至48kHz",
+      "停用自動增益控制(AGC)增加動態範圍",
+      "設置MediaRecorder比特率為128kbps",
+      "保持回音消除和噪音抑制"
+    ],
+    technical_changes: [
+      "修正AudioContext初始化",
+      "設定analyser頻率範圍 -90dB到-10dB",
+      "使用opus編碼器高品質錄音",
+      "移除不支援的音頻約束參數"
+    ],
+    files_modified: ["client/src/components/audio-recorder.tsx"]
+  }
+});
+
 export default AdminLogger;

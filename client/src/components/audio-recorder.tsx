@@ -73,11 +73,11 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          sampleRate: 44100,
+          sampleRate: 48000, // Higher sample rate for better quality
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
+          autoGainControl: false // Disable AGC for more dynamic range
         }
       });
       
@@ -88,8 +88,10 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       const audioContext = new AudioContext();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048; // Increase for better resolution
-      analyser.smoothingTimeConstant = 0.3; // Smooth the data
+      analyser.fftSize = 1024; // Optimized for volume detection
+      analyser.smoothingTimeConstant = 0.1; // Less smoothing for responsive volume
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = -10;
       source.connect(analyser);
       analyserRef.current = analyser;
       
@@ -127,15 +129,19 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         const audioContext = new AudioContext();
         const source = audioContext.createMediaStreamSource(stream);
         const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
-        analyser.smoothingTimeConstant = 0.3;
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.1;
+        analyser.minDecibels = -90;
+        analyser.maxDecibels = -10;
         source.connect(analyser);
         analyserRef.current = analyser;
         streamRef.current = stream;
       }
       
+      // Use high-quality recording settings
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 128000 // 128kbps for high quality
       });
       
       mediaRecorderRef.current = mediaRecorder;
@@ -231,7 +237,7 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     if (!analyserRef.current) return;
     
     const bufferLength = analyserRef.current.frequencyBinCount;
-    const frequencyDataArray = new Uint8Array(bufferLength);
+    const dataArray = new Uint8Array(bufferLength);
     
     const updateVolumeLevel = () => {
       if (!analyserRef.current) {
@@ -245,12 +251,19 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         return;
       }
       
-      // Get frequency domain data for volume calculation
-      analyserRef.current.getByteFrequencyData(frequencyDataArray);
+      // Get time domain data for more accurate volume detection
+      analyserRef.current.getByteTimeDomainData(dataArray);
       
-      // Calculate average volume level
-      const average = frequencyDataArray.reduce((a, b) => a + b) / frequencyDataArray.length;
-      const volumeLevel = Math.min(100, (average / 128) * 100);
+      // Calculate RMS (Root Mean Square) for accurate volume
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const sample = (dataArray[i] - 128) / 128; // Normalize to -1 to 1
+        sum += sample * sample;
+      }
+      const rms = Math.sqrt(sum / bufferLength);
+      
+      // Convert RMS to percentage with logarithmic scaling for better sensitivity
+      const volumeLevel = Math.min(100, Math.max(0, rms * 300)); // Amplify for visibility
       setAudioLevel(volumeLevel);
       
       animationRef.current = requestAnimationFrame(updateVolumeLevel);
