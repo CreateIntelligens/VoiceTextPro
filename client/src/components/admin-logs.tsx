@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,10 +24,14 @@ interface AdminLog {
 
 export function AdminLogs() {
   const queryClient = useQueryClient();
+  const { user, isAuthenticated } = useAuth();
+  const { toast } = useToast();
 
-  const { data: logs = [], isLoading, refetch } = useQuery<AdminLog[]>({
+  const { data: logs = [], isLoading, error, refetch } = useQuery<AdminLog[]>({
     queryKey: ["/api/admin/logs"],
     refetchInterval: 30000, // Auto-refresh every 30 seconds
+    enabled: isAuthenticated && user?.role === 'admin',
+    retry: false,
   });
 
   const clearLogsMutation = useMutation({
@@ -117,7 +123,7 @@ export function AdminLogs() {
                 <p className="text-gray-500">載入日誌中...</p>
               </div>
             </div>
-          ) : logs.length === 0 ? (
+          ) : (logs as AdminLog[]).length === 0 ? (
             <div className="flex items-center justify-center p-8">
               <div className="text-center">
                 <Bug className="h-8 w-8 mx-auto mb-2 text-gray-400" />
