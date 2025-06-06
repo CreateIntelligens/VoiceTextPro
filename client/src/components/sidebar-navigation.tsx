@@ -18,6 +18,19 @@ import {
   MessageSquare
 } from 'lucide-react';
 
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  badge?: string;
+}
+
+interface NavigationSection {
+  title: string;
+  items: NavigationItem[];
+}
+
 interface SidebarNavigationProps {
   className?: string;
 }

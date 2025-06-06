@@ -4,7 +4,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
-import Navigation from "@/components/navigation";
+import SidebarNavigation from "@/components/sidebar-navigation";
+import BreadcrumbNavigation from "@/components/breadcrumb-navigation";
 import ChatBot from "@/components/chat-bot";
 import TranscriptionPage from "@/pages/transcription";
 import TranscriptionResultsPage from "@/pages/transcription-results";
@@ -32,15 +33,43 @@ function Router() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      <Switch>
-        <Route path="/" component={TranscriptionPage} />
-        <Route path="/results" component={TranscriptionResultsPage} />
-        <Route path="/dashboard" component={Dashboard} />
-        <Route path="/admin" component={Admin} />
-        <Route component={NotFound} />
-      </Switch>
+    <div className="min-h-screen bg-gray-50 flex">
+      <SidebarNavigation className="hidden lg:flex" />
+      
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Navigation Bar for Mobile/Tablet */}
+        <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm font-bold">轉</span>
+              </div>
+              <h1 className="text-lg font-bold text-gray-900">智能轉錄平台</h1>
+            </div>
+            <BreadcrumbNavigation />
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Breadcrumb for Desktop */}
+          <div className="hidden lg:block bg-white border-b border-gray-200 px-6 py-4">
+            <BreadcrumbNavigation />
+          </div>
+          
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto bg-gray-50">
+            <Switch>
+              <Route path="/" component={TranscriptionPage} />
+              <Route path="/results" component={TranscriptionResultsPage} />
+              <Route path="/dashboard" component={Dashboard} />
+              <Route path="/admin" component={Admin} />
+              <Route component={NotFound} />
+            </Switch>
+          </main>
+        </div>
+      </div>
+      
       <ChatBot />
     </div>
   );
