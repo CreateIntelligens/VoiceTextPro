@@ -173,21 +173,21 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         }
       };
       
-      mediaRecorder.start(100); // Collect data every 100ms
+      // Set recording state first
       setIsRecording(true);
       setIsPaused(false);
       setRecordingTime(0);
+      
+      mediaRecorder.start(100); // Collect data every 100ms
       
       // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 0.1);
       }, 100);
       
-      // Start audio level monitoring after a short delay to ensure recording is active
-      setTimeout(() => {
-        console.log('Starting delayed audio monitoring, isRecording:', isRecording);
-        monitorAudioLevel();
-      }, 200);
+      // Start audio level monitoring immediately since state is now set
+      console.log('Starting audio monitoring with recording state set');
+      monitorAudioLevel();
       
       toast({
         title: "開始錄音",
@@ -250,10 +250,7 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     console.log('Audio monitoring setup successful');
     
     const updateVolumeLevel = () => {
-      console.log('Update loop - isRecording:', isRecording, 'isPaused:', isPaused);
-      
       if (!analyserRef.current || !streamRef.current) {
-        console.log('Missing analyzer or stream in update loop');
         if (isRecording && !isPaused) {
           animationRef.current = requestAnimationFrame(updateVolumeLevel);
         }
@@ -261,7 +258,6 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       }
       
       if (!isRecording || isPaused) {
-        console.log('Not recording or paused, setting volume to 0');
         setAudioLevel(0);
         return;
       }
@@ -278,9 +274,8 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
           sum += dataArray[i];
         }
         const average = sum / bufferLength;
-        const volumeLevel = Math.min(100, (average / 255) * 150);
+        const volumeLevel = Math.min(100, (average / 255) * 200); // Increased sensitivity
         
-        console.log('Raw average:', average, 'Volume level:', volumeLevel.toFixed(1));
         setAudioLevel(volumeLevel);
         
       } catch (error) {
@@ -289,7 +284,6 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       
       // Continue monitoring while recording
       if (isRecording && !isPaused) {
-        console.log('Continuing monitoring...');
         animationRef.current = requestAnimationFrame(updateVolumeLevel);
       }
     };
