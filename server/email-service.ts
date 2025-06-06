@@ -1,10 +1,4 @@
-import sgMail from '@sendgrid/mail';
-
-if (!process.env.SENDGRID_API_KEY) {
-  throw new Error("SENDGRID_API_KEY environment variable must be set");
-}
-
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+import nodemailer from 'nodemailer';
 
 export interface EmailTemplate {
   to: string;
@@ -14,17 +8,34 @@ export interface EmailTemplate {
 }
 
 export class EmailService {
-  private static FROM_EMAIL = 'noreply@transcription-platform.com';
+  private static FROM_EMAIL = process.env.GMAIL_USER || 'noreply@transcription-platform.com';
 
   static async sendEmail(template: EmailTemplate): Promise<boolean> {
     try {
-      await sgMail.send({
-        to: template.to,
-        from: this.FROM_EMAIL,
-        subject: template.subject,
-        html: template.html,
-        text: template.text || template.html.replace(/<[^>]*>/g, ''),
+      if (!process.env.GMAIL_USER || !process.env.GMAIL_PASSWORD) {
+        console.error('Gmail credentials not configured');
+        return false;
+      }
+
+      // Create transporter using Gmail SMTP
+      const transporter = nodemailer.createTransporter({
+        service: 'gmail',
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_PASSWORD
+        }
       });
+
+      const mailOptions = {
+        from: EmailService.FROM_EMAIL,
+        to: template.to,
+        subject: template.subject,
+        text: template.text || template.html.replace(/<[^>]*>/g, ''),
+        html: template.html,
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`Email sent successfully to ${template.to}`);
       return true;
     } catch (error) {
       console.error('郵件發送失敗:', error);
