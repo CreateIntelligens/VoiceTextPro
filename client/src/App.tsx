@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import SidebarNavigation from "@/components/sidebar-navigation";
 import BreadcrumbNavigation from "@/components/breadcrumb-navigation";
 import ChatBot from "@/components/chat-bot";
+import Welcome from "@/pages/welcome";
 import TranscriptionPage from "@/pages/transcription";
 import TranscriptionResultsPage from "@/pages/transcription-results";
 import Dashboard from "@/pages/dashboard";
@@ -60,8 +61,11 @@ function Router() {
           {/* Page Content */}
           <main className="flex-1 overflow-y-auto bg-gray-50">
             <Switch>
-              <Route path="/" component={TranscriptionPage} />
-              <Route path="/results" component={TranscriptionResultsPage} />
+              <Route path="/" component={Welcome} />
+              <Route path="/record" component={TranscriptionPage} />
+              <Route path="/upload" component={TranscriptionPage} />
+              <Route path="/transcriptions" component={TranscriptionResultsPage} />
+              <Route path="/keywords" component={Dashboard} />
               <Route path="/dashboard" component={Dashboard} />
               <Route path="/admin" component={Admin} />
               <Route component={NotFound} />
