@@ -13,14 +13,14 @@ export class AdminLogger {
       };
       
       // Store in global memory for immediate access
-      if (!global.adminLogs) {
-        global.adminLogs = [];
+      if (!(global as any).adminLogs) {
+        (global as any).adminLogs = [];
       }
-      global.adminLogs.unshift(logEntry);
+      (global as any).adminLogs.unshift(logEntry);
       
       // Keep only last 100 entries
-      if (global.adminLogs.length > 100) {
-        global.adminLogs = global.adminLogs.slice(0, 100);
+      if ((global as any).adminLogs.length > 100) {
+        (global as any).adminLogs = (global as any).adminLogs.slice(0, 100);
       }
       
       console.log(`[ADMIN LOG] ${entry.category}:${entry.action} - ${entry.description}`);
@@ -32,14 +32,14 @@ export class AdminLogger {
   }
 
   static async getLogs(limit: number = 50) {
-    if (!global.adminLogs) {
-      global.adminLogs = [];
+    if (!(global as any).adminLogs) {
+      (global as any).adminLogs = [];
     }
-    return global.adminLogs.slice(0, limit);
+    return (global as any).adminLogs.slice(0, limit);
   }
 
   static async clearLogs() {
-    global.adminLogs = [];
+    (global as any).adminLogs = [];
   }
 }
 

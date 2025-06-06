@@ -7,6 +7,7 @@ import { spawn } from "child_process";
 import { storage } from "./storage";
 import { GeminiAnalyzer } from "./gemini-analysis";
 import { UsageTracker } from "./usage-tracker";
+import AdminLogger from "./admin-logger";
 import { AuthService, requireAuth, requireAdmin, type AuthenticatedRequest } from "./auth";
 import { db } from "./db";
 import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions, users, accountApplications, notifications, insertApplicationSchema } from "@shared/schema";
@@ -682,6 +683,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : "刪除失敗" });
+    }
+  });
+
+  // Admin logs API routes
+  app.get("/api/admin/logs", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const logs = await AdminLogger.getLogs(limit);
+      res.json(logs);
+    } catch (error) {
+      console.error("Get admin logs error:", error);
+      res.status(500).json({ message: "獲取管理員日誌失敗" });
+    }
+  });
+
+  app.post("/api/admin/logs", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const logData = req.body;
+      const log = await AdminLogger.log({
+        ...logData,
+        userId: req.user?.id
+      });
+      res.json(log);
+    } catch (error) {
+      console.error("Create admin log error:", error);
+      res.status(500).json({ message: "創建管理員日誌失敗" });
+    }
+  });
+
+  app.delete("/api/admin/logs", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      await AdminLogger.clearLogs();
+      res.json({ message: "管理員日誌已清空" });
+    } catch (error) {
+      console.error("Clear admin logs error:", error);
+      res.status(500).json({ message: "清空管理員日誌失敗" });
     }
   });
 
