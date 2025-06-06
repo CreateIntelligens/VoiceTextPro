@@ -139,7 +139,11 @@ export default function TranscriptionList({
     }
   };
 
-  if (transcriptions.length === 0) {
+  // Debug logging for transcriptions
+  console.log('TranscriptionList - transcriptions:', transcriptions);
+  console.log('TranscriptionList - transcriptions.length:', transcriptions.length);
+
+  if (!transcriptions || transcriptions.length === 0) {
     return (
       <Card className="mb-8">
         <CardContent className="flex flex-col items-center justify-center p-8">
