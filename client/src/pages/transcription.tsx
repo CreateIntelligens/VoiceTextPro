@@ -74,8 +74,6 @@ export default function TranscriptionPage() {
     if (currentTranscriptionId) {
       queryClient.invalidateQueries({ queryKey: ["/api/transcriptions", currentTranscriptionId] });
     }
-    // Force immediate refetch
-    refetch();
   };
 
   // Handle case where currentTranscription might be an array
@@ -91,14 +89,6 @@ export default function TranscriptionPage() {
   console.log('Actual transcription:', actualTranscription);
   console.log('Show results:', showResults);
   console.log('Status:', actualTranscription?.status);
-  
-  // Force refresh for completed transcriptions that might be showing wrong status
-  if (actualTranscription && actualTranscription.status === 'processing' && actualTranscription.progress === 100) {
-    console.log('Detected completed transcription with wrong status, forcing refresh...');
-    setTimeout(() => {
-      handleManualRefresh();
-    }, 1000);
-  }
 
   return (
     <div className="min-h-screen bg-slate-50">

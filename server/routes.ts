@@ -6,7 +6,6 @@ import fs from "fs/promises";
 import { spawn } from "child_process";
 import { storage } from "./storage";
 import { GeminiAnalyzer } from "./gemini-analysis";
-import { GeminiSpeechGenerator } from "./speech-generation";
 
 import { UsageTracker } from "./usage-tracker";
 import AdminLogger from "./admin-logger";
@@ -588,30 +587,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Force refresh transcription status
-  app.post("/api/transcriptions/:id/refresh", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      
-      // Get fresh transcription data from database
-      const transcription = await storage.getTranscription(id);
-      
-      if (!transcription) {
-        return res.status(404).json({ message: "找不到轉錄記錄" });
-      }
-      
-      // Update the timestamp to trigger frontend refresh
-      await storage.updateTranscription(id, { updatedAt: new Date() });
-      
-      // Return fresh data
-      const refreshedTranscription = await storage.getTranscription(id);
-      
-      res.json(refreshedTranscription);
-    } catch (error) {
-      res.status(500).json({ message: error instanceof Error ? error.message : "狀態刷新失敗" });
-    }
-  });
-
   // Get all transcriptions (user-specific or all for admin)
   app.get("/api/transcriptions", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -667,11 +642,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Type', 'application/octet-stream');
       
       // Stream the file
-      const { createReadStream } = await import('fs');
-      const fileStream = createReadStream(filePath);
+      const fileStream = fs.createReadStream(filePath);
       fileStream.pipe(res);
       
-      fileStream.on('error', (error: any) => {
+      fileStream.on('error', (error) => {
         console.error('File stream error:', error);
         if (!res.headersSent) {
           res.status(500).json({ message: "檔案讀取失敗" });
@@ -740,80 +714,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Gemini cleaning error:", error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "逐字稿整理失敗" 
-      });
-    }
-  });
-
-  // Generate speech from transcription content using Gemini
-  app.post("/api/transcriptions/:id/generate-speech", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const { type, voice, speed, text } = req.body;
-
-      const transcription = await storage.getTranscription(id);
-      if (!transcription) {
-        return res.status(404).json({ message: "找不到轉錄記錄" });
-      }
-
-      // Check user permissions
-      if (req.user!.role !== 'admin' && transcription.userId !== req.user!.id) {
-        return res.status(403).json({ message: "無權限操作此轉錄記錄" });
-      }
-
-      const speechGenerator = new GeminiSpeechGenerator();
-      let result;
-
-      switch (type) {
-        case 'summary':
-          if (!transcription.summary) {
-            return res.status(400).json({ message: "此轉錄記錄沒有摘要內容" });
-          }
-          result = await speechGenerator.generateSummaryAudio(id, transcription.summary);
-          break;
-        
-        case 'keypoints':
-          if (!transcription.autoHighlights) {
-            return res.status(400).json({ message: "此轉錄記錄沒有重點內容" });
-          }
-          const keyPoints = Array.isArray(transcription.autoHighlights) 
-            ? transcription.autoHighlights.map((item: any) => item.text || item)
-            : [];
-          result = await speechGenerator.generateKeyPointsAudio(keyPoints);
-          break;
-        
-        case 'custom':
-          if (!text) {
-            return res.status(400).json({ message: "請提供要生成語音的文字內容" });
-          }
-          result = await speechGenerator.generateSpeech({
-            text,
-            voice: voice || 'neutral',
-            speed: speed || 1.0,
-            language: 'zh-TW'
-          });
-          break;
-        
-        case 'full':
-          if (!transcription.transcriptText) {
-            return res.status(400).json({ message: "此轉錄記錄沒有完整文字內容" });
-          }
-          result = await speechGenerator.generateSpeech({
-            text: transcription.transcriptText,
-            voice: voice || 'neutral',
-            speed: speed || 1.0,
-            language: 'zh-TW'
-          });
-          break;
-        
-        default:
-          return res.status(400).json({ message: "不支援的語音生成類型" });
-      }
-
-      res.json(result);
-    } catch (error) {
-      console.error("Speech generation error:", error);
-      res.status(500).json({ 
-        message: error instanceof Error ? error.message : "語音生成失敗" 
       });
     }
   });
