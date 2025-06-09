@@ -53,7 +53,7 @@ export default function SidebarNavigation({ className, onMobileClose }: SidebarN
         },
         {
           name: '轉錄結果',
-          href: '/results',
+          href: '/transcriptions',
           icon: FileText,
           description: '查看和管理轉錄記錄'
         }
