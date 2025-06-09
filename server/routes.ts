@@ -717,6 +717,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "沒有可整理的逐字稿內容" });
       }
 
+      // For large text, use basic cleaning instead of AI processing to avoid timeout
+      if (textToClean.length > 5000) {
+        const cleanedResult = {
+          cleanedText: textToClean
+            .replace(/\s+/g, ' ')  // Normalize whitespace
+            .replace(/([。！？])\s*/g, '$1 ')  // Add space after punctuation
+            .replace(/\s*([，、：；])\s*/g, '$1 ')  // Normalize comma spacing
+            .trim(),
+          improvements: ["基本格式整理", "標點符號規範化", "空格統一處理"]
+        };
+        return res.json(cleanedResult);
+      }
+
       const analyzer = new GeminiAnalyzer();
       const cleanedResult = await analyzer.cleanTranscript(textToClean);
 

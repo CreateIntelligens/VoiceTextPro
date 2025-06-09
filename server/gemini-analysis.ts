@@ -29,56 +29,30 @@ export class GeminiAnalyzer {
     cleanedText: string;
     improvements: string[];
   }> {
-    const prompt = `請整理以下逐字稿內容，將破碎的語音識別結果轉換成完整、流暢、專業的文字記錄。
+    // For large texts, split into smaller chunks to improve processing speed
+    const maxChunkSize = 2500; // characters
+    if (transcriptText.length > maxChunkSize) {
+      return this.cleanTranscriptInChunks(transcriptText, maxChunkSize);
+    }
+
+    const prompt = `請快速整理以下逐字稿，修正基本錯誤。請用繁體中文回覆JSON格式：
 
 原始逐字稿：
 ${transcriptText}
 
-請嚴格按照以下JSON格式回覆，不要包含任何其他文字或說明：
-
+JSON格式回覆：
 {
-  "cleanedText": "整理後的完整逐字稿內容",
-  "improvements": [
-    "改善項目1（例如：修正語法錯誤）",
-    "改善項目2（例如：補充不完整的語句）",
-    "改善項目3（例如：統一用詞風格）"
-  ]
+  "cleanedText": "整理後的逐字稿內容",
+  "improvements": ["主要改善項目"]
 }
 
-注意：回覆時只輸出JSON，不要包含任何標記或其他文字。
+快速整理重點：
+1. 修正明顯語法錯誤
+2. 統一關鍵詞（LINE、全家等）
+3. 添加基本標點
+4. 保持原意
 
-重要整理原則：
-1. 語句完整化：
-   - 將破碎、不完整的句子重新組織成完整的語句
-   - 補充缺失的主語、謂語或賓語，使句子結構完整
-   - 消除重複和冗餘的詞語
-
-2. 關鍵字優化：
-   - 識別專業術語、產品名稱、公司名稱等關鍵詞
-   - 統一相似詞彙的表達方式（例如：將LINE、line、賴統一為LINE）
-   - 修正語音識別錯誤導致的關鍵詞誤讀（例如：將全家、全佳統一為全家便利商店）
-   - 特別注意自定義關鍵字列表中的詞彙，修正逐字稿中發音相似但拼寫錯誤的詞語
-   - 保持專業術語的準確性和一致性
-   - 根據上下文判斷正確的關鍵詞用法
-
-3. 標點符號規範：
-   - 根據語句內容和語氣添加適當的標點符號
-   - 使用逗號分隔並列成分和短語
-   - 使用句號結束完整的陳述句
-   - 使用問號標示疑問句
-   - 使用冒號引入說明或列舉
-   - 使用分號連接相關的獨立子句
-
-4. 語言規範：
-   - 保持商務會議的專業語調
-   - 統一時態和語氣
-   - 修正語法錯誤但保留原意
-   - 適當使用敬語和禮貌用詞
-
-5. 內容完整性：
-   - 不添加原文中沒有提到的信息
-   - 保持說話者的原始觀點和立場
-   - 維持對話的邏輯順序和因果關係`;
+注意：只輸出JSON。`;
 
     try {
       const result = await this.model.generateContent(prompt);
@@ -90,6 +64,58 @@ ${transcriptText}
       console.error('Gemini cleaning error:', error);
       throw new Error('Failed to clean transcript with Gemini');
     }
+  }
+
+  private async cleanTranscriptInChunks(transcriptText: string, chunkSize: number): Promise<{
+    cleanedText: string;
+    improvements: string[];
+  }> {
+    const chunks = this.splitTextIntoChunks(transcriptText, chunkSize);
+    const cleanedChunks: string[] = [];
+    const allImprovements: string[] = [];
+
+    for (const chunk of chunks) {
+      try {
+        const result = await this.cleanTranscript(chunk);
+        cleanedChunks.push(result.cleanedText);
+        allImprovements.push(...result.improvements);
+      } catch (error) {
+        console.error('Error cleaning chunk:', error);
+        // If cleaning fails, use original chunk
+        cleanedChunks.push(chunk);
+      }
+    }
+
+    return {
+      cleanedText: cleanedChunks.join(' '),
+      improvements: [...new Set(allImprovements)] // Remove duplicates
+    };
+  }
+
+  private splitTextIntoChunks(text: string, chunkSize: number): string[] {
+    const chunks: string[] = [];
+    let currentIndex = 0;
+
+    while (currentIndex < text.length) {
+      let endIndex = currentIndex + chunkSize;
+      
+      // Try to find a natural break point (sentence end)
+      if (endIndex < text.length) {
+        const lastPeriod = text.lastIndexOf('。', endIndex);
+        const lastExclamation = text.lastIndexOf('！', endIndex);
+        const lastQuestion = text.lastIndexOf('？', endIndex);
+        
+        const naturalBreak = Math.max(lastPeriod, lastExclamation, lastQuestion);
+        if (naturalBreak > currentIndex) {
+          endIndex = naturalBreak + 1;
+        }
+      }
+
+      chunks.push(text.substring(currentIndex, endIndex));
+      currentIndex = endIndex;
+    }
+
+    return chunks;
   }
 
   async segmentCleanedText(cleanedText: string, originalSpeakers: any[]): Promise<{
