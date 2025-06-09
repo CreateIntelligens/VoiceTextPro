@@ -111,9 +111,17 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
         formData.append('keywords', validKeywords.join(','));
       }
 
+      const token = localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/transcriptions/upload', {
         method: 'POST',
+        headers,
         body: formData,
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -152,9 +160,17 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
         formData.append('keywords', validKeywords.join(','));
       }
 
+      const token = localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/transcriptions/upload', {
         method: 'POST',
+        headers,
         body: formData,
+        credentials: 'include',
       });
 
       if (!response.ok) {
