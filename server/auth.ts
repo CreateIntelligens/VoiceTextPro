@@ -359,26 +359,23 @@ export class AuthService {
 }
 
 export const requireAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  // Try token-based authentication first
-  const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.auth_token;
-  
-  if (token) {
-    const user = await AuthService.validateSession(token);
-    if (user && user.status === 'active') {
-      req.user = user;
-      return next();
+  try {
+    // Try token-based authentication first
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.auth_token;
+    
+    if (token) {
+      const user = await AuthService.validateSession(token);
+      if (user && user.status === 'active') {
+        req.user = user;
+        return next();
+      }
     }
-  }
 
-  // If token auth fails, check if user is authenticated via session (for backwards compatibility)
-  if (req.user) {
-    if (req.user.status !== 'active') {
-      return res.status(403).json({ message: '帳號尚未啟用' });
-    }
-    return next();
+    return res.status(401).json({ message: '需要登入' });
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    return res.status(401).json({ message: '認證失敗' });
   }
-
-  return res.status(401).json({ message: '需要登入' });
 };
 
 export const requireAdmin = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
