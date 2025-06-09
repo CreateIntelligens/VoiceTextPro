@@ -10,6 +10,7 @@ import type { TranscriptionStatus } from "@/lib/types";
 import { Link } from "wouter";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
+import SpeechGenerator from "@/components/speech-generator";
 
 export default function TranscriptionResultsPage() {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<number | null>(null);
@@ -469,6 +470,14 @@ export default function TranscriptionResultsPage() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Speech Generator Section */}
+                <SpeechGenerator 
+                  transcriptionId={selectedTranscription.id}
+                  hasTranscript={!!selectedTranscription.transcriptText}
+                  hasSummary={!!selectedTranscription.summary}
+                  hasKeyPoints={!!selectedTranscription.autoHighlights}
+                />
               ) : (
                 <Card>
                   <CardContent className="p-8 text-center">
