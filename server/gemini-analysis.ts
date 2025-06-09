@@ -148,8 +148,14 @@ ${cleanedText}
   }
 
   async analyzeTranscription(transcription: Transcription): Promise<AnalysisResult> {
-    if (!transcription.segments || !transcription.speakers) {
-      throw new Error('Transcription must have segments and speakers');
+    if (!transcription.segments) {
+      throw new Error('Transcription must have segments data');
+    }
+    
+    // Extract segments data
+    const segments = transcription.segments as any[];
+    if (!Array.isArray(segments) || segments.length === 0) {
+      throw new Error('No valid segments found in transcription');
     }
 
     const prompt = this.buildAnalysisPrompt(transcription);
@@ -167,26 +173,34 @@ ${cleanedText}
   }
 
   private buildAnalysisPrompt(transcription: Transcription): string {
-    if (!transcription.speakers || !transcription.segments) {
-      throw new Error('Missing speakers or segments data');
-    }
-
-    // Safely extract speakers and segments data
-    const speakers = transcription.speakers as any[];
+    // Extract segments data
     const segments = transcription.segments as any[];
-
-    if (!Array.isArray(speakers) || !Array.isArray(segments)) {
-      throw new Error('Speakers or segments data is not in array format');
+    if (!Array.isArray(segments)) {
+      throw new Error('Segments data is not in array format');
     }
+
+    // Extract unique speakers from segments
+    const speakersSet = new Set<string>();
+    segments.forEach((segment: any) => {
+      if (segment.speaker) {
+        speakersSet.add(segment.speaker);
+      }
+    });
+    const speakers = Array.from(speakersSet);
 
     const speakerList = speakers
-      .map((s: any) => `- ${s.id}: ${s.label}`)
+      .map((speaker: string, index: number) => `- ${speaker}`)
       .join('\n');
 
     const conversationText = segments
       .map((segment: any) => {
-        const speaker = speakers.find((s: any) => s.id === segment.speaker);
-        return `[${segment.timestamp}] ${speaker?.label || segment.speaker}: ${segment.text}`;
+        // Handle both old and new segment formats
+        const startTime = segment.start || segment.timestamp || 0;
+        const timeInMinutes = Math.floor(startTime / 60000);
+        const timeInSeconds = Math.floor((startTime % 60000) / 1000);
+        const timeFormat = `${timeInMinutes}:${timeInSeconds.toString().padStart(2, '0')}`;
+        
+        return `[${timeFormat}] ${segment.speaker}: ${segment.text}`;
       })
       .join('\n');
 

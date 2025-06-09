@@ -702,12 +702,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "轉錄尚未完成，無法進行整理" });
       }
 
-      if (!transcription.transcriptText) {
+      // Check if we have content to clean - either in transcriptText or segments
+      let textToClean = transcription.transcriptText;
+      
+      if (!textToClean && transcription.segments) {
+        // Extract text from segments if transcriptText is empty
+        const segments = transcription.segments as any[];
+        if (Array.isArray(segments) && segments.length > 0) {
+          textToClean = segments.map((segment: any) => segment.text).join(' ');
+        }
+      }
+      
+      if (!textToClean) {
         return res.status(400).json({ message: "沒有可整理的逐字稿內容" });
       }
 
       const analyzer = new GeminiAnalyzer();
-      const cleanedResult = await analyzer.cleanTranscript(transcription.transcriptText);
+      const cleanedResult = await analyzer.cleanTranscript(textToClean);
 
       res.json(cleanedResult);
     } catch (error) {
