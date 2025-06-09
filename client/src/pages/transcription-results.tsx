@@ -15,10 +15,9 @@ export default function TranscriptionResultsPage() {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<number | null>(null);
   const { toast } = useToast();
 
-  // Query for all transcriptions
-  const { data: transcriptions = [] } = useQuery<TranscriptionStatus[]>({
+  // Query for all transcriptions - no automatic polling to prevent infinite API calls
+  const { data: transcriptions = [], refetch } = useQuery<TranscriptionStatus[]>({
     queryKey: ["/api/transcriptions"],
-    refetchInterval: 5000,
   });
 
   // Query for selected transcription details
@@ -272,6 +271,15 @@ export default function TranscriptionResultsPage() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  refetch();
+                }}
+              >
+                手動刷新
+              </Button>
               <span className="text-sm text-slate-600">共 {transcriptions.length} 筆記錄</span>
             </div>
           </div>
