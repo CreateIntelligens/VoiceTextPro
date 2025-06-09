@@ -829,9 +829,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "找不到轉錄記錄" });
       }
 
-      const originalSpeakers = Array.isArray(transcription.speakers) ? transcription.speakers : [];
+      // Extract speakers from existing segments if speakers array is empty
+      let originalSpeakers = Array.isArray(transcription.speakers) ? transcription.speakers : [];
+      
+      if (originalSpeakers.length === 0 && transcription.segments) {
+        const segments = transcription.segments as any[];
+        const speakersSet = new Set<string>();
+        
+        segments.forEach((segment: any) => {
+          if (segment.speaker) {
+            speakersSet.add(segment.speaker);
+          }
+        });
+        
+        const colors = ['hsl(220, 70%, 50%)', 'hsl(120, 70%, 50%)', 'hsl(0, 70%, 50%)', 'hsl(280, 70%, 50%)', 'hsl(40, 70%, 50%)'];
+        originalSpeakers = Array.from(speakersSet).map((speaker, index) => ({
+          id: speaker,
+          label: speaker,
+          color: colors[index % colors.length]
+        }));
+        
+        // Update the transcription with the speakers data for future use
+        await storage.updateTranscription(id, {
+          speakers: originalSpeakers
+        });
+      }
+      
       if (originalSpeakers.length === 0) {
-        return res.status(400).json({ message: "沒有原始講者資料" });
+        return res.status(400).json({ message: "無法找到講者資料" });
       }
 
       const analyzer = new GeminiAnalyzer();

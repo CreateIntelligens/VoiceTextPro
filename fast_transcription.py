@@ -260,12 +260,21 @@ def update_database_with_results(transcription_id, transcript_data):
         # Process advanced features
         advanced_features = process_advanced_features(transcript_data)
         
+        # Extract duration and confidence from transcript data
+        duration_ms = transcript_data.get('audio_duration', 0)
+        confidence = transcript_data.get('confidence', 0.0)
+        
+        # Convert duration to seconds for display
+        duration_seconds = duration_ms / 1000.0 if duration_ms else 0
+        
         # Prepare update data
         update_data = {
             'status': 'completed',
             'progress': 100,
             'text': text,
             'wordCount': word_count,
+            'duration': duration_seconds,
+            'confidence': confidence,
             'segments': formatted_segments,
             'advancedFeatures': advanced_features,
             'completedAt': datetime.now().isoformat()
