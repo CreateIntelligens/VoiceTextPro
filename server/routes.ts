@@ -588,6 +588,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Force refresh transcription status
+  app.post("/api/transcriptions/:id/refresh", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Get fresh transcription data from database
+      const transcription = await storage.getTranscription(id);
+      
+      if (!transcription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+      
+      // Update the timestamp to trigger frontend refresh
+      await storage.updateTranscription(id, { updatedAt: new Date() });
+      
+      // Return fresh data
+      const refreshedTranscription = await storage.getTranscription(id);
+      
+      res.json(refreshedTranscription);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "狀態刷新失敗" });
+    }
+  });
+
   // Get all transcriptions (user-specific or all for admin)
   app.get("/api/transcriptions", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
