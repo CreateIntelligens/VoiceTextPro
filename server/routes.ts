@@ -613,6 +613,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Download audio file
+  app.get("/api/transcriptions/:id/download-audio", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transcription = await storage.getTranscription(id);
+
+      if (!transcription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+
+      // Check if user has access to this transcription
+      if (req.user!.role !== 'admin' && transcription.userId !== req.user!.id) {
+        return res.status(403).json({ message: "無權限下載此檔案" });
+      }
+
+      const filePath = path.join(process.cwd(), "uploads", transcription.filename);
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath);
+      } catch (error) {
+        return res.status(404).json({ message: "音頻檔案不存在" });
+      }
+
+      // Set appropriate headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(transcription.originalName || transcription.filename)}"`);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+      
+      fileStream.on('error', (error) => {
+        console.error('File stream error:', error);
+        if (!res.headersSent) {
+          res.status(500).json({ message: "檔案讀取失敗" });
+        }
+      });
+
+    } catch (error) {
+      console.error("Audio download error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "下載失敗" 
+      });
+    }
+  });
+
   // Analyze transcription with Gemini AI
   app.post("/api/transcriptions/:id/analyze", async (req, res) => {
     try {

@@ -81,7 +81,7 @@ export default function TranscriptionResultsPage() {
     }
   };
 
-  const handleDownload = (transcription: TranscriptionStatus) => {
+  const handleDownloadText = (transcription: TranscriptionStatus) => {
     if (!transcription.segments) return;
     
     const fullText = transcription.segments
@@ -97,6 +97,140 @@ export default function TranscriptionResultsPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadWord = async (transcription: TranscriptionStatus) => {
+    if (!transcription.segments) return;
+    
+    try {
+      // Create document header
+      const children = [
+        new Paragraph({
+          text: "語音轉錄報告",
+          heading: HeadingLevel.TITLE,
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "檔案名稱: ", bold: true }),
+            new TextRun({ text: transcription.originalName || transcription.filename }),
+          ],
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "轉錄時間: ", bold: true }),
+            new TextRun({ text: formatDate(transcription.createdAt) }),
+          ],
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "音頻時長: ", bold: true }),
+            new TextRun({ text: transcription.duration ? formatDuration(transcription.duration) : "未知" }),
+          ],
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "準確度: ", bold: true }),
+            new TextRun({ text: transcription.confidence ? `${(transcription.confidence * 100).toFixed(1)}%` : "未知" }),
+          ],
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "字數統計: ", bold: true }),
+            new TextRun({ text: transcription.wordCount ? `${transcription.wordCount} 字` : "未統計" }),
+          ],
+        }),
+        new Paragraph({ text: "" }), // Empty line
+        new Paragraph({
+          text: "轉錄內容",
+          heading: HeadingLevel.HEADING_1,
+        }),
+      ];
+
+      // Add transcription segments
+      transcription.segments.forEach((segment, index) => {
+        const speakerLabel = transcription.speakers?.find(s => s.id === segment.speaker)?.label || '未知講者';
+        
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: `[${segment.timestamp}] `, color: "666666" }),
+              new TextRun({ text: `${speakerLabel}: `, bold: true }),
+              new TextRun({ text: segment.text }),
+            ],
+            spacing: { after: 200 },
+          })
+        );
+      });
+
+      // Add summary if available
+      if (transcription.summary) {
+        children.push(
+          new Paragraph({ text: "" }), // Empty line
+          new Paragraph({
+            text: "AI 摘要",
+            heading: HeadingLevel.HEADING_1,
+          }),
+          new Paragraph({
+            text: transcription.summary,
+            spacing: { after: 200 },
+          })
+        );
+      }
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: children,
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `轉錄_${transcription.originalName || transcription.filename}.docx`);
+      
+      toast({
+        title: "Word文檔已下載",
+        description: "轉錄內容已成功導出為Word文檔",
+      });
+    } catch (error) {
+      console.error('Word export error:', error);
+      toast({
+        title: "導出失敗",
+        description: "無法生成Word文檔",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadAudio = async (transcription: TranscriptionStatus) => {
+    try {
+      const response = await fetch(`/api/transcriptions/${transcription.id}/download-audio`);
+      
+      if (!response.ok) {
+        throw new Error('下載失敗');
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = transcription.originalName || transcription.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "音頻檔案已下載",
+        description: "原始音頻檔案下載完成",
+      });
+    } catch (error) {
+      console.error('Audio download error:', error);
+      toast({
+        title: "下載失敗",
+        description: "無法下載音頻檔案",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -215,10 +349,18 @@ export default function TranscriptionResultsPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        <Button variant="ghost" onClick={() => handleDownload(selectedTranscription)}>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="ghost" onClick={() => handleDownloadAudio(selectedTranscription)}>
+                          <Music className="w-4 h-4 mr-2" />
+                          音頻檔案
+                        </Button>
+                        <Button variant="ghost" onClick={() => handleDownloadWord(selectedTranscription)}>
+                          <FileDown className="w-4 h-4 mr-2" />
+                          Word文檔
+                        </Button>
+                        <Button variant="ghost" onClick={() => handleDownloadText(selectedTranscription)}>
                           <Download className="w-4 h-4 mr-2" />
-                          下載
+                          文字檔案
                         </Button>
                         <Button variant="ghost" onClick={() => handleCopyTranscript(selectedTranscription)}>
                           <Copy className="w-4 h-4 mr-2" />
