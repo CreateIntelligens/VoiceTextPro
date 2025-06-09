@@ -333,6 +333,7 @@ export default function TranscriptionResultsPage() {
           <div className="lg:col-span-3">
             {selectedTranscription ? (
               selectedTranscription.status === 'completed' ? (
+                <>
                 <Card>
                   {/* Results Header */}
                   <div className="border-b border-slate-200 p-6">
@@ -478,6 +479,7 @@ export default function TranscriptionResultsPage() {
                   hasSummary={!!selectedTranscription.summary}
                   hasKeyPoints={!!selectedTranscription.autoHighlights}
                 />
+                </>
               ) : (
                 <Card>
                   <CardContent className="p-8 text-center">
