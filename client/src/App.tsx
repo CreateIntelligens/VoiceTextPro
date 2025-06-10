@@ -10,8 +10,6 @@ import { Menu, X } from "lucide-react";
 import SidebarNavigation from "@/components/sidebar-navigation";
 import BreadcrumbNavigation from "@/components/breadcrumb-navigation";
 import ChatBot from "@/components/chat-bot";
-import AccessibilityControls from "@/components/accessibility-controls";
-import ColorBlindFilters from "@/components/color-blind-filters";
 import Welcome from "@/pages/welcome";
 import TranscriptionPage from "@/pages/transcription";
 import TranscriptionResultsPage from "@/pages/transcription-results";
@@ -41,18 +39,6 @@ function Router() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Skip to main content link */}
-      <a 
-        href="#main-content" 
-        className="skip-link"
-        onClick={(e) => {
-          e.preventDefault();
-          document.getElementById('main-content')?.focus();
-        }}
-      >
-        跳到主要內容
-      </a>
-      
       <SidebarNavigation className="hidden lg:flex" />
       
       {/* Mobile Sidebar Overlay */}
@@ -64,13 +50,7 @@ function Router() {
             onClick={() => setMobileMenuOpen(false)}
           />
           {/* Mobile Sidebar */}
-          <div 
-            id="mobile-menu"
-            className="fixed top-0 left-0 h-full w-64 bg-white z-50 transform transition-transform duration-300 ease-in-out"
-            role="dialog"
-            aria-modal="true"
-            aria-label="導航選單"
-          >
+          <div className="fixed top-0 left-0 h-full w-64 bg-white z-50 transform transition-transform duration-300 ease-in-out">
             <SidebarNavigation onMobileClose={() => setMobileMenuOpen(false)} />
           </div>
         </div>
@@ -86,14 +66,11 @@ function Router() {
                 size="sm"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="mr-2"
-                aria-label={mobileMenuOpen ? "關閉導航選單" : "開啟導航選單"}
-                aria-expanded={mobileMenuOpen}
-                aria-controls="mobile-menu"
               >
                 {mobileMenuOpen ? (
-                  <X className="w-5 h-5" aria-hidden="true" />
+                  <X className="w-5 h-5" />
                 ) : (
-                  <Menu className="w-5 h-5" aria-hidden="true" />
+                  <Menu className="w-5 h-5" />
                 )}
               </Button>
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -113,13 +90,7 @@ function Router() {
           </div>
           
           {/* Page Content */}
-          <main 
-            id="main-content"
-            className="flex-1 overflow-y-auto bg-gray-50"
-            tabIndex={-1}
-            role="main"
-            aria-label="主要內容區域"
-          >
+          <main className="flex-1 overflow-y-auto bg-gray-50">
             <Switch>
               <Route path="/" component={Welcome} />
               <Route path="/record" component={TranscriptionPage} />
@@ -135,8 +106,6 @@ function Router() {
       </div>
       
       <ChatBot />
-      <AccessibilityControls />
-      <ColorBlindFilters />
     </div>
   );
 }
