@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -21,6 +21,7 @@ interface AccessibilitySettings {
 export default function AccessibilityControls() {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const [settings, setSettings] = useState<AccessibilitySettings>({
     highContrast: false,
     fontSize: 16,
@@ -30,6 +31,25 @@ export default function AccessibilityControls() {
     colorBlindMode: 'none',
     announcements: true,
   });
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      // Focus the card when opened
+      cardRef.current?.focus();
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -193,10 +213,12 @@ export default function AccessibilityControls() {
       />
 
       <Card 
+        ref={cardRef}
         className="fixed bottom-4 right-4 z-50 w-80 max-h-96 overflow-y-auto shadow-xl"
         role="dialog"
         aria-labelledby="accessibility-settings-title"
         aria-describedby="accessibility-settings-description"
+        tabIndex={-1}
       >
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -210,9 +232,12 @@ export default function AccessibilityControls() {
               onClick={() => setIsOpen(false)}
               aria-label="關閉無障礙設定"
             >
-              <EyeOff className="h-4 w-4" />
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
+          <p id="accessibility-settings-description" className="text-sm text-gray-600">
+            調整平台的無障礙設定以改善您的使用體驗
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* High Contrast */}
@@ -327,6 +352,7 @@ export default function AccessibilityControls() {
             size="sm"
             onClick={resetSettings}
             className="w-full mt-4"
+            aria-label="重置所有無障礙設定為預設值"
           >
             重置為預設值
           </Button>
