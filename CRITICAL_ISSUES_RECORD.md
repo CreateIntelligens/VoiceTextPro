@@ -92,15 +92,24 @@
 update_data = {
     'status': 'completed',
     'progress': 100,
-    'text': text,
+    'assemblyaiId': transcript_id,  # 必須包含AssemblyAI ID
+    'transcriptText': text,         # 使用正確的字段名
     'wordCount': word_count,
-    'duration': duration_seconds,  # 必須包含
-    'confidence': confidence,      # 必須包含
+    'duration': duration_seconds,   # 必須包含
+    'confidence': confidence,       # 必須包含
     'segments': formatted_segments,
+    'speakers': speaker_data,       # 必須包含講者資料
     'advancedFeatures': advanced_features,
     'completedAt': datetime.now().isoformat()
 }
 ```
+
+### 資料驗證要求
+所有轉錄腳本必須在更新資料庫前驗證：
+- `assemblyaiId` 不為空
+- `transcriptText` 包含有效內容
+- `speakers` 和 `segments` 格式正確
+- 實現降級更新機制處理驗證失敗
 
 ### 講者資料格式
 ```python
