@@ -2,7 +2,29 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
+    let text = res.statusText;
+    try {
+      // Try to parse as JSON first, fallback to text if it fails
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const json = await res.json();
+        text = json.message || text;
+      } else {
+        text = await res.text() || text;
+      }
+    } catch (e) {
+      // If parsing fails, use status text
+      text = res.statusText;
+    }
+    
+    // Handle authentication errors specifically
+    if (res.status === 401) {
+      // Clear invalid token and redirect to login
+      localStorage.removeItem('auth_token');
+      window.location.href = '/';
+      throw new Error(`${res.status}: 認證已過期，請重新登入`);
+    }
+    
     throw new Error(`${res.status}: ${text}`);
   }
 }
@@ -50,7 +72,20 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    
+    // Safe JSON parsing for API responses
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        return await res.json();
+      } catch (e) {
+        console.error('Failed to parse JSON response:', e);
+        throw new Error('無法解析伺服器回應');
+      }
+    } else {
+      // If not JSON, return the text content
+      return await res.text();
+    }
   };
 
 export const queryClient = new QueryClient({
