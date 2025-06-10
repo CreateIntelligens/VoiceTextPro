@@ -192,11 +192,16 @@ export default function AccessibilityControls() {
         aria-atomic="true"
       />
 
-      <Card className="fixed bottom-4 right-4 z-50 w-80 max-h-96 overflow-y-auto shadow-xl">
+      <Card 
+        className="fixed bottom-4 right-4 z-50 w-80 max-h-96 overflow-y-auto shadow-xl"
+        role="dialog"
+        aria-labelledby="accessibility-settings-title"
+        aria-describedby="accessibility-settings-description"
+      >
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Eye className="h-5 w-5" />
+            <CardTitle id="accessibility-settings-title" className="text-lg flex items-center gap-2">
+              <Eye className="h-5 w-5" aria-hidden="true" />
               無障礙設定
             </CardTitle>
             <Button

@@ -64,7 +64,13 @@ function Router() {
             onClick={() => setMobileMenuOpen(false)}
           />
           {/* Mobile Sidebar */}
-          <div className="fixed top-0 left-0 h-full w-64 bg-white z-50 transform transition-transform duration-300 ease-in-out">
+          <div 
+            id="mobile-menu"
+            className="fixed top-0 left-0 h-full w-64 bg-white z-50 transform transition-transform duration-300 ease-in-out"
+            role="dialog"
+            aria-modal="true"
+            aria-label="導航選單"
+          >
             <SidebarNavigation onMobileClose={() => setMobileMenuOpen(false)} />
           </div>
         </div>
@@ -80,11 +86,14 @@ function Router() {
                 size="sm"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="mr-2"
+                aria-label={mobileMenuOpen ? "關閉導航選單" : "開啟導航選單"}
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-menu"
               >
                 {mobileMenuOpen ? (
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5" aria-hidden="true" />
                 ) : (
-                  <Menu className="w-5 h-5" />
+                  <Menu className="w-5 h-5" aria-hidden="true" />
                 )}
               </Button>
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
