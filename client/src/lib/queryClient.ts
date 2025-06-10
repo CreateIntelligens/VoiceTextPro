@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { ProductionErrorHandler } from "./production-error-handler";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -40,12 +41,9 @@ async function throwIfResNotOk(res: Response) {
       errorMessage = `網路錯誤 (${res.status})`;
     }
     
-    // Handle authentication errors
+    // Handle authentication errors using production handler
     if (res.status === 401) {
-      localStorage.removeItem('auth_token');
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      ProductionErrorHandler.handleAuthError();
       throw new Error('認證已過期，正在重新載入頁面...');
     }
     
@@ -97,53 +95,12 @@ export const getQueryFn: <T>(options: {
 
     await throwIfResNotOk(res);
     
-    // Production-safe JSON parsing with comprehensive error handling
-    const contentType = res.headers.get('content-type') || '';
-    
+    // Use production error handler for safe response parsing
     try {
-      if (contentType.includes('application/json')) {
-        const text = await res.text();
-        if (!text.trim()) {
-          return null;
-        }
-        
-        // Validate JSON structure before parsing
-        const trimmedText = text.trim();
-        if (!trimmedText.startsWith('{') && !trimmedText.startsWith('[')) {
-          throw new Error('Invalid JSON format');
-        }
-        
-        return JSON.parse(trimmedText);
-      } else if (contentType.includes('text/')) {
-        return await res.text();
-      } else {
-        // Handle unknown content types safely
-        const text = await res.text();
-        const trimmedText = text.trim();
-        
-        if (trimmedText.startsWith('<html>') || trimmedText.startsWith('<!DOCTYPE')) {
-          // HTML response in production
-          throw new Error('伺服器回應HTML頁面而非預期的資料格式');
-        }
-        
-        if (trimmedText.startsWith('{') || trimmedText.startsWith('[')) {
-          try {
-            return JSON.parse(trimmedText);
-          } catch (jsonError) {
-            // JSON parsing failed, return as text
-            return trimmedText;
-          }
-        }
-        
-        return trimmedText;
-      }
+      return await ProductionErrorHandler.safeParseResponse(res);
     } catch (error: unknown) {
-      // Final fallback for production environments
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('Unexpected token')) {
-        throw new Error('資料格式錯誤，請重新載入頁面或聯繫技術支援');
-      }
-      throw new Error(errorMessage);
+      // Handle network and parsing errors
+      throw ProductionErrorHandler.handleNetworkError(error);
     }
   };
 
