@@ -10,6 +10,8 @@ import { Menu, X } from "lucide-react";
 import SidebarNavigation from "@/components/sidebar-navigation";
 import BreadcrumbNavigation from "@/components/breadcrumb-navigation";
 import ChatBot from "@/components/chat-bot";
+import AccessibilityControls from "@/components/accessibility-controls";
+import ColorBlindFilters from "@/components/color-blind-filters";
 import Welcome from "@/pages/welcome";
 import TranscriptionPage from "@/pages/transcription";
 import TranscriptionResultsPage from "@/pages/transcription-results";
@@ -39,6 +41,18 @@ function Router() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      {/* Skip to main content link */}
+      <a 
+        href="#main-content" 
+        className="skip-link"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById('main-content')?.focus();
+        }}
+      >
+        跳到主要內容
+      </a>
+      
       <SidebarNavigation className="hidden lg:flex" />
       
       {/* Mobile Sidebar Overlay */}
@@ -90,7 +104,13 @@ function Router() {
           </div>
           
           {/* Page Content */}
-          <main className="flex-1 overflow-y-auto bg-gray-50">
+          <main 
+            id="main-content"
+            className="flex-1 overflow-y-auto bg-gray-50"
+            tabIndex={-1}
+            role="main"
+            aria-label="主要內容區域"
+          >
             <Switch>
               <Route path="/" component={Welcome} />
               <Route path="/record" component={TranscriptionPage} />
@@ -106,6 +126,8 @@ function Router() {
       </div>
       
       <ChatBot />
+      <AccessibilityControls />
+      <ColorBlindFilters />
     </div>
   );
 }
