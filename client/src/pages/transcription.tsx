@@ -17,7 +17,7 @@ export default function TranscriptionPage() {
   // Query for all transcriptions
   const { data: allTranscriptions = [] } = useQuery<TranscriptionStatus[]>({
     queryKey: ["/api/transcriptions"],
-    refetchInterval: 2000, // More frequent updates
+    // No automatic polling - use manual refresh only
   });
 
   // Query for current transcription status

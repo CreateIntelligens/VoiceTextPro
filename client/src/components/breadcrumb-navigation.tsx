@@ -27,13 +27,53 @@ const routeMap: Record<string, BreadcrumbItem[]> = {
   ]
 };
 
+// Function to get breadcrumb based on current path
+const getBreadcrumbsForPath = (path: string): BreadcrumbItem[] => {
+  // Exact match first
+  if (routeMap[path]) {
+    return routeMap[path];
+  }
+  
+  // Handle dynamic routes or partial matches
+  if (path.startsWith('/transcription')) {
+    return [
+      { name: '首頁', href: '/', icon: Home },
+      { name: '語音轉錄' }
+    ];
+  }
+  
+  if (path.startsWith('/results')) {
+    return [
+      { name: '首頁', href: '/', icon: Home },
+      { name: '轉錄結果' }
+    ];
+  }
+  
+  if (path.startsWith('/dashboard')) {
+    return [
+      { name: '首頁', href: '/', icon: Home },
+      { name: '使用儀表板' }
+    ];
+  }
+  
+  if (path.startsWith('/admin')) {
+    return [
+      { name: '首頁', href: '/', icon: Home },
+      { name: '管理員面板' }
+    ];
+  }
+  
+  // Default fallback
+  return [
+    { name: '首頁', href: '/', icon: Home },
+    { name: '語音轉錄平台' }
+  ];
+};
+
 export default function BreadcrumbNavigation() {
   const [location] = useLocation();
   
-  const breadcrumbs = routeMap[location] || [
-    { name: '首頁', href: '/', icon: Home },
-    { name: '未知頁面' }
-  ];
+  const breadcrumbs = getBreadcrumbsForPath(location);
 
   return (
     <nav className="flex items-center space-x-1 text-sm text-gray-500" aria-label="麵包屑">
