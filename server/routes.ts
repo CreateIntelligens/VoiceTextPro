@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
-import { createReadStream } from "fs";
+import * as nodeFs from "fs";
 import { spawn } from "child_process";
 import { storage } from "./storage";
 import { GeminiAnalyzer } from "./gemini-analysis";
@@ -643,7 +643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Type', 'application/octet-stream');
       
       // Stream the file
-      const fileStream = createReadStream(filePath);
+      const fileStream = nodeFs.createReadStream(filePath);
       fileStream.pipe(res);
       
       fileStream.on('error', (error: any) => {
