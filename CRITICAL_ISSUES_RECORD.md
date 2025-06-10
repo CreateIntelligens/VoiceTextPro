@@ -5,15 +5,21 @@
 
 ## 📋 已修復的關鍵問題
 
-### 1. 無限API輪詢問題 (Critical)
-**問題描述**: 頁面每5秒自動調用API獲取轉錄列表，導致無限輪詢和頁面卡死
-**修復位置**: `client/src/pages/dashboard.tsx`
+### 1. 無限API輪詢問題 (Critical) - 已再次發生
+**問題描述**: 頁面自動調用API獲取轉錄列表，導致無限輪詢和頁面卡死
+**修復位置**: 
+- `client/src/pages/dashboard.tsx` (首次修復)
+- `client/src/pages/transcription.tsx` (二次修復 - 2025/06/10)
 **修復方案**: 
-- 移除自動輪詢邏輯 (`setInterval`)
+- 移除自動輪詢邏輯 (`setInterval`, `refetchInterval`)
 - 添加手動刷新按鈕讓用戶主動控制更新
 - 避免無限API調用造成的性能問題
 
-**警告**: ⚠️ 絕對不要重新添加自動輪詢功能
+**二次發生原因**: 在transcription.tsx中意外重新啟用了`refetchInterval: 2000`
+**最新修復**: 移除`refetchInterval: 2000`設定，改為僅在處理中狀態時輪詢
+
+**警告**: ⚠️ 絕對不要在任何頁面重新添加自動輪詢功能
+**檢查點**: 搜尋所有檔案中的`refetchInterval`確保沒有自動輪詢
 
 ### 2. 前端上傳認證問題 (Critical)
 **問題描述**: 錄音和檔案上傳請求缺少Authorization header，導致401錯誤
@@ -109,10 +115,29 @@ speaker_data = {
 ## 🚨 絕對禁止的操作
 
 1. **不要重新啟用自動API輪詢** - 會導致無限輪詢和頁面卡死
+   - 檢查所有檔案中的 `refetchInterval`、`setInterval`、`setTimeout` 用於API輪詢
+   - 特別注意 React Query 的 `refetchInterval` 設定
 2. **不要移除認證header** - 會導致所有上傳功能失效
 3. **不要修改segments資料結構處理邏輯** - 會破壞AI分析功能
 4. **不要移除講者自動提取邏輯** - 會破壞分段功能
 5. **不要移除duration/confidence字段** - 會導致元數據顯示問題
+
+## 🔍 部署前必檢項目
+
+### 自動輪詢檢查
+```bash
+# 搜尋所有可能的自動輪詢代碼
+grep -r "refetchInterval" client/src/
+grep -r "setInterval.*api" client/src/
+grep -r "setTimeout.*fetch" client/src/
+```
+
+### 認證檢查
+```bash
+# 確認所有上傳請求包含認證
+grep -r "upload.*fetch" client/src/
+grep -r "FormData" client/src/
+```
 
 ## 📊 系統監控要點
 
