@@ -148,6 +148,20 @@ grep -r "upload.*fetch" client/src/
 grep -r "FormData" client/src/
 ```
 
+### JSON解析錯誤檢查
+```bash
+# 確保錯誤處理機制正確
+grep -r "Unexpected token" client/src/
+grep -r "throwIfResNotOk" client/src/
+grep -r "JSON.parse" client/src/
+```
+
+### 生產環境特殊檢查
+- 確認API端點在生產環境正確運作
+- 驗證認證機制在不同網域下的功能
+- 測試HTML錯誤頁面的正確處理
+- 確保內容類型標頭正確設置
+
 ## 📊 系統監控要點
 
 ### 性能監控

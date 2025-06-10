@@ -2,45 +2,54 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    let text = res.statusText;
-    let isJson = false;
+    let errorMessage = res.statusText;
     
     try {
-      // Check content type first
       const contentType = res.headers.get('content-type') || '';
-      isJson = contentType.includes('application/json');
       
-      if (isJson) {
-        // Clone response to avoid consuming the stream
-        const responseClone = res.clone();
-        const json = await responseClone.json();
-        text = json.message || json.error || text;
+      // Try to get error message from response
+      if (contentType.includes('application/json')) {
+        try {
+          const responseText = await res.text();
+          if (responseText.trim()) {
+            const json = JSON.parse(responseText);
+            errorMessage = json.message || json.error || errorMessage;
+          }
+        } catch (jsonError) {
+          // JSON parsing failed, use status text
+          errorMessage = res.statusText || '伺服器錯誤';
+        }
       } else {
-        // For non-JSON responses (like HTML error pages)
-        const responseText = await res.text();
-        if (responseText.includes('<html>') || responseText.includes('<!DOCTYPE')) {
-          // HTML error page detected
-          text = res.status === 401 ? '認證已過期' : '伺服器錯誤';
-        } else {
-          text = responseText || text;
+        // Non-JSON response, likely HTML error page
+        try {
+          const responseText = await res.text();
+          if (responseText.includes('<html>') || responseText.includes('<!DOCTYPE') || responseText.length > 1000) {
+            // HTML error page detected
+            errorMessage = res.status === 401 ? '認證已過期' : 
+                         res.status === 404 ? '找不到請求的資源' :
+                         res.status === 500 ? '伺服器內部錯誤' : '伺服器錯誤';
+          } else if (responseText.trim()) {
+            errorMessage = responseText.substring(0, 200); // Limit error message length
+          }
+        } catch (textError) {
+          errorMessage = `HTTP ${res.status} 錯誤`;
         }
       }
-    } catch (parseError) {
-      // If any parsing fails, use a safe fallback
-      console.warn('Response parsing failed:', parseError);
-      text = res.status === 401 ? '認證已過期' : `伺服器錯誤 (${res.status})`;
+    } catch (generalError) {
+      // Fallback for any unexpected errors
+      errorMessage = `網路錯誤 (${res.status})`;
     }
     
-    // Handle authentication errors specifically
+    // Handle authentication errors
     if (res.status === 401) {
       localStorage.removeItem('auth_token');
       setTimeout(() => {
         window.location.reload();
-      }, 100);
-      throw new Error(`認證已過期，請重新登入`);
+      }, 500);
+      throw new Error('認證已過期，正在重新載入頁面...');
     }
     
-    throw new Error(`${res.status}: ${text}`);
+    throw new Error(`${res.status}: ${errorMessage}`);
   }
 }
 
@@ -88,34 +97,53 @@ export const getQueryFn: <T>(options: {
 
     await throwIfResNotOk(res);
     
-    // Enhanced safe JSON parsing
+    // Production-safe JSON parsing with comprehensive error handling
     const contentType = res.headers.get('content-type') || '';
     
-    if (contentType.includes('application/json')) {
-      try {
+    try {
+      if (contentType.includes('application/json')) {
         const text = await res.text();
         if (!text.trim()) {
-          return null; // Empty response
+          return null;
         }
-        return JSON.parse(text);
-      } catch (parseError) {
-        console.error('JSON parsing failed:', parseError);
-        console.error('Response text:', await res.clone().text());
-        throw new Error('伺服器回應格式錯誤');
-      }
-    } else if (contentType.includes('text/')) {
-      return await res.text();
-    } else {
-      // For unknown content types, try JSON first, then text
-      try {
-        const text = await res.text();
-        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-          return JSON.parse(text);
+        
+        // Validate JSON structure before parsing
+        const trimmedText = text.trim();
+        if (!trimmedText.startsWith('{') && !trimmedText.startsWith('[')) {
+          throw new Error('Invalid JSON format');
         }
-        return text;
-      } catch (e) {
+        
+        return JSON.parse(trimmedText);
+      } else if (contentType.includes('text/')) {
         return await res.text();
+      } else {
+        // Handle unknown content types safely
+        const text = await res.text();
+        const trimmedText = text.trim();
+        
+        if (trimmedText.startsWith('<html>') || trimmedText.startsWith('<!DOCTYPE')) {
+          // HTML response in production
+          throw new Error('伺服器回應HTML頁面而非預期的資料格式');
+        }
+        
+        if (trimmedText.startsWith('{') || trimmedText.startsWith('[')) {
+          try {
+            return JSON.parse(trimmedText);
+          } catch (jsonError) {
+            // JSON parsing failed, return as text
+            return trimmedText;
+          }
+        }
+        
+        return trimmedText;
       }
+    } catch (error: unknown) {
+      // Final fallback for production environments
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Unexpected token')) {
+        throw new Error('資料格式錯誤，請重新載入頁面或聯繫技術支援');
+      }
+      throw new Error(errorMessage);
     }
   };
 
