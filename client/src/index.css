@@ -134,16 +134,15 @@
   white-space: nowrap !important;
   border: 0 !important;
 }
-  outline: 3px solid hsl(var(--ring)) !important;
-  outline-offset: 2px !important;
-  border-radius: 4px;
-}
 
+/* Additional focus styles for specific elements */
 .enhanced-focus button:focus,
 .enhanced-focus input:focus,
 .enhanced-focus textarea:focus,
 .enhanced-focus select:focus {
-  box-shadow: 0 0 0 3px hsl(var(--ring)) !important;
+  outline: 3px solid #2563eb !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3) !important;
 }
 
 /* Reduced Motion */
