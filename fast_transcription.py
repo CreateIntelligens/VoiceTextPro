@@ -280,7 +280,28 @@ def update_database_with_results(transcription_id, transcript_data):
             'completedAt': datetime.now().isoformat()
         }
         
-        # Update database
+        # Validate update data before sending
+        required_fields = ['status', 'progress', 'assemblyaiId', 'transcriptText']
+        missing_fields = [field for field in required_fields if field not in update_data or not update_data[field]]
+        
+        if missing_fields:
+            print(f"❌ Missing required fields: {missing_fields}", flush=True)
+            print("🔄 Attempting basic update with available data...", flush=True)
+            # Create minimal update with only essential fields
+            minimal_update = {
+                'status': 'error',
+                'progress': 95,
+                'errorMessage': f'Transcription completed but missing data: {", ".join(missing_fields)}'
+            }
+            requests.patch(
+                f'http://localhost:5000/api/transcriptions/{transcription_id}',
+                json=minimal_update,
+                headers={'Content-Type': 'application/json'},
+                timeout=30
+            )
+            return
+        
+        # Update database with validated data
         response = requests.patch(
             f'http://localhost:5000/api/transcriptions/{transcription_id}',
             json=update_data,
@@ -292,6 +313,21 @@ def update_database_with_results(transcription_id, transcript_data):
             print("✅ Database updated successfully with all results!", flush=True)
         else:
             print(f"❌ Failed to update database: {response.status_code}", flush=True)
+            if response.status_code == 400:
+                print(f"❌ Validation error details: {response.text}", flush=True)
+                # Try with minimal data to avoid validation errors
+                minimal_update = {
+                    'status': 'error',
+                    'progress': 95,
+                    'errorMessage': f'Validation failed during final update: {response.text[:200]}'
+                }
+                retry_response = requests.patch(
+                    f'http://localhost:5000/api/transcriptions/{transcription_id}',
+                    json=minimal_update,
+                    headers={'Content-Type': 'application/json'},
+                    timeout=30
+                )
+                print(f"🔄 Retry response: {retry_response.status_code}", flush=True)
             
     except Exception as e:
         print(f"❌ Error updating database: {e}", flush=True)
