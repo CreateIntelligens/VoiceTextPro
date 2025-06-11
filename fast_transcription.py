@@ -254,8 +254,8 @@ def update_database_with_results(transcription_id, transcript_data):
                 end_time = int(utterance.get('end', 0))
                 confidence = float(utterance.get('confidence', 0.0))
                 
-                # Skip invalid data
-                if not text or len(text) < 3:
+                # Skip invalid data - use lenient validation for short speech segments
+                if not text or len(text) < 1:
                     skipped_count += 1
                     continue
                     
