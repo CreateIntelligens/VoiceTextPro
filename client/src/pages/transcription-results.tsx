@@ -416,15 +416,19 @@ export default function TranscriptionResultsPage() {
                       <div className="mb-6">
                         <h4 className="text-sm font-medium text-slate-700 mb-3">對話者標識</h4>
                         <div className="flex flex-wrap gap-3">
-                          {selectedTranscription.speakers.map((speaker) => (
-                            <div key={speaker.id} className="flex items-center space-x-2 bg-slate-50 rounded-full px-3 py-1">
-                              <div 
-                                className="w-3 h-3 rounded-full" 
-                                style={{ backgroundColor: speaker.color }}
-                              />
-                              <span className="text-sm font-medium text-slate-700">{speaker.label}</span>
-                            </div>
-                          ))}
+                          {selectedTranscription.speakers.map((speakerName, index) => {
+                            const colors = ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'];
+                            const speakerColor = colors[index % colors.length];
+                            return (
+                              <div key={`speaker-${index}-${speakerName}`} className="flex items-center space-x-2 bg-slate-50 rounded-full px-3 py-1">
+                                <div 
+                                  className="w-3 h-3 rounded-full" 
+                                  style={{ backgroundColor: speakerColor }}
+                                />
+                                <span className="text-sm font-medium text-slate-700">{speakerName}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -434,31 +438,35 @@ export default function TranscriptionResultsPage() {
                       <div className="space-y-4">
                         <h4 className="text-sm font-medium text-slate-700 mb-3">轉錄內容</h4>
                         {selectedTranscription.segments.map((segment, index) => {
-                          const speaker = selectedTranscription.speakers?.find(s => s.id === segment.speaker);
+                          const colors = ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'];
+                          const speakerIndex = selectedTranscription.speakers?.indexOf(segment.speaker) || 0;
+                          const speakerColor = colors[speakerIndex % colors.length];
+                          const speakerName = segment.speaker || '未知講者';
+                          
                           return (
-                            <div key={index} className="flex space-x-4 group">
+                            <div key={`segment-${index}-${segment.start}-${segment.end}`} className="flex space-x-4 group">
                               <div className="flex-shrink-0 text-xs text-slate-500 font-mono mt-1 w-16">
-                                {segment.timestamp}
+                                {segment.startTime}
                               </div>
                               <div className="flex-shrink-0">
                                 <div 
                                   className="w-3 h-3 rounded-full mt-2"
-                                  style={{ backgroundColor: speaker?.color || '#64748B' }}
+                                  style={{ backgroundColor: speakerColor }}
                                 />
                               </div>
                               <div className="flex-1">
                                 <div 
                                   className="rounded-lg p-4 border-l-4"
                                   style={{ 
-                                    backgroundColor: speaker?.color ? `${speaker.color}10` : '#F1F5F9',
-                                    borderLeftColor: speaker?.color || '#64748B'
+                                    backgroundColor: `${speakerColor}10`,
+                                    borderLeftColor: speakerColor
                                   }}
                                 >
                                   <div 
                                     className="text-xs font-medium mb-1"
-                                    style={{ color: speaker?.color || '#64748B' }}
+                                    style={{ color: speakerColor }}
                                   >
-                                    {speaker?.label || '未知講者'} • {Math.round((segment.confidence || 0) * 100)}% 信心度
+                                    {speakerName} • {Math.round((segment.confidence || 0) * 100)}% 信心度
                                   </div>
                                   <p className="text-slate-800 leading-relaxed">{segment.text}</p>
                                 </div>
