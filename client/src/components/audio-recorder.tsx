@@ -13,7 +13,8 @@ import {
   Upload, 
   Trash2,
   Volume2,
-  Settings 
+  Settings,
+  Download
 } from 'lucide-react';
 import AudioSettingsPanel, { AudioSettings } from './audio-settings-panel';
 
@@ -199,9 +200,21 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       
       mediaRecorder.start(100); // Collect data every 100ms
       
-      // Start timer
+      // Start timer with 180-minute limit
       timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 0.1);
+        setRecordingTime(prev => {
+          const newTime = prev + 0.1;
+          // Auto-stop at 180 minutes (10800 seconds)
+          if (newTime >= 10800) {
+            stopRecording();
+            toast({
+              title: "錄音已達最大時長",
+              description: "已自動停止錄音（180分鐘限制）",
+              variant: "destructive",
+            });
+          }
+          return newTime;
+        });
       }, 100);
       
       // Start audio level monitoring immediately since state is now set
@@ -229,7 +242,19 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         mediaRecorderRef.current.resume();
         setIsPaused(false);
         timerRef.current = setInterval(() => {
-          setRecordingTime(prev => prev + 0.1);
+          setRecordingTime(prev => {
+            const newTime = prev + 0.1;
+            // Auto-stop at 180 minutes (10800 seconds)
+            if (newTime >= 10800) {
+              stopRecording();
+              toast({
+                title: "錄音已達最大時長",
+                description: "已自動停止錄音（180分鐘限制）",
+                variant: "destructive",
+              });
+            }
+            return newTime;
+          });
         }, 100);
         monitorAudioLevel();
       } else {
@@ -329,6 +354,24 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
     }
   };
 
+  const downloadRecording = () => {
+    if (audioBlob) {
+      const url = URL.createObjectURL(audioBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recording_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "錄音檔案已下載",
+        description: "檔案已保存到您的下載資料夾",
+      });
+    }
+  };
+
   const deleteRecording = () => {
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
@@ -360,10 +403,15 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
 
   const formatTime = (seconds: number): string => {
     if (!isFinite(seconds) || seconds < 0) {
-      return '00:00';
+      return '00:00:00';
     }
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -617,6 +665,16 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
                     播放
                   </>
                 )}
+              </Button>
+              
+              <Button
+                onClick={downloadRecording}
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-none"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                下載
               </Button>
               
               <Button
