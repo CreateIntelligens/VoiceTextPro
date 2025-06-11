@@ -573,6 +573,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel transcription
+  app.post("/api/transcriptions/:id/cancel", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transcription = await storage.getTranscription(id);
+
+      if (!transcription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+
+      if (transcription.status !== "processing") {
+        return res.status(400).json({ message: "只能取消正在處理中的轉錄" });
+      }
+
+      // Kill any running Python processes for this transcription
+      try {
+        const { exec } = require('child_process');
+        exec(`pkill -f "python.*${id}"`, (error, stdout, stderr) => {
+          if (error) {
+            console.log(`[LOG-${id}] Process kill attempt: ${error.message}`);
+          } else {
+            console.log(`[LOG-${id}] Python processes killed`);
+          }
+        });
+      } catch (error) {
+        console.error(`[LOG-${id}] Error killing processes:`, error);
+      }
+
+      // Update status to cancelled
+      await storage.updateTranscription(id, { 
+        status: "cancelled", 
+        progress: 0,
+        errorMessage: "用戶取消轉錄" 
+      });
+
+      // Log cancellation
+      await AdminLogger.log({
+        category: "transcription_cancel",
+        action: `cancel_transcription_${id}`,
+        description: "用戶手動取消轉錄任務",
+        severity: "low",
+        details: {
+          transcription_id: id,
+          filename: transcription.filename,
+          previous_status: transcription.status,
+          assemblyai_id: transcription.assemblyaiId
+        }
+      });
+
+      res.json({ message: "轉錄已取消" });
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "取消失敗" });
+    }
+  });
+
   // Update transcription (for naming)
   app.patch("/api/transcriptions/:id", async (req, res) => {
     try {

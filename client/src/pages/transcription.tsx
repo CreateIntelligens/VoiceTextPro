@@ -59,6 +59,26 @@ export default function TranscriptionPage() {
     setCurrentTranscriptionId(null);
   };
 
+  const handleCancelTranscription = async (id: number) => {
+    try {
+      const response = await fetch(`/api/transcriptions/${id}/cancel`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to cancel transcription');
+      }
+      
+      // Refresh data after cancellation
+      queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
+      if (currentTranscriptionId === id) {
+        refetch();
+      }
+    } catch (error) {
+      console.error('Failed to cancel transcription:', error);
+    }
+  };
+
   const handleSelectTranscription = (id: number) => {
     console.log('Selecting transcription:', id);
     setCurrentTranscriptionId(id);
@@ -126,7 +146,7 @@ export default function TranscriptionPage() {
             )}
 
             {showProcessing && actualTranscription && (
-              <ProcessingSection transcription={actualTranscription} />
+              <ProcessingSection transcription={actualTranscription} onCancel={handleCancelTranscription} />
             )}
 
             {showResults && actualTranscription && (

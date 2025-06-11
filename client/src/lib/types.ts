@@ -4,7 +4,7 @@ export interface TranscriptionStatus {
   originalName: string;
   displayName?: string;
   fileSize: number;
-  status: "pending" | "processing" | "completed" | "error";
+  status: "pending" | "processing" | "completed" | "error" | "cancelled";
   progress: number;
   assemblyaiId?: string;
   transcriptText?: string;

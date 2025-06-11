@@ -1,12 +1,14 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Settings, CheckCircle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Settings, CheckCircle, Clock, X } from "lucide-react";
 import type { TranscriptionStatus } from "@/lib/types";
 
 interface ProcessingSectionProps {
   transcription: TranscriptionStatus;
+  onCancel?: (id: number) => void;
 }
 
-export default function ProcessingSection({ transcription }: ProcessingSectionProps) {
+export default function ProcessingSection({ transcription, onCancel }: ProcessingSectionProps) {
   const steps = [
     { label: "音頻檔案上傳完成", completed: transcription.progress >= 20 },
     { label: "正在進行語音識別...", completed: transcription.progress >= 50, current: transcription.progress < 80 },
@@ -17,14 +19,27 @@ export default function ProcessingSection({ transcription }: ProcessingSectionPr
   return (
     <Card className="mb-8">
       <CardContent className="p-6">
-        <div className="flex items-center space-x-4 mb-4">
-          <div className="w-10 h-10 bg-warning rounded-full flex items-center justify-center">
-            <Settings className="w-5 h-5 text-white animate-spin" />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-4">
+            <div className="w-10 h-10 bg-warning rounded-full flex items-center justify-center">
+              <Settings className="w-5 h-5 text-white animate-spin" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">正在處理您的音頻檔案</h3>
+              <p className="text-slate-600">使用 AssemblyAI 最佳語音模型進行轉錄...</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900">正在處理您的音頻檔案</h3>
-            <p className="text-slate-600">使用 AssemblyAI 最佳語音模型進行轉錄...</p>
-          </div>
+          {onCancel && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onCancel(transcription.id)}
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+            >
+              <X className="w-4 h-4 mr-2" />
+              取消轉錄
+            </Button>
+          )}
         </div>
         
         {/* Progress Bar */}
