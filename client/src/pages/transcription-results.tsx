@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown } from "lucide-react";
+import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { TranscriptionStatus } from "@/lib/types";
 import { Link } from "wouter";
@@ -13,6 +13,7 @@ import { saveAs } from "file-saver";
 
 export default function TranscriptionResultsPage() {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<number | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
 
   // Query for all transcriptions - no automatic polling to prevent infinite API calls
@@ -232,6 +233,41 @@ export default function TranscriptionResultsPage() {
     }
   };
 
+  const handleAIAnalysis = async (transcriptionId: number) => {
+    setIsAnalyzing(true);
+    try {
+      const response = await fetch(`/api/transcriptions/${transcriptionId}/ai-analysis`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('AI分析失敗');
+      }
+
+      const result = await response.json();
+      
+      // Refresh the transcription data to show new analysis
+      refetch();
+      
+      toast({
+        title: "AI分析完成",
+        description: "智能內容分析已完成，請查看分析結果",
+      });
+    } catch (error) {
+      console.error('AI analysis error:', error);
+      toast({
+        title: "AI分析失敗",
+        description: "無法完成智能內容分析，請稍後再試",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-800';
@@ -358,6 +394,24 @@ export default function TranscriptionResultsPage() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handleAIAnalysis(selectedTranscription.id)}
+                          disabled={isAnalyzing}
+                          className="bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 hover:from-blue-600 hover:to-purple-700"
+                        >
+                          {isAnalyzing ? (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2 animate-spin" />
+                              分析中...
+                            </>
+                          ) : (
+                            <>
+                              <Brain className="w-4 h-4 mr-2" />
+                              AI 智能分析
+                            </>
+                          )}
+                        </Button>
                         <Button variant="ghost" onClick={() => handleDownloadAudio(selectedTranscription)}>
                           <Music className="w-4 h-4 mr-2" />
                           音頻檔案
@@ -474,6 +528,105 @@ export default function TranscriptionResultsPage() {
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+
+                    {/* AI Analysis Results */}
+                    {(selectedTranscription.summary || selectedTranscription.sentimentAnalysis || selectedTranscription.topicsDetection || selectedTranscription.autoHighlights) && (
+                      <div className="mt-8 space-y-6">
+                        <h4 className="text-lg font-semibold text-slate-900 flex items-center">
+                          <Brain className="w-5 h-5 mr-2 text-blue-600" />
+                          AI 智能分析結果
+                        </h4>
+
+                        {/* Summary */}
+                        {selectedTranscription.summary && (
+                          <Card className="border-blue-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-blue-700">
+                                <MessageSquare className="w-4 h-4 mr-2" />
+                                內容摘要
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-slate-700 leading-relaxed">{selectedTranscription.summary}</p>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Key Topics */}
+                        {selectedTranscription.topicsDetection && (
+                          <Card className="border-green-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-green-700">
+                                <Target className="w-4 h-4 mr-2" />
+                                關鍵主題
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="flex flex-wrap gap-2">
+                                {Array.isArray(selectedTranscription.topicsDetection) && 
+                                  selectedTranscription.topicsDetection.map((topic: any, index: number) => (
+                                    <Badge key={index} variant="secondary" className="bg-green-50 text-green-700">
+                                      {typeof topic === 'string' ? topic : topic.topic || topic.label}
+                                    </Badge>
+                                  ))
+                                }
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Sentiment Analysis */}
+                        {selectedTranscription.sentimentAnalysis && (
+                          <Card className="border-purple-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-purple-700">
+                                <BarChart3 className="w-4 h-4 mr-2" />
+                                情感分析
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-2">
+                                {typeof selectedTranscription.sentimentAnalysis === 'object' && 
+                                  Object.entries(selectedTranscription.sentimentAnalysis).map(([key, value]: [string, any]) => (
+                                    <div key={key} className="flex justify-between items-center">
+                                      <span className="text-slate-600 capitalize">{key}:</span>
+                                      <span className="font-medium text-slate-900">
+                                        {typeof value === 'number' ? `${Math.round(value * 100)}%` : String(value)}
+                                      </span>
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Auto Highlights */}
+                        {selectedTranscription.autoHighlights && (
+                          <Card className="border-yellow-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-yellow-700">
+                                <Lightbulb className="w-4 h-4 mr-2" />
+                                重點摘錄
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-2">
+                                {Array.isArray(selectedTranscription.autoHighlights) &&
+                                  selectedTranscription.autoHighlights.map((highlight: any, index: number) => (
+                                    <div key={index} className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                                      <p className="text-slate-700">
+                                        {typeof highlight === 'string' ? highlight : highlight.text || highlight.content}
+                                      </p>
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
                       </div>
                     )}
 
