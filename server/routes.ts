@@ -672,7 +672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use Gemini AI for analysis
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const analysisPrompt = `
 請對以下中文轉錄內容進行全面的AI智能分析，並以JSON格式回應：

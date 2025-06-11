@@ -241,9 +241,7 @@ export default function TranscriptionResultsPage() {
   const handleAIAnalysis = async (transcriptionId: number) => {
     setIsAnalyzing(true);
     try {
-      const result = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-analysis`, {
-        method: 'POST',
-      });
+      const result = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-analysis`, 'POST');
       
       // Refresh the transcription data to show new analysis
       refetch();
@@ -273,12 +271,11 @@ export default function TranscriptionResultsPage() {
     if (editingSpeaker === null || !selectedTranscription) return;
     
     try {
-      const updatedSpeakers = [...(selectedTranscription.speakers as string[] || [])];
+      const updatedSpeakers = [...(selectedTranscription.speakers as unknown as string[] || [])];
       updatedSpeakers[editingSpeaker] = speakerEditValue;
 
-      await apiRequest(`/api/transcriptions/${transcriptionId}/speakers`, {
-        method: 'PATCH',
-        body: JSON.stringify({ speakers: updatedSpeakers }),
+      await apiRequest(`/api/transcriptions/${transcriptionId}/speakers`, 'PATCH', {
+        speakers: updatedSpeakers
       });
 
       // Refresh the transcription data
@@ -507,7 +504,7 @@ export default function TranscriptionResultsPage() {
                       <div className="mb-6">
                         <h4 className="text-sm font-medium text-slate-700 mb-3">對話者標識</h4>
                         <div className="flex flex-wrap gap-3">
-                          {(selectedTranscription.speakers as string[] || []).map((speakerName, index) => {
+                          {(selectedTranscription.speakers as unknown as string[] || []).map((speakerName, index) => {
                             const colors = ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'];
                             const speakerColor = colors[index % colors.length];
                             
