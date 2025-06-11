@@ -66,9 +66,15 @@ export default function TranscriptionPage() {
         method: 'POST',
       });
       
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to cancel transcription');
+        // Show specific error message from server
+        console.error('Cancel failed:', responseData.message);
+        return;
       }
+      
+      console.log('Transcription cancelled:', responseData.message);
       
       // Refresh data after cancellation
       queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });

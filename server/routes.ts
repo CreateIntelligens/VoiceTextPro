@@ -589,13 +589,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Kill any running Python processes for this transcription
       try {
-        const { exec } = require('child_process');
-        exec(`pkill -f "python.*${id}"`, (error, stdout, stderr) => {
-          if (error) {
-            console.log(`[LOG-${id}] Process kill attempt: ${error.message}`);
-          } else {
-            console.log(`[LOG-${id}] Python processes killed`);
-          }
+        const { spawn } = await import('child_process');
+        const killProcess = spawn('pkill', ['-f', `python.*${id}`]);
+        killProcess.on('close', (code) => {
+          console.log(`[LOG-${id}] Process cleanup completed with code: ${code}`);
         });
       } catch (error) {
         console.error(`[LOG-${id}] Error killing processes:`, error);
