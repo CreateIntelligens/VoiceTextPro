@@ -11,6 +11,8 @@ import type { TranscriptionStatus } from "@/lib/types";
 import { Link } from "wouter";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function TranscriptionResultsPage() {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<number | null>(null);
@@ -239,18 +241,9 @@ export default function TranscriptionResultsPage() {
   const handleAIAnalysis = async (transcriptionId: number) => {
     setIsAnalyzing(true);
     try {
-      const response = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-analysis`, {
+      const result = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-analysis`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
-
-      if (!response.ok) {
-        throw new Error('AI分析失敗');
-      }
-
-      const result = await response.json();
       
       // Refresh the transcription data to show new analysis
       refetch();
@@ -280,22 +273,13 @@ export default function TranscriptionResultsPage() {
     if (editingSpeaker === null || !selectedTranscription) return;
     
     try {
-      const token = localStorage.getItem('auth_token');
-      const updatedSpeakers = [...(selectedTranscription.speakers || [])];
+      const updatedSpeakers = [...(selectedTranscription.speakers as string[] || [])];
       updatedSpeakers[editingSpeaker] = speakerEditValue;
 
-      const response = await fetch(`/api/transcriptions/${transcriptionId}/speakers`, {
+      await apiRequest(`/api/transcriptions/${transcriptionId}/speakers`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify({ speakers: updatedSpeakers }),
       });
-
-      if (!response.ok) {
-        throw new Error('更新失敗');
-      }
 
       // Refresh the transcription data
       refetch();
