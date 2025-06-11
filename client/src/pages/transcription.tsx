@@ -7,6 +7,7 @@ import UploadSection from "@/components/upload-section";
 import ProcessingSection from "@/components/processing-section";
 import ResultsSection from "@/components/results-section";
 import ErrorSection from "@/components/error-section";
+import CancelledSection from "@/components/cancelled-section";
 import TranscriptionList from "@/components/transcription-list";
 import type { TranscriptionStatus } from "@/lib/types";
 
@@ -99,10 +100,11 @@ export default function TranscriptionPage() {
   // Handle case where currentTranscription might be an array
   const actualTranscription = Array.isArray(currentTranscription) ? currentTranscription[0] : currentTranscription;
 
-  const showUpload = !currentTranscriptionId || actualTranscription?.status === "error";
+  const showUpload = !currentTranscriptionId || actualTranscription?.status === "error" || actualTranscription?.status === "cancelled";
   const showProcessing = actualTranscription?.status === "processing" || actualTranscription?.status === "pending";
   const showResults = actualTranscription?.status === "completed";
   const showError = actualTranscription?.status === "error";
+  const showCancelled = actualTranscription?.status === "cancelled";
 
   // Debug logging
   console.log('Current transcription ID:', currentTranscriptionId);
@@ -155,6 +157,10 @@ export default function TranscriptionPage() {
 
             {showError && actualTranscription && (
               <ErrorSection transcription={actualTranscription} onRetry={handleRetry} />
+            )}
+
+            {showCancelled && actualTranscription && (
+              <CancelledSection transcription={actualTranscription} onRetry={handleRetry} />
             )}
           </div>
         </div>
