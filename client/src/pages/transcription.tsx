@@ -26,15 +26,39 @@ export default function TranscriptionPage() {
     queryKey: ["/api/transcriptions", currentTranscriptionId],
     enabled: !!currentTranscriptionId,
     refetchInterval: (query) => {
-      // Continue polling while processing
+      // Continue polling while processing or if data seems stale
       const status = query.state.data?.status;
-      return status === "processing" || status === "pending" ? 1500 : false;
+      const progress = query.state.data?.progress || 0;
+      
+      // Keep polling if processing/pending, or if progress is stuck below 100 but should be completed
+      if (status === "processing" || status === "pending") {
+        return 1500;
+      }
+      
+      // Force one more refresh if status looks completed but progress is not 100
+      if (status === "completed" && progress < 100) {
+        return 1000;
+      }
+      
+      return false;
     },
     staleTime: 0, // Always consider data stale for fresh updates
   });
 
   // Also try to get transcription from the list if available
   const currentTranscription = transcription || (currentTranscriptionId ? allTranscriptions.find(t => t.id === currentTranscriptionId) : null);
+
+  // Force refresh every 5 seconds for any active transcription to prevent UI desync
+  useEffect(() => {
+    if (currentTranscriptionId && currentTranscription) {
+      const interval = setInterval(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/transcriptions", currentTranscriptionId] });
+        queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
+      }, 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [currentTranscriptionId, currentTranscription, queryClient]);
 
   const handleFileUploaded = async (transcriptionId: number) => {
     setCurrentTranscriptionId(transcriptionId);
