@@ -267,10 +267,12 @@ def update_database_with_results(transcription_id, transcript_data):
         # Convert duration to seconds for display
         duration_seconds = duration_ms / 1000.0 if duration_ms else 0
         
-        # Prepare update data
+        # Prepare update data with correct field names
         update_data = {
             'status': 'completed',
             'progress': 100,
+            'assemblyaiId': transcript_data.get('id'),  # Add AssemblyAI ID
+            'transcriptText': text,  # Use correct field name
             'text': text,
             'wordCount': word_count,
             'duration': duration_seconds,
