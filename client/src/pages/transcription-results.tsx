@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3, Edit2, Check, X } from "lucide-react";
+import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3, Edit2, Check, X, Wand2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { TranscriptionStatus } from "@/lib/types";
@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 export default function TranscriptionResultsPage() {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null);
   const [speakerEditValue, setSpeakerEditValue] = useState("");
   const { toast } = useToast();
@@ -262,6 +263,30 @@ export default function TranscriptionResultsPage() {
     }
   };
 
+  const handleAICleanup = async (transcriptionId: number) => {
+    setIsCleaning(true);
+    try {
+      const result = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-cleanup`, 'POST');
+      
+      // Refresh the transcription data to show cleaned content
+      refetch();
+      
+      toast({
+        title: "逐字稿整理完成",
+        description: "AI已成功整理並優化逐字稿內容",
+      });
+    } catch (error) {
+      console.error('AI cleanup error:', error);
+      toast({
+        title: "逐字稿整理失敗",
+        description: "無法完成逐字稿整理，請稍後再試",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
   const handleSpeakerEdit = (index: number, currentName: string) => {
     setEditingSpeaker(index);
     setSpeakerEditValue(currentName);
@@ -443,6 +468,24 @@ export default function TranscriptionResultsPage() {
                             <>
                               <Brain className="w-4 h-4 mr-2" />
                               AI 智能分析
+                            </>
+                          )}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handleAICleanup(selectedTranscription.id)}
+                          disabled={isCleaning}
+                          className="bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 hover:from-green-600 hover:to-emerald-700"
+                        >
+                          {isCleaning ? (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2 animate-spin" />
+                              整理中...
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 className="w-4 h-4 mr-2" />
+                              AI 整理逐字稿
                             </>
                           )}
                         </Button>

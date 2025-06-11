@@ -753,6 +753,141 @@ ${transcription.transcriptText}
     }
   });
 
+  // AI transcript cleanup and enhancement
+  app.post("/api/transcriptions/:id/ai-cleanup", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transcriptionId = parseInt(req.params.id);
+      const transcription = await storage.getTranscription(transcriptionId);
+      
+      if (!transcription) {
+        return res.status(404).json({ message: "轉錄記錄不存在" });
+      }
+
+      // Check permissions
+      if (req.user!.role !== 'admin' && transcription.userId !== req.user!.id) {
+        return res.status(403).json({ message: "無權限執行此操作" });
+      }
+
+      if (transcription.status !== 'completed') {
+        return res.status(400).json({ message: "轉錄尚未完成，無法進行AI整理" });
+      }
+
+      if (!transcription.segments || !Array.isArray(transcription.segments)) {
+        return res.status(400).json({ message: "缺少分段資料，無法進行整理" });
+      }
+
+      // Use Gemini AI for transcript cleanup
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const segments = transcription.segments as any[];
+      const cleanedSegments = [];
+
+      // Process segments in batches to avoid token limits
+      for (let i = 0; i < segments.length; i += 10) {
+        const batch = segments.slice(i, i + 10);
+        const batchText = batch.map((seg, idx) => 
+          `[${i + idx + 1}] ${seg.speaker}: ${seg.text}`
+        ).join('\n');
+
+        const cleanupPrompt = `
+請整理以下逐字稿片段，修正語法錯誤、填補語言間隙、移除重複用詞，並使內容更加流暢易懂。
+保持原意不變，保留對話者資訊和編號格式。請用繁體中文回應：
+
+${batchText}
+
+請按照以下格式回應：
+[編號] 對話者: 整理後的內容
+
+不要添加額外的解釋或標記。
+`;
+
+        try {
+          const result = await model.generateContent(cleanupPrompt);
+          const response = await result.response;
+          const cleanedText = response.text();
+
+          // Parse the cleaned response back into segments
+          const lines = cleanedText.split('\n').filter(line => line.trim());
+          
+          for (const line of lines) {
+            const match = line.match(/\[(\d+)\]\s*([^:]+):\s*(.+)/);
+            if (match) {
+              const segmentIndex = parseInt(match[1]) - 1;
+              const speaker = match[2].trim();
+              const text = match[3].trim();
+              
+              if (segmentIndex >= i && segmentIndex < i + 10 && segmentIndex < segments.length) {
+                const originalSegment = segments[segmentIndex];
+                cleanedSegments.push({
+                  ...originalSegment,
+                  text: text,
+                  speaker: speaker,
+                  isAiCleaned: true
+                });
+              }
+            }
+          }
+        } catch (error) {
+          // If AI cleanup fails for this batch, keep original segments
+          console.error(`AI cleanup failed for batch ${i}:`, error);
+          for (let j = i; j < Math.min(i + 10, segments.length); j++) {
+            cleanedSegments.push({
+              ...segments[j],
+              isAiCleaned: false
+            });
+          }
+        }
+
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // Update transcript text with cleaned segments
+      const cleanedTranscriptText = cleanedSegments
+        .map(seg => `${seg.speaker}: ${seg.text}`)
+        .join('\n');
+
+      // Update transcription with cleaned segments and text
+      await storage.updateTranscription(transcriptionId, {
+        segments: cleanedSegments,
+        transcriptText: cleanedTranscriptText
+      });
+
+      await AdminLogger.log({
+        category: 'ai_cleanup',
+        action: 'transcript_cleanup_completed',
+        description: `轉錄${transcriptionId}完成AI逐字稿整理`,
+        details: {
+          transcriptionId,
+          originalSegments: segments.length,
+          cleanedSegments: cleanedSegments.length,
+          cleanedSuccessfully: cleanedSegments.filter(s => s.isAiCleaned).length
+        }
+      });
+
+      res.json({
+        success: true,
+        message: "逐字稿整理完成",
+        cleanedSegments: cleanedSegments.length,
+        transcription: await storage.getTranscription(transcriptionId)
+      });
+
+    } catch (error) {
+      console.error("AI cleanup error:", error);
+      await AdminLogger.log({
+        category: 'ai_cleanup',
+        action: 'transcript_cleanup_error',
+        description: `轉錄${req.params.id}AI逐字稿整理失敗`,
+        severity: 'high',
+        details: { error: error.message }
+      });
+      
+      res.status(500).json({ message: "逐字稿整理失敗，請稍後再試" });
+    }
+  });
+
   // Update speaker labels
   app.patch("/api/transcriptions/:id/speakers", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
