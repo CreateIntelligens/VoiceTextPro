@@ -233,29 +233,76 @@ def update_database_with_results(transcription_id, transcript_data):
         text = transcript_data.get('text', '')
         word_count = calculate_word_count(text)
         
-        # Process utterances with speaker labels
+        # Process utterances with proper validation and speaker mapping
         formatted_segments = []
         utterances = transcript_data.get('utterances', [])
+        audio_duration = transcript_data.get('audio_duration', 0)
         
         speaker_map = {}
         speaker_counter = 0
+        valid_count = 0
+        skipped_count = 0
         
-        for utterance in utterances:
-            speaker_label = utterance.get('speaker')
-            if speaker_label not in speaker_map:
-                speaker_map[speaker_label] = f"講者 {chr(65 + speaker_counter)}"
-                speaker_counter += 1
-            
-            speaker_name = speaker_map[speaker_label]
-            speaker_color = get_speaker_color(list(speaker_map.keys()).index(speaker_label))
-            
-            formatted_segments.append({
-                'speaker': speaker_name,
-                'text': utterance.get('text', ''),
-                'start': utterance.get('start', 0),
-                'end': utterance.get('end', 0),
-                'color': speaker_color
-            })
+        print(f"Processing {len(utterances)} speaker segments", flush=True)
+        
+        for i, utterance in enumerate(utterances):
+            try:
+                # Extract data with validation
+                speaker_label = str(utterance.get('speaker', 'UNKNOWN'))
+                text = utterance.get('text', '').strip()
+                start_time = int(utterance.get('start', 0))
+                end_time = int(utterance.get('end', 0))
+                confidence = float(utterance.get('confidence', 0.0))
+                
+                # Skip invalid data
+                if not text or len(text) < 3:
+                    skipped_count += 1
+                    continue
+                    
+                if start_time < 0 or end_time <= start_time:
+                    skipped_count += 1
+                    continue
+                    
+                # Skip segments that exceed reasonable audio duration
+                if audio_duration > 0 and (start_time > audio_duration + 10000 or end_time > audio_duration + 10000):
+                    skipped_count += 1
+                    continue
+                
+                # Handle null or empty speaker labels
+                if speaker_label in ['None', 'null', '', 'UNKNOWN']:
+                    speaker_label = 'SPEAKER_UNKNOWN'
+                
+                # Create consistent speaker mapping
+                if speaker_label not in speaker_map:
+                    speaker_map[speaker_label] = f"講者 {chr(65 + speaker_counter)}"
+                    speaker_counter += 1
+                
+                speaker_name = speaker_map[speaker_label]
+                speaker_index = list(speaker_map.keys()).index(speaker_label)
+                speaker_color = get_speaker_color(speaker_index)
+                
+                # Create clean segment object
+                segment = {
+                    'speaker': speaker_name,
+                    'text': text,
+                    'start': start_time,
+                    'end': end_time,
+                    'confidence': confidence,
+                    'startTime': format_timestamp(start_time),
+                    'endTime': format_timestamp(end_time),
+                    'color': speaker_color
+                }
+                
+                formatted_segments.append(segment)
+                valid_count += 1
+                
+            except Exception as e:
+                skipped_count += 1
+                print(f"Error processing segment {i}: {e}", flush=True)
+                continue
+        
+        print(f"Speaker analysis: {valid_count} valid, {skipped_count} invalid segments", flush=True)
+        print(f"Identified speakers: {list(speaker_map.values())}", flush=True)
         
         # Process advanced features
         advanced_features = process_advanced_features(transcript_data)
