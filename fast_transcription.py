@@ -264,8 +264,8 @@ def update_database_with_results(transcription_id, transcript_data):
         duration_ms = transcript_data.get('audio_duration', 0)
         confidence = transcript_data.get('confidence', 0.0)
         
-        # Convert duration to seconds for display
-        duration_seconds = duration_ms / 1000.0 if duration_ms else 0
+        # Convert duration to integer seconds for database
+        duration_seconds = int(duration_ms / 1000) if duration_ms else 0
         
         # Prepare update data with correct field names
         update_data = {
