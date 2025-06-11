@@ -683,9 +683,8 @@ ${transcription.transcriptText}
 請提供以下分析結果（請用繁體中文回應）：
 1. summary: 內容摘要（200字以內）
 2. keyTopics: 關鍵主題和話題（陣列格式，最多10個）
-3. sentimentAnalysis: 情感分析（包含positive, negative, neutral的百分比）
-4. actionItems: 行動項目和決策要點（陣列格式）
-5. highlights: 重要段落摘錄（陣列格式，最多5個）
+3. actionItems: 行動項目和決策要點（陣列格式）
+4. highlights: 重要段落摘錄（陣列格式，最多5個）
 
 請確保回應為有效的JSON格式。
 `;
@@ -699,14 +698,20 @@ ${transcription.transcriptText}
       
       let analysis;
       try {
-        analysis = JSON.parse(analysisText);
+        const parsedAnalysis = JSON.parse(analysisText);
+        // Filter out sentiment analysis from the response
+        analysis = {
+          summary: parsedAnalysis.summary,
+          keyTopics: parsedAnalysis.keyTopics,
+          actionItems: parsedAnalysis.actionItems,
+          highlights: parsedAnalysis.highlights
+        };
       } catch (parseError) {
         console.error("JSON parse error:", parseError);
         // Fallback: create structured analysis from raw text
         analysis = {
           summary: analysisText.substring(0, 200) + "...",
           keyTopics: ["AI分析"],
-          sentimentAnalysis: { positive: 0.6, negative: 0.2, neutral: 0.2 },
           actionItems: ["檢視AI分析結果"],
           highlights: [analysisText.substring(0, 100) + "..."]
         };
@@ -716,7 +721,6 @@ ${transcription.transcriptText}
       await storage.updateTranscription(transcriptionId, {
         summary: analysis.summary || null,
         topicsDetection: analysis.keyTopics || null,
-        sentimentAnalysis: analysis.sentimentAnalysis || null,
         autoHighlights: analysis.highlights || null,
         entityDetection: analysis.actionItems ? { actionItems: analysis.actionItems } : null
       });

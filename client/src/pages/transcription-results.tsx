@@ -660,7 +660,7 @@ export default function TranscriptionResultsPage() {
                     )}
 
                     {/* AI Analysis Results */}
-                    {(selectedTranscription.summary || selectedTranscription.sentimentAnalysis || selectedTranscription.topicsDetection || selectedTranscription.autoHighlights) && (
+                    {(selectedTranscription.summary || selectedTranscription.topicsDetection || selectedTranscription.autoHighlights) && (
                       <div className="mt-8 space-y-6">
                         <h4 className="text-lg font-semibold text-slate-900 flex items-center">
                           <Brain className="w-5 h-5 mr-2 text-blue-600" />
@@ -705,31 +705,7 @@ export default function TranscriptionResultsPage() {
                           </Card>
                         )}
 
-                        {/* Sentiment Analysis */}
-                        {selectedTranscription.sentimentAnalysis && (
-                          <Card className="border-purple-100">
-                            <CardHeader className="pb-3">
-                              <CardTitle className="text-sm flex items-center text-purple-700">
-                                <BarChart3 className="w-4 h-4 mr-2" />
-                                情感分析
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="space-y-2">
-                                {typeof selectedTranscription.sentimentAnalysis === 'object' && 
-                                  Object.entries(selectedTranscription.sentimentAnalysis).map(([key, value]: [string, any]) => (
-                                    <div key={key} className="flex justify-between items-center">
-                                      <span className="text-slate-600 capitalize">{key}:</span>
-                                      <span className="font-medium text-slate-900">
-                                        {typeof value === 'number' ? `${Math.round(value * 100)}%` : String(value)}
-                                      </span>
-                                    </div>
-                                  ))
-                                }
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )}
+
 
                         {/* Auto Highlights */}
                         {selectedTranscription.autoHighlights && (
