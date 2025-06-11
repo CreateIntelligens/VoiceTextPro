@@ -782,76 +782,59 @@ ${transcription.transcriptText}
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const segments = transcription.segments as any[];
-      const cleanedSegments = [];
+      
+      // Use existing transcript text for more efficient processing
+      const originalText = transcription.transcriptText || 
+        segments.map(seg => `${seg.speaker}: ${seg.text}`).join('\n');
 
-      // Process segments in batches to avoid token limits
-      for (let i = 0; i < segments.length; i += 10) {
-        const batch = segments.slice(i, i + 10);
-        const batchText = batch.map((seg, idx) => 
-          `[${i + idx + 1}] ${seg.speaker}: ${seg.text}`
-        ).join('\n');
+      const cleanupPrompt = `
+請整理以下中文逐字稿內容，修正語法錯誤、填補語言間隙、移除重複用詞，並使內容更加流暢易懂。
+保持原意不變，保留對話者資訊。請用繁體中文回應：
 
-        const cleanupPrompt = `
-請整理以下逐字稿片段，修正語法錯誤、填補語言間隙、移除重複用詞，並使內容更加流暢易懂。
-保持原意不變，保留對話者資訊和編號格式。請用繁體中文回應：
+${originalText}
 
-${batchText}
-
-請按照以下格式回應：
-[編號] 對話者: 整理後的內容
+請按照原格式回應，每行格式為：
+對話者: 整理後的內容
 
 不要添加額外的解釋或標記。
 `;
 
-        try {
-          const result = await model.generateContent(cleanupPrompt);
-          const response = await result.response;
-          const cleanedText = response.text();
+      const result = await model.generateContent(cleanupPrompt);
+      const response = await result.response;
+      const cleanedText = response.text();
 
-          // Parse the cleaned response back into segments
-          const lines = cleanedText.split('\n').filter(line => line.trim());
+      // Parse cleaned text back to segments
+      const cleanedLines = cleanedText.split('\n').filter(line => line.trim());
+      const cleanedSegments = [];
+
+      let segmentIndex = 0;
+      for (const line of cleanedLines) {
+        const match = line.match(/^([^:]+):\s*(.+)$/);
+        if (match && segmentIndex < segments.length) {
+          const speaker = match[1].trim();
+          const text = match[2].trim();
+          const originalSegment = segments[segmentIndex];
           
-          for (const line of lines) {
-            const match = line.match(/\[(\d+)\]\s*([^:]+):\s*(.+)/);
-            if (match) {
-              const segmentIndex = parseInt(match[1]) - 1;
-              const speaker = match[2].trim();
-              const text = match[3].trim();
-              
-              if (segmentIndex >= i && segmentIndex < i + 10 && segmentIndex < segments.length) {
-                const originalSegment = segments[segmentIndex];
-                cleanedSegments.push({
-                  ...originalSegment,
-                  text: text,
-                  speaker: speaker,
-                  isAiCleaned: true
-                });
-              }
-            }
-          }
-        } catch (error) {
-          // If AI cleanup fails for this batch, keep original segments
-          console.error(`AI cleanup failed for batch ${i}:`, error);
-          for (let j = i; j < Math.min(i + 10, segments.length); j++) {
-            cleanedSegments.push({
-              ...segments[j],
-              isAiCleaned: false
-            });
-          }
+          cleanedSegments.push({
+            ...originalSegment,
+            text: text,
+            speaker: speaker
+          });
+          segmentIndex++;
         }
-
-        // Add delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
+      // If parsed segments don't match original count, keep original segments
+      const finalSegments = cleanedSegments.length === segments.length ? cleanedSegments : segments;
+
       // Update transcript text with cleaned segments
-      const cleanedTranscriptText = cleanedSegments
+      const cleanedTranscriptText = finalSegments
         .map(seg => `${seg.speaker}: ${seg.text}`)
         .join('\n');
 
       // Update transcription with cleaned segments and text
       await storage.updateTranscription(transcriptionId, {
-        segments: cleanedSegments,
+        segments: finalSegments,
         transcriptText: cleanedTranscriptText
       });
 
