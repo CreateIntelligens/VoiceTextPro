@@ -753,6 +753,70 @@ ${transcription.transcriptText}
     }
   });
 
+  // Update speaker labels
+  app.patch("/api/transcriptions/:id/speakers", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transcriptionId = parseInt(req.params.id);
+      const { speakers } = req.body;
+      
+      if (!Array.isArray(speakers)) {
+        return res.status(400).json({ message: "講者資料格式錯誤" });
+      }
+
+      const transcription = await storage.getTranscription(transcriptionId);
+      if (!transcription) {
+        return res.status(404).json({ message: "轉錄記錄不存在" });
+      }
+
+      // Check permissions
+      if (req.user!.role !== 'admin' && transcription.userId !== req.user!.id) {
+        return res.status(403).json({ message: "無權限執行此操作" });
+      }
+
+      // Update speakers and also update all segments with new speaker names
+      const updatedTranscription = await storage.updateTranscription(transcriptionId, {
+        speakers: speakers
+      });
+
+      // Also update segments to reflect new speaker names
+      if (transcription.segments) {
+        const segments = JSON.parse(JSON.stringify(transcription.segments));
+        const updatedSegments = segments.map((segment: any) => {
+          const speakerIndex = (transcription.speakers as string[])?.indexOf(segment.speaker);
+          if (speakerIndex !== -1 && speakerIndex < speakers.length) {
+            return { ...segment, speaker: speakers[speakerIndex] };
+          }
+          return segment;
+        });
+
+        await storage.updateTranscription(transcriptionId, {
+          segments: updatedSegments
+        });
+      }
+
+      await AdminLogger.log({
+        category: 'speaker_management',
+        action: 'update_speaker_labels',
+        description: `更新轉錄${transcriptionId}的講者標籤`,
+        details: {
+          transcriptionId,
+          oldSpeakers: transcription.speakers,
+          newSpeakers: speakers
+        }
+      });
+
+      res.json({
+        success: true,
+        message: "講者標籤已更新",
+        transcription: updatedTranscription
+      });
+
+    } catch (error) {
+      console.error("Speaker update error:", error);
+      res.status(500).json({ message: "更新講者標籤失敗" });
+    }
+  });
+
   // Get all transcriptions (user-specific or all for admin)
   app.get("/api/transcriptions", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {

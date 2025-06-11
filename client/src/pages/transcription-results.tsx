@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3 } from "lucide-react";
+import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3, Edit2, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { TranscriptionStatus } from "@/lib/types";
 import { Link } from "wouter";
@@ -14,6 +15,8 @@ import { saveAs } from "file-saver";
 export default function TranscriptionResultsPage() {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null);
+  const [speakerEditValue, setSpeakerEditValue] = useState("");
   const { toast } = useToast();
 
   // Query for all transcriptions - no automatic polling to prevent infinite API calls
@@ -236,7 +239,7 @@ export default function TranscriptionResultsPage() {
   const handleAIAnalysis = async (transcriptionId: number) => {
     setIsAnalyzing(true);
     try {
-      const response = await fetch(`/api/transcriptions/${transcriptionId}/ai-analysis`, {
+      const response = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-analysis`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -266,6 +269,56 @@ export default function TranscriptionResultsPage() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleSpeakerEdit = (index: number, currentName: string) => {
+    setEditingSpeaker(index);
+    setSpeakerEditValue(currentName);
+  };
+
+  const handleSpeakerSave = async (transcriptionId: number) => {
+    if (editingSpeaker === null || !selectedTranscription) return;
+    
+    try {
+      const token = localStorage.getItem('auth_token');
+      const updatedSpeakers = [...(selectedTranscription.speakers || [])];
+      updatedSpeakers[editingSpeaker] = speakerEditValue;
+
+      const response = await fetch(`/api/transcriptions/${transcriptionId}/speakers`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ speakers: updatedSpeakers }),
+      });
+
+      if (!response.ok) {
+        throw new Error('更新失敗');
+      }
+
+      // Refresh the transcription data
+      refetch();
+      setEditingSpeaker(null);
+      setSpeakerEditValue("");
+      
+      toast({
+        title: "講者標籤已更新",
+        description: "講者名稱已成功修改",
+      });
+    } catch (error) {
+      console.error('Speaker update error:', error);
+      toast({
+        title: "更新失敗",
+        description: "無法更新講者標籤，請稍後再試",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSpeakerCancel = () => {
+    setEditingSpeaker(null);
+    setSpeakerEditValue("");
   };
 
   const getStatusColor = (status: string) => {
@@ -470,16 +523,67 @@ export default function TranscriptionResultsPage() {
                       <div className="mb-6">
                         <h4 className="text-sm font-medium text-slate-700 mb-3">對話者標識</h4>
                         <div className="flex flex-wrap gap-3">
-                          {selectedTranscription.speakers.map((speakerName, index) => {
+                          {(selectedTranscription.speakers as string[] || []).map((speakerName, index) => {
                             const colors = ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'];
                             const speakerColor = colors[index % colors.length];
+                            
+                            if (editingSpeaker === index) {
+                              return (
+                                <div key={`speaker-${index}-${speakerName}`} className="flex items-center space-x-2 bg-slate-50 rounded-full px-3 py-1">
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: speakerColor }}
+                                  />
+                                  <Input
+                                    value={speakerEditValue}
+                                    onChange={(e) => setSpeakerEditValue(e.target.value)}
+                                    className="w-20 h-6 text-xs px-2 py-1"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleSpeakerSave(selectedTranscription.id);
+                                      } else if (e.key === 'Escape') {
+                                        handleSpeakerCancel();
+                                      }
+                                    }}
+                                    autoFocus
+                                  />
+                                  <div className="flex items-center space-x-1">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() => handleSpeakerSave(selectedTranscription.id)}
+                                    >
+                                      <Check className="h-3 w-3 text-green-600" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0"
+                                      onClick={handleSpeakerCancel}
+                                    >
+                                      <X className="h-3 w-3 text-red-600" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
                             return (
-                              <div key={`speaker-${index}-${speakerName}`} className="flex items-center space-x-2 bg-slate-50 rounded-full px-3 py-1">
+                              <div key={`speaker-${index}-${speakerName}`} className="flex items-center space-x-2 bg-slate-50 rounded-full px-3 py-1 group hover:bg-slate-100">
                                 <div 
                                   className="w-3 h-3 rounded-full" 
                                   style={{ backgroundColor: speakerColor }}
                                 />
                                 <span className="text-sm font-medium text-slate-700">{speakerName}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => handleSpeakerEdit(index, speakerName)}
+                                >
+                                  <Edit2 className="h-3 w-3 text-slate-400" />
+                                </Button>
                               </div>
                             );
                           })}
