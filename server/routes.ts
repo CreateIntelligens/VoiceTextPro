@@ -372,11 +372,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`[UPLOAD] File uploaded: ${req.file.originalname}, size: ${req.file.size}`);
 
+        // Check if this is a recording file (contains timestamp pattern)
+        const isRecording = req.file.originalname.includes('recording_');
+        const recordingType = isRecording ? 'recorded' : 'uploaded';
+
         const transcriptionData = {
           userId: req.user!.id,
           filename: req.file.filename,
           originalName: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
           fileSize: req.file.size,
+          recordingType: recordingType,
+          notes: isRecording ? 'System recorded audio (supports up to 180 minutes)' : 'User uploaded file',
         };
 
         const validatedData = insertTranscriptionSchema.parse(transcriptionData);

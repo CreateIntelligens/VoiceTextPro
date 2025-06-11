@@ -529,13 +529,29 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         )}
 
         {/* Recording Timer */}
-        <div className="text-center">
+        <div className="text-center space-y-3">
           <div className="text-3xl sm:text-4xl font-mono font-bold text-gray-900">
             {formatTime(recordingTime)}
           </div>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500">
             {isRecording ? (isPaused ? '錄音已暫停' : '正在錄音') : '錄音時長'}
           </p>
+          
+          {/* Recording Progress Indicator */}
+          <div className="space-y-2 max-w-md mx-auto">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>進度</span>
+              <span>限制: 3:00:00</span>
+            </div>
+            <Progress 
+              value={(recordingTime / 10800) * 100} 
+              className="h-2"
+            />
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>已錄製: {((recordingTime / 10800) * 100).toFixed(1)}%</span>
+              <span>剩餘: {formatTime(Math.max(0, 10800 - recordingTime))}</span>
+            </div>
+          </div>
         </div>
 
         {/* Recording Controls */}

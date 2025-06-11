@@ -28,6 +28,10 @@ export const transcriptions = pgTable("transcriptions", {
   sentimentAnalysis: jsonb("sentiment_analysis"), // Sentiment analysis results
   entityDetection: jsonb("entity_detection"), // Named entities (persons, locations, etc.)
   contentSafety: jsonb("content_safety"), // Content moderation results
+  // Recording metadata
+  recordingType: text("recording_type"), // 'recorded' or 'uploaded'
+  recordingDuration: integer("recording_duration"), // Actual recording time in seconds (up to 10800 for 180 minutes)
+  notes: text("notes"), // Additional metadata notes
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -36,6 +40,13 @@ export const insertTranscriptionSchema = createInsertSchema(transcriptions).pick
   filename: true,
   originalName: true,
   fileSize: true,
+  recordingType: true,
+  recordingDuration: true,
+  notes: true,
+}).partial({
+  recordingType: true,
+  recordingDuration: true,
+  notes: true,
 });
 
 export const updateTranscriptionSchema = createInsertSchema(transcriptions).pick({
