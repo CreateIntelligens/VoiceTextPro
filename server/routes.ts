@@ -724,7 +724,10 @@ ${transcription.transcriptText}
         summary: analysis.summary || null,
         topicsDetection: analysis.keyTopics || null,
         autoHighlights: analysis.highlights || null,
-        entityDetection: analysis.actionItems ? { actionItems: analysis.actionItems } : null
+        entityDetection: {
+          actionItems: analysis.actionItems || [],
+          speakerAnalysis: analysis.speakerAnalysis || null
+        }
       });
 
       await AdminLogger.log({
