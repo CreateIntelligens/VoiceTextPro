@@ -467,7 +467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check file size to determine processing strategy
-      const fs = require('fs');
+      const fs = await import('fs');
       const fileStats = fs.statSync(filePath);
       const fileSizeBytes = fileStats.size;
       const fileSizeMB = fileSizeBytes / (1024 * 1024);
@@ -484,10 +484,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let args: string[];
       
       if (isLargeFile || forceLargeFile) {
-        // Use enhanced large file processor with segmentation
-        scriptName = "enhanced_large_file_processor.py";
-        args = [scriptName, id.toString()];
-        console.log(`[LOG-${id}] Using enhanced large file processor with automatic segmentation`);
+        // Use fast transcription for large files (simplified approach)
+        scriptName = "fast_transcription.py";
+        console.log(`[LOG-${id}] Using fast transcription for large file (${fileSizeMB.toFixed(2)}MB)`);
+        const uploadUrl = await uploadAudioFile(filePath);
+        console.log(`[LOG-${id}] Large file uploaded, starting transcription...`);
+        args = [scriptName, id.toString(), uploadUrl, process.env.ASSEMBLYAI_API_KEY || ""];
+        if (customKeywords) {
+          args.push(customKeywords);
+        }
       } else if (useRecovery) {
         scriptName = "recovery_transcription.py";
         args = [scriptName, filePath, id.toString()];
