@@ -386,13 +386,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isRecording = req.file.originalname.includes('recording_');
         const recordingType = isRecording ? 'recorded' : 'uploaded';
 
+        // Dynamic notes based on user role and file type
+        let notes = 'User uploaded file';
+        if (isRecording) {
+          notes = req.user!.role === 'admin' 
+            ? 'System recorded audio (unlimited duration for admin)' 
+            : 'System recorded audio (supports up to 180 minutes)';
+        } else if (req.user!.role === 'admin') {
+          notes = 'Admin uploaded file (no size restrictions)';
+        }
+
         const transcriptionData = {
           userId: req.user!.id,
           filename: req.file.filename,
           originalName: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
           fileSize: req.file.size,
           recordingType: recordingType,
-          notes: isRecording ? 'System recorded audio (supports up to 180 minutes)' : 'User uploaded file',
+          notes: notes,
         };
 
         const validatedData = insertTranscriptionSchema.parse(transcriptionData);
@@ -402,6 +412,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (req.body.keywords) {
           transcriptionKeywords.set(transcription.id, req.body.keywords);
           console.log(`[UPLOAD] Custom keywords stored for transcription ${transcription.id}: ${req.body.keywords}`);
+        }
+
+        // Log admin privilege usage
+        if (req.user!.role === 'admin') {
+          await AdminLogger.log('admin_privileges', 'unlimited_upload_recording', 
+            `管理員 ${req.user!.email} 使用無限制上傳/錄音功能`, {
+              transcriptionId: transcription.id,
+              fileSize: req.file.size,
+              originalName: req.file.originalname,
+              recordingType: recordingType
+            });
         }
 
         console.log(`[UPLOAD] Transcription created with ID: ${transcription.id}`);

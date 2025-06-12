@@ -251,8 +251,8 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
         timerRef.current = setInterval(() => {
           setRecordingTime(prev => {
             const newTime = prev + 0.1;
-            // Auto-stop at 180 minutes (10800 seconds)
-            if (newTime >= 10800) {
+            // Auto-stop at maximum time for non-admin users
+            if (!isAdmin && newTime >= MAX_RECORDING_TIME) {
               stopRecording();
               toast({
                 title: "錄音已達最大時長",
@@ -548,16 +548,33 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
           <div className="space-y-2 max-w-md mx-auto">
             <div className="flex justify-between text-xs text-gray-500">
               <span>進度</span>
-              <span>限制: 3:00:00</span>
+              <span>
+                {isAdmin ? (
+                  <Badge variant="outline" className="text-blue-600 border-blue-300">
+                    無限制 (管理員)
+                  </Badge>
+                ) : (
+                  "限制: 3:00:00"
+                )}
+              </span>
             </div>
-            <Progress 
-              value={(recordingTime / 10800) * 100} 
-              className="h-2"
-            />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>已錄製: {((recordingTime / 10800) * 100).toFixed(1)}%</span>
-              <span>剩餘: {formatTime(Math.max(0, 10800 - recordingTime))}</span>
-            </div>
+            {!isAdmin && (
+              <>
+                <Progress 
+                  value={(recordingTime / MAX_RECORDING_TIME) * 100} 
+                  className="h-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>已錄製: {((recordingTime / MAX_RECORDING_TIME) * 100).toFixed(1)}%</span>
+                  <span>剩餘: {formatTime(Math.max(0, MAX_RECORDING_TIME - recordingTime))}</span>
+                </div>
+              </>
+            )}
+            {isAdmin && (
+              <div className="text-center text-xs text-blue-600">
+                錄音時間無限制
+              </div>
+            )}
           </div>
         </div>
 
