@@ -720,14 +720,18 @@ ${transcription.transcriptText}
       }
 
       // Update transcription with AI analysis results
+      const entityDetectionData = {
+        actionItems: analysis.actionItems || [],
+        speakerAnalysis: analysis.speakerAnalysis || null
+      };
+      
+      console.log('Saving entity detection data:', JSON.stringify(entityDetectionData, null, 2));
+      
       await storage.updateTranscription(transcriptionId, {
         summary: analysis.summary || null,
         topicsDetection: analysis.keyTopics || null,
         autoHighlights: analysis.highlights || null,
-        entityDetection: {
-          actionItems: analysis.actionItems || [],
-          speakerAnalysis: analysis.speakerAnalysis || null
-        }
+        entityDetection: entityDetectionData
       });
 
       await AdminLogger.log({
