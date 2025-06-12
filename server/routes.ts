@@ -466,14 +466,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[LOG-${id}] Using custom keywords: ${customKeywords}`);
       }
       
-      // Check if we should use recovery mode or fast mode
+      // Check file size to determine processing strategy
+      const fs = require('fs');
+      const fileStats = fs.statSync(filePath);
+      const fileSizeBytes = fileStats.size;
+      const fileSizeMB = fileSizeBytes / (1024 * 1024);
+      const isLargeFile = fileSizeMB > 100; // Files over 100MB use large file processor
+      
+      console.log(`[LOG-${id}] File size: ${fileSizeMB.toFixed(2)}MB ${isLargeFile ? '(Large file detected)' : ''}`);
+      
+      // Check if we should use recovery mode, fast mode, or large file mode
       const useRecovery = req.body.useRecovery || false;
       const useFast = req.body.useFast !== false; // Default to fast mode
+      const forceLargeFile = req.body.forceLargeFile || false;
       
       let scriptName: string;
       let args: string[];
       
-      if (useRecovery) {
+      if (isLargeFile || forceLargeFile) {
+        // Use specialized large file processor
+        scriptName = "large_file_transcription.py";
+        args = [scriptName, filePath, id.toString()];
+        console.log(`[LOG-${id}] Using large file transcription processor`);
+      } else if (useRecovery) {
         scriptName = "recovery_transcription.py";
         args = [scriptName, filePath, id.toString()];
       } else if (useFast) {
