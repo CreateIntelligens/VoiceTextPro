@@ -685,6 +685,7 @@ ${transcription.transcriptText}
 2. keyTopics: 關鍵主題和話題（陣列格式，最多10個）
 3. actionItems: 行動項目和決策要點（陣列格式）
 4. highlights: 重要段落摘錄（陣列格式，最多5個）
+5. speakerAnalysis: 講者分析（物件格式，分析各講者的發言特點、參與度、主要觀點等）
 
 請確保回應為有效的JSON格式。
 `;
@@ -699,12 +700,13 @@ ${transcription.transcriptText}
       let analysis;
       try {
         const parsedAnalysis = JSON.parse(analysisText);
-        // Filter out sentiment analysis from the response
+        // Include speaker analysis in the response
         analysis = {
           summary: parsedAnalysis.summary,
           keyTopics: parsedAnalysis.keyTopics,
           actionItems: parsedAnalysis.actionItems,
-          highlights: parsedAnalysis.highlights
+          highlights: parsedAnalysis.highlights,
+          speakerAnalysis: parsedAnalysis.speakerAnalysis
         };
       } catch (parseError) {
         console.error("JSON parse error:", parseError);

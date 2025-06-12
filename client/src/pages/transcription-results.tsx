@@ -705,7 +705,45 @@ export default function TranscriptionResultsPage() {
                           </Card>
                         )}
 
-
+                        {/* Speaker Analysis */}
+                        {selectedTranscription.entityDetection?.speakerAnalysis && (
+                          <Card className="border-indigo-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-indigo-700">
+                                <Users className="w-4 h-4 mr-2" />
+                                講者分析
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-4">
+                                {typeof selectedTranscription.entityDetection.speakerAnalysis === 'object' && 
+                                  Object.entries(selectedTranscription.entityDetection.speakerAnalysis).map(([speaker, analysis]: [string, any]) => (
+                                    <div key={speaker} className="p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <h5 className="font-medium text-indigo-900">{speaker}</h5>
+                                        {analysis.participationRate && (
+                                          <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full">
+                                            參與度: {analysis.participationRate}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="space-y-2 text-sm text-slate-700">
+                                        {analysis.characteristics && (
+                                          <p><strong>發言特點:</strong> {analysis.characteristics}</p>
+                                        )}
+                                        {analysis.mainPoints && (
+                                          <p><strong>主要觀點:</strong> {analysis.mainPoints}</p>
+                                        )}
+                                        {analysis.role && (
+                                          <p><strong>角色定位:</strong> {analysis.role}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
 
                         {/* Auto Highlights */}
                         {selectedTranscription.autoHighlights && (
