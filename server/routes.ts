@@ -44,10 +44,11 @@ async function uploadAudioFile(filePath: string): Promise<string> {
   return result.upload_url;
 }
 
-const upload = multer({
+// Create different upload configurations for regular users and admins
+const createUploadConfig = (isAdmin: boolean = false) => multer({
   dest: "uploads/",
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB
+    fileSize: isAdmin ? undefined : 500 * 1024 * 1024, // No limit for admin, 500MB for users
   },
   fileFilter: (req, file, cb) => {
     // 支援 iPhone 語音備忘錄和其他常見音頻格式
@@ -66,6 +67,9 @@ const upload = multer({
     }
   }
 });
+
+const upload = createUploadConfig(false); // Default upload for regular users
+const adminUpload = createUploadConfig(true); // Unlimited upload for admins
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Note: Admin user will be initialized on first login attempt
@@ -355,13 +359,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Upload audio file with enhanced error handling
   app.post("/api/transcriptions/upload", requireAuth, (req: AuthenticatedRequest, res) => {
-    upload.single("audio")(req, res, async (err) => {
+    // Use admin upload config for admins, regular upload for users
+    const uploadHandler = req.user!.role === 'admin' ? adminUpload.single("audio") : upload.single("audio");
+    
+    uploadHandler(req, res, async (err) => {
       try {
         // Handle multer errors
         if (err) {
           console.error("Multer upload error:", err);
           if (err.code === 'LIMIT_FILE_SIZE') {
-            return res.status(400).json({ message: "檔案大小超過限制（最大 100MB）" });
+            const limitMessage = req.user!.role === 'admin' 
+              ? "檔案上傳失敗" 
+              : "檔案大小超過限制（最大 500MB）";
+            return res.status(400).json({ message: limitMessage });
           }
           return res.status(400).json({ message: err.message || "檔案上傳失敗" });
         }

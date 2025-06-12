@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { 
   Mic, 
   MicOff, 
@@ -24,6 +25,12 @@ interface AudioRecorderProps {
 }
 
 export default function AudioRecorder({ onRecordingComplete, isDisabled }: AudioRecorderProps) {
+  const { user } = useAuth();
+  
+  // Dynamic recording limits based on user role
+  const MAX_RECORDING_TIME = user?.role === 'admin' ? Infinity : 10800; // No limit for admin, 3 hours for users
+  const isAdmin = user?.role === 'admin';
+  
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -200,12 +207,12 @@ export default function AudioRecorder({ onRecordingComplete, isDisabled }: Audio
       
       mediaRecorder.start(100); // Collect data every 100ms
       
-      // Start timer with 180-minute limit
+      // Start timer with dynamic limit based on user role
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => {
           const newTime = prev + 0.1;
-          // Auto-stop at 180 minutes (10800 seconds)
-          if (newTime >= 10800) {
+          // Auto-stop at maximum time for non-admin users
+          if (!isAdmin && newTime >= MAX_RECORDING_TIME) {
             stopRecording();
             toast({
               title: "錄音已達最大時長",
