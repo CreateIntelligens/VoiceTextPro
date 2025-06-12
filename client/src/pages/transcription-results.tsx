@@ -739,37 +739,26 @@ export default function TranscriptionResultsPage() {
                         )}
 
                         {/* Speaker Analysis */}
-                        {(selectedTranscription.entityDetection as any)?.speakerAnalysis && (
+                        {selectedTranscription.entityDetection && Array.isArray(selectedTranscription.entityDetection) && selectedTranscription.entityDetection.length > 0 && (
                           <Card className="border-indigo-100">
                             <CardHeader className="pb-3">
                               <CardTitle className="text-sm flex items-center text-indigo-700">
                                 <Users className="w-4 h-4 mr-2" />
-                                講者分析
+                                實體識別
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
                               <div className="space-y-4">
-                                {typeof (selectedTranscription.entityDetection as any)?.speakerAnalysis === 'object' && 
-                                  Object.entries((selectedTranscription.entityDetection as any).speakerAnalysis).map(([speaker, analysis]: [string, any]) => (
-                                    <div key={speaker} className="p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
+                                {selectedTranscription.entityDetection.map((entity: any, index: number) => (
+                                    <div key={`entity-${index}`} className="p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
                                       <div className="flex items-center justify-between mb-2">
-                                        <h5 className="font-medium text-indigo-900">{speaker}</h5>
-                                        {analysis.participationRate && (
-                                          <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full">
-                                            參與度: {analysis.participationRate}
-                                          </span>
-                                        )}
+                                        <h5 className="font-medium text-indigo-900">{entity.entity_type}</h5>
+                                        <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full">
+                                          {entity.text}
+                                        </span>
                                       </div>
-                                      <div className="space-y-2 text-sm text-slate-700">
-                                        {analysis.characteristics && (
-                                          <p><strong>發言特點:</strong> {analysis.characteristics}</p>
-                                        )}
-                                        {analysis.mainPoints && (
-                                          <p><strong>主要觀點:</strong> {analysis.mainPoints}</p>
-                                        )}
-                                        {analysis.role && (
-                                          <p><strong>角色定位:</strong> {analysis.role}</p>
-                                        )}
+                                      <div className="text-sm text-indigo-600">
+                                        <span className="font-medium">時間:</span> {Math.floor(entity.start/1000)}s - {Math.floor(entity.end/1000)}s
                                       </div>
                                     </div>
                                   ))}
