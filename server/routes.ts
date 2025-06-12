@@ -468,7 +468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check file size to determine processing strategy
       const fs = await import('fs');
-      const fileStats = fs.statSync(filePath);
+      const fileStats = fs.default.statSync(filePath);
       const fileSizeBytes = fileStats.size;
       const fileSizeMB = fileSizeBytes / (1024 * 1024);
       const isLargeFile = fileSizeMB > 100; // Files over 100MB use large file processor
