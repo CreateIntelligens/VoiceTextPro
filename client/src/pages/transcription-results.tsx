@@ -551,7 +551,7 @@ export default function TranscriptionResultsPage() {
                             const speakerName = typeof speaker === 'string' ? speaker : (speaker as any).name || (speaker as any).id || `講者 ${index + 1}`;
                             const speakerColor = typeof speaker === 'string' 
                               ? ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'][index % 6]
-                              : speaker.color || '#2563eb';
+                              : (speaker as any).color || '#2563eb';
                             
                             if (editingSpeaker === index) {
                               return (
@@ -642,16 +642,18 @@ export default function TranscriptionResultsPage() {
                           
                           if (selectedTranscription.speakers) {
                             const speakers = selectedTranscription.speakers;
-                            if (typeof speakers[0] === 'string') {
-                              // Old format: array of strings
-                              const speakerIndex = speakers.indexOf(segment.speaker);
-                              speakerColor = colors[speakerIndex >= 0 ? speakerIndex : 0];
-                            } else {
-                              // New format: array of objects
-                              const speakerObj = speakers.find(s => s.id === segment.speaker);
-                              if (speakerObj) {
-                                speakerColor = speakerObj.color || colors[0];
-                                speakerName = speakerObj.name || segment.speaker || '未知講者';
+                            if (Array.isArray(speakers) && speakers.length > 0) {
+                              if (typeof speakers[0] === 'string') {
+                                // Old format: array of strings
+                                const speakerIndex = (speakers as any).indexOf(segment.speaker);
+                                speakerColor = colors[speakerIndex >= 0 ? speakerIndex : 0];
+                              } else {
+                                // New format: array of objects
+                                const speakerObj = speakers.find((s: any) => s.id === segment.speaker);
+                                if (speakerObj) {
+                                  speakerColor = (speakerObj as any).color || colors[0];
+                                  speakerName = (speakerObj as any).name || segment.speaker || '未知講者';
+                                }
                               }
                             }
                           }
@@ -659,7 +661,7 @@ export default function TranscriptionResultsPage() {
                           return (
                             <div key={`segment-${index}-${segment.start}-${segment.end}`} className="flex space-x-4 group">
                               <div className="flex-shrink-0 text-xs text-slate-500 font-mono mt-1 w-16">
-                                {segment.startTime || (segment.start ? `${Math.floor(segment.start/60000)}:${Math.floor((segment.start%60000)/1000).toString().padStart(2,'0')}` : '00:00')}
+                                {(segment as any).startTime || (segment.start ? `${Math.floor(segment.start/60000)}:${Math.floor((segment.start%60000)/1000).toString().padStart(2,'0')}` : '00:00')}
                               </div>
                               <div className="flex-shrink-0">
                                 <div 
@@ -737,7 +739,7 @@ export default function TranscriptionResultsPage() {
                         )}
 
                         {/* Speaker Analysis */}
-                        {selectedTranscription.entityDetection?.speakerAnalysis && (
+                        {(selectedTranscription.entityDetection as any)?.speakerAnalysis && (
                           <Card className="border-indigo-100">
                             <CardHeader className="pb-3">
                               <CardTitle className="text-sm flex items-center text-indigo-700">
@@ -747,8 +749,8 @@ export default function TranscriptionResultsPage() {
                             </CardHeader>
                             <CardContent>
                               <div className="space-y-4">
-                                {typeof selectedTranscription.entityDetection.speakerAnalysis === 'object' && 
-                                  Object.entries(selectedTranscription.entityDetection.speakerAnalysis).map(([speaker, analysis]: [string, any]) => (
+                                {typeof (selectedTranscription.entityDetection as any)?.speakerAnalysis === 'object' && 
+                                  Object.entries((selectedTranscription.entityDetection as any).speakerAnalysis).map(([speaker, analysis]: [string, any]) => (
                                     <div key={speaker} className="p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
                                       <div className="flex items-center justify-between mb-2">
                                         <h5 className="font-medium text-indigo-900">{speaker}</h5>
