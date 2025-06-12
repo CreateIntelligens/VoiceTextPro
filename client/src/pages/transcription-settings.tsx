@@ -150,7 +150,6 @@ export default function TranscriptionSettings() {
   // 載入當前配置
   const { data: currentConfig } = useQuery({
     queryKey: ["/api/transcription-config"],
-    queryFn: () => apiRequest("/api/transcription-config"),
   });
 
   // 保存配置
@@ -175,7 +174,7 @@ export default function TranscriptionSettings() {
 
   useEffect(() => {
     if (currentConfig) {
-      setConfig(currentConfig);
+      setConfig(currentConfig as TranscriptionConfig);
     }
   }, [currentConfig]);
 

@@ -70,6 +70,17 @@ export default function SidebarNavigation({ className, onMobileClose }: SidebarN
         }
       ]
     },
+    {
+      title: '系統設置',
+      items: [
+        {
+          name: '轉錄調教',
+          href: '/settings',
+          icon: Settings,
+          description: '自定義 AssemblyAI 語音識別參數'
+        }
+      ]
+    },
     ...(user?.role === 'admin' ? [{
       title: '管理功能',
       items: [
