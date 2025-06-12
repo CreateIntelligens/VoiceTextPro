@@ -256,9 +256,33 @@ class CompleteLargeFileProcessor:
             return False
 
 def main():
-    processor = CompleteLargeFileProcessor(49)
-    file_path = 'uploads/60dffd46d694231e4c071c8d334d808f'
+    import sys
     
+    if len(sys.argv) < 2:
+        print("Usage: python3 complete_large_file_monitor.py <transcription_id> [file_path]")
+        return
+    
+    transcription_id = int(sys.argv[1])
+    
+    # Get file path from database if not provided
+    if len(sys.argv) >= 3:
+        file_path = sys.argv[2]
+    else:
+        # Query database for file path
+        import psycopg2
+        conn = psycopg2.connect(os.environ['DATABASE_URL'])
+        cursor = conn.cursor()
+        cursor.execute("SELECT filename FROM transcriptions WHERE id = %s", (transcription_id,))
+        result = cursor.fetchone()
+        if result:
+            file_path = f'uploads/{result[0]}'
+        else:
+            print(f"Transcription {transcription_id} not found")
+            return
+        cursor.close()
+        conn.close()
+    
+    processor = CompleteLargeFileProcessor(transcription_id)
     success = processor.process_complete_file(file_path)
     
     if success:
