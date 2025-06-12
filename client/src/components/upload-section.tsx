@@ -116,6 +116,18 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
 
     setIsUploading(true);
     try {
+      // Check if this is a large file that will need segmentation
+      const fileSizeMB = selectedFile.size / (1024 * 1024);
+      const isLargeFile = fileSizeMB > 100;
+      
+      if (isLargeFile) {
+        toast({
+          title: "大檔案檢測",
+          description: `檔案大小 ${fileSizeMB.toFixed(1)}MB，將使用分段處理模式確保轉錄成功`,
+          variant: "default",
+        });
+      }
+
       const formData = new FormData();
       formData.append('audio', selectedFile);
       
