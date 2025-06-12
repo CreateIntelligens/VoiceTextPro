@@ -547,9 +547,11 @@ export default function TranscriptionResultsPage() {
                       <div className="mb-6">
                         <h4 className="text-sm font-medium text-slate-700 mb-3">對話者標識</h4>
                         <div className="flex flex-wrap gap-3">
-                          {(selectedTranscription.speakers as unknown as string[] || []).map((speakerName, index) => {
-                            const colors = ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'];
-                            const speakerColor = colors[index % colors.length];
+                          {(selectedTranscription.speakers || []).map((speaker, index) => {
+                            const speakerName = typeof speaker === 'string' ? speaker : (speaker as any).name || (speaker as any).id || `講者 ${index + 1}`;
+                            const speakerColor = typeof speaker === 'string' 
+                              ? ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'][index % 6]
+                              : speaker.color || '#2563eb';
                             
                             if (editingSpeaker === index) {
                               return (
@@ -633,14 +635,31 @@ export default function TranscriptionResultsPage() {
                         <h4 className="text-sm font-medium text-slate-700 mb-3">分段對話內容</h4>
                         {selectedTranscription.segments.map((segment, index) => {
                           const colors = ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'];
-                          const speakerIndex = selectedTranscription.speakers?.indexOf(segment.speaker) || 0;
-                          const speakerColor = colors[speakerIndex % colors.length];
-                          const speakerName = segment.speaker || '未知講者';
+                          
+                          // Handle both old and new speaker data structures
+                          let speakerColor = colors[0];
+                          let speakerName = segment.speaker || '未知講者';
+                          
+                          if (selectedTranscription.speakers) {
+                            const speakers = selectedTranscription.speakers;
+                            if (typeof speakers[0] === 'string') {
+                              // Old format: array of strings
+                              const speakerIndex = speakers.indexOf(segment.speaker);
+                              speakerColor = colors[speakerIndex >= 0 ? speakerIndex : 0];
+                            } else {
+                              // New format: array of objects
+                              const speakerObj = speakers.find(s => s.id === segment.speaker);
+                              if (speakerObj) {
+                                speakerColor = speakerObj.color || colors[0];
+                                speakerName = speakerObj.name || segment.speaker || '未知講者';
+                              }
+                            }
+                          }
                           
                           return (
                             <div key={`segment-${index}-${segment.start}-${segment.end}`} className="flex space-x-4 group">
                               <div className="flex-shrink-0 text-xs text-slate-500 font-mono mt-1 w-16">
-                                {segment.startTime}
+                                {segment.startTime || (segment.start ? `${Math.floor(segment.start/60000)}:${Math.floor((segment.start%60000)/1000).toString().padStart(2,'0')}` : '00:00')}
                               </div>
                               <div className="flex-shrink-0">
                                 <div 

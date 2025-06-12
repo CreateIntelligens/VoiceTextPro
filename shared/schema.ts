@@ -75,6 +75,30 @@ export type InsertTranscription = z.infer<typeof insertTranscriptionSchema>;
 export type UpdateTranscription = z.infer<typeof updateTranscriptionSchema>;
 export type Transcription = typeof transcriptions.$inferSelect;
 
+// Speaker type definition
+export interface Speaker {
+  id: string;
+  name: string;
+  color: string;
+}
+
+// Transcript segment type definition
+export interface TranscriptSegment {
+  speaker: string;
+  text: string;
+  start: number;
+  end: number;
+  confidence: number;
+  startTime?: string;
+  endTime?: string;
+}
+
+// Enhanced transcription status with proper typing
+export type TranscriptionStatus = Transcription & {
+  speakers?: Speaker[];
+  segments?: TranscriptSegment[];
+};
+
 // Users table
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
