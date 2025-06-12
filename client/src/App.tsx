@@ -13,6 +13,7 @@ import ChatBot from "@/components/chat-bot";
 import Welcome from "@/pages/welcome";
 import TranscriptionPage from "@/pages/transcription";
 import TranscriptionResultsPage from "@/pages/transcription-results";
+import TranscriptionSettings from "@/pages/transcription-settings";
 import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
 import Admin from "@/pages/admin";

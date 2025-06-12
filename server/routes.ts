@@ -1941,6 +1941,43 @@ ${originalText}
     }
   });
 
+  // Transcription configuration routes
+  app.get("/api/transcription-config", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const config = await storage.getTranscriptionConfig(userId);
+      res.json(config);
+    } catch (error) {
+      console.error("Error fetching transcription config:", error);
+      res.status(500).json({ message: "獲取配置失敗" });
+    }
+  });
+
+  app.post("/api/transcription-config", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const config = req.body;
+      
+      await storage.saveTranscriptionConfig(userId, config);
+      
+      await AdminLogger.log({
+        category: 'transcription',
+        action: 'config_updated',
+        description: `用戶 ${req.user!.email} 更新轉錄配置`,
+        details: {
+          userId,
+          configName: config.config_name,
+          presetType: config.boost_param
+        }
+      });
+
+      res.json({ message: "配置已保存", config });
+    } catch (error) {
+      console.error("Error saving transcription config:", error);
+      res.status(500).json({ message: "保存配置失敗" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

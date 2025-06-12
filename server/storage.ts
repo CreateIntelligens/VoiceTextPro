@@ -10,6 +10,10 @@ export interface IStorage {
   getAllTranscriptions(): Promise<Transcription[]>;
   getUserTranscriptions(userId: number): Promise<Transcription[]>;
   deleteTranscription(id: number): Promise<boolean>;
+  
+  // Configuration methods
+  getTranscriptionConfig(userId: number): Promise<any>;
+  saveTranscriptionConfig(userId: number, config: any): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -181,6 +185,50 @@ export class DatabaseStorage implements IStorage {
       .delete(transcriptions)
       .where(eq(transcriptions.id, id));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  // Configuration methods - using in-memory storage for now
+  private configStorage: Map<number, any> = new Map();
+
+  async getTranscriptionConfig(userId: number): Promise<any> {
+    const config = this.configStorage.get(userId);
+    if (config) {
+      return config;
+    }
+    
+    // Return default configuration
+    return {
+      speaker_labels: true,
+      speakers_expected: 4,
+      speech_threshold: 0.3,
+      language_detection: true,
+      language_code: "auto",
+      language_confidence_threshold: 0.6,
+      boost_param: "high",
+      multichannel: false,
+      punctuate: true,
+      format_text: true,
+      disfluencies: false,
+      filter_profanity: false,
+      redact_pii: false,
+      redact_pii_policies: [],
+      summarization: true,
+      auto_highlights: true,
+      iab_categories: true,
+      sentiment_analysis: false,
+      entity_detection: true,
+      content_safety: true,
+      custom_topics: true,
+      custom_keywords: "",
+      config_name: "標準配置"
+    };
+  }
+
+  async saveTranscriptionConfig(userId: number, config: any): Promise<void> {
+    this.configStorage.set(userId, {
+      ...config,
+      updatedAt: new Date()
+    });
   }
 }
 
