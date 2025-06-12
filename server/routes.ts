@@ -484,10 +484,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let args: string[];
       
       if (isLargeFile || forceLargeFile) {
-        // Use specialized large file processor
-        scriptName = "large_file_transcription.py";
-        args = [scriptName, filePath, id.toString()];
-        console.log(`[LOG-${id}] Using large file transcription processor`);
+        // Use enhanced large file processor with segmentation
+        scriptName = "enhanced_large_file_processor.py";
+        args = [scriptName, id.toString()];
+        console.log(`[LOG-${id}] Using enhanced large file processor with automatic segmentation`);
       } else if (useRecovery) {
         scriptName = "recovery_transcription.py";
         args = [scriptName, filePath, id.toString()];
