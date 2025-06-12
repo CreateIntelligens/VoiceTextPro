@@ -615,10 +615,22 @@ export default function TranscriptionResultsPage() {
                       </div>
                     )}
 
+                    {/* Full Transcript Text */}
+                    {selectedTranscription.transcriptText && (
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-medium text-slate-700 mb-3">完整轉錄內容</h4>
+                        <div className="bg-slate-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                          <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">
+                            {selectedTranscription.transcriptText}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Transcript Text */}
                     {selectedTranscription.segments && selectedTranscription.segments.length > 0 && (
                       <div className="space-y-4">
-                        <h4 className="text-sm font-medium text-slate-700 mb-3">轉錄內容</h4>
+                        <h4 className="text-sm font-medium text-slate-700 mb-3">分段對話內容</h4>
                         {selectedTranscription.segments.map((segment, index) => {
                           const colors = ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'];
                           const speakerIndex = selectedTranscription.speakers?.indexOf(segment.speaker) || 0;
@@ -772,7 +784,7 @@ export default function TranscriptionResultsPage() {
                       </div>
                     )}
 
-                    {(!selectedTranscription.segments || selectedTranscription.segments.length === 0) && (
+                    {(!selectedTranscription.segments || selectedTranscription.segments.length === 0) && !selectedTranscription.transcriptText && (
                       <div className="text-center py-8 text-slate-500">
                         <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
                         <p>暫無轉錄內容</p>
