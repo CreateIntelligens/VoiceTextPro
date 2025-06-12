@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, File, X, CloudUpload, Tag, Save, RotateCcw, Info, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import AudioRecorder from "./audio-recorder";
 import { KeywordInput } from "./keyword-input";
 
@@ -21,6 +22,16 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
   const [isUploading, setIsUploading] = useState(false);
   const [keywords, setKeywords] = useState<string>("");
   const { toast } = useToast();
+
+  // Get user authentication status to check admin privileges
+  const { data: userResponse } = useQuery({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+  });
+
+  const user = userResponse?.user;
+  const isAdmin = user?.role === 'admin';
+  const maxFileSize = isAdmin ? undefined : 500 * 1024 * 1024; // No limit for admin, 500MB for users
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -47,10 +58,11 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     );
 
     if (audioFile) {
-      if (audioFile.size > 100 * 1024 * 1024) { // 100MB limit
+      // Check file size limit based on user role
+      if (maxFileSize && audioFile.size > maxFileSize) {
         toast({
           title: "檔案過大",
-          description: "檔案大小不能超過 100MB",
+          description: isAdmin ? "檔案上傳失敗" : "檔案大小不能超過 500MB",
           variant: "destructive",
         });
         return;
@@ -68,10 +80,11 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 100 * 1024 * 1024) { // 100MB limit
+      // Check file size limit based on user role
+      if (maxFileSize && file.size > maxFileSize) {
         toast({
           title: "檔案過大",
-          description: "檔案大小不能超過 100MB",
+          description: isAdmin ? "檔案上傳失敗" : "檔案大小不能超過 500MB",
           variant: "destructive",
         });
         return;
@@ -248,7 +261,18 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
                 <CloudUpload className="w-12 h-12 sm:w-16 sm:h-16 text-slate-400 mx-auto mb-4" />
               </div>
               <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">拖拽檔案至此處或點擊上傳</h3>
-              <p className="text-sm sm:text-base text-slate-600 mb-4">支援 MP3、WAV、M4A 等格式，最大檔案大小：100MB</p>
+              <div className="text-sm sm:text-base text-slate-600 mb-4">
+                <p>支援 MP3、WAV、M4A 等格式</p>
+                {isAdmin ? (
+                  <div className="flex items-center justify-center gap-2 mt-1">
+                    <Badge variant="outline" className="text-blue-600 border-blue-300">
+                      無檔案大小限制 (管理員)
+                    </Badge>
+                  </div>
+                ) : (
+                  <p className="mt-1">最大檔案大小：500MB</p>
+                )}
+              </div>
               <Button 
                 onClick={() => !isDisabled && document.getElementById('audioFile')?.click()}
                 disabled={isDisabled}
