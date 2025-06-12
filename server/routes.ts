@@ -416,13 +416,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Log admin privilege usage
         if (req.user!.role === 'admin') {
-          await AdminLogger.log('admin_privileges', 'unlimited_upload_recording', 
-            `管理員 ${req.user!.email} 使用無限制上傳/錄音功能`, {
+          await AdminLogger.log({
+            category: 'admin_privileges',
+            action: 'unlimited_upload_recording',
+            description: `管理員 ${req.user!.email} 使用無限制上傳/錄音功能`,
+            details: {
               transcriptionId: transcription.id,
               fileSize: req.file.size,
               originalName: req.file.originalname,
               recordingType: recordingType
-            });
+            }
+          });
         }
 
         console.log(`[UPLOAD] Transcription created with ID: ${transcription.id}`);
