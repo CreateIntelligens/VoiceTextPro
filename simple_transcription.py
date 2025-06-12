@@ -78,21 +78,40 @@ def start_transcription(upload_url, api_key, custom_keywords=""):
     """Start transcription with advanced features"""
     print("🚀 Starting transcription with advanced features...")
     
-    # Build request data with automatic language detection
+    # Build request data with enhanced configuration and tuning options
     data = {
         "audio_url": upload_url,
+        
+        # Speaker identification and audio processing
         "speaker_labels": True,
+        "speakers_expected": 4,  # Optimize for typical meeting scenarios
+        "speech_threshold": 0.3,  # Lower threshold for better speech detection
+        
+        # Language detection and processing
         "language_detection": True,
+        "language_confidence_threshold": 0.6,  # Lower threshold for multilingual content
+        
+        # Audio enhancement
+        "boost_param": "high",  # Enhanced audio processing for better quality
+        "multichannel": False,  # Single channel processing
+        
+        # Text formatting and quality
         "punctuate": True,
         "format_text": True,
-        "disfluencies": False,
-        # Advanced features (Note: summarization and auto_chapters cannot be used together)
+        "disfluencies": False,  # Remove speech disfluencies for cleaner text
+        "filter_profanity": False,  # Keep original content integrity
+        
+        # Privacy protection (configurable)
+        "redact_pii": False,  # Disabled by default, can be enabled if needed
+        
+        # Advanced AI features
         "summarization": True,
         "auto_highlights": True,
         "iab_categories": True,
         "sentiment_analysis": True,
         "entity_detection": True,
-        "content_safety": True
+        "content_safety": True,
+        "custom_topics": True  # Enable custom topic detection
     }
     
     # Add custom keywords if provided
