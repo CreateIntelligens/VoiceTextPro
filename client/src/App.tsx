@@ -97,6 +97,7 @@ function Router() {
               <Route path="/record" component={TranscriptionPage} />
               <Route path="/upload" component={TranscriptionPage} />
               <Route path="/transcriptions" component={TranscriptionResultsPage} />
+              <Route path="/transcription-results" component={TranscriptionResultsPage} />
               <Route path="/settings" component={TranscriptionSettings} />
               <Route path="/keywords" component={Dashboard} />
               <Route path="/dashboard" component={Dashboard} />
