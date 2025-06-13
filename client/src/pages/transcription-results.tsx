@@ -805,6 +805,23 @@ export default function TranscriptionResultsPage() {
                           </Card>
                         )}
 
+                        {/* Summary */}
+                        {selectedTranscription.summary && (
+                          <Card className="border-green-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-green-700">
+                                <FileText className="w-4 h-4 mr-2" />
+                                內容摘要
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="p-4 bg-green-50 rounded-lg border-l-4 border-green-400">
+                                <p className="text-slate-700 whitespace-pre-wrap">{selectedTranscription.summary}</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
                         {/* Auto Highlights */}
                         {selectedTranscription.autoHighlights && (
                           <Card className="border-yellow-100">
@@ -822,6 +839,132 @@ export default function TranscriptionResultsPage() {
                                       <p className="text-slate-700">
                                         {typeof highlight === 'string' ? highlight : highlight.text || highlight.content}
                                       </p>
+                                      {highlight.count && (
+                                        <span className="text-xs text-yellow-600 mt-1 block">
+                                          出現次數: {highlight.count}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Auto Chapters */}
+                        {selectedTranscription.autoChapters && Array.isArray(selectedTranscription.autoChapters) && selectedTranscription.autoChapters.length > 0 && (
+                          <Card className="border-purple-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-purple-700">
+                                <History className="w-4 h-4 mr-2" />
+                                章節分段
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-4">
+                                {selectedTranscription.autoChapters.map((chapter: any, index: number) => (
+                                  <div key={index} className="p-4 bg-purple-50 rounded-lg border-l-4 border-purple-400">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h5 className="font-medium text-purple-900">{chapter.headline}</h5>
+                                      <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
+                                        {Math.floor(chapter.start/60000)}:{Math.floor((chapter.start%60000)/1000).toString().padStart(2,'0')}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-slate-700 mb-2">{chapter.gist}</p>
+                                    {chapter.summary && (
+                                      <p className="text-xs text-slate-600">{chapter.summary}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Topics Detection */}
+                        {selectedTranscription.topicsDetection && (
+                          <Card className="border-orange-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-orange-700">
+                                <MessageSquare className="w-4 h-4 mr-2" />
+                                主題檢測
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {Array.isArray(selectedTranscription.topicsDetection) &&
+                                  selectedTranscription.topicsDetection.map((topic: any, index: number) => (
+                                    <div key={index} className="p-3 bg-orange-50 rounded-lg border-l-4 border-orange-400">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium text-orange-900">{topic.topic || topic.text}</span>
+                                        {topic.confidence && (
+                                          <span className="text-xs px-2 py-1 bg-orange-100 text-orange-800 rounded-full">
+                                            {Math.round(topic.confidence * 100)}%
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Sentiment Analysis */}
+                        {selectedTranscription.sentimentAnalysis && (
+                          <Card className="border-pink-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-pink-700">
+                                <TrendingUp className="w-4 h-4 mr-2" />
+                                情感分析
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {Array.isArray(selectedTranscription.sentimentAnalysis) &&
+                                  selectedTranscription.sentimentAnalysis.map((sentiment: any, index: number) => (
+                                    <div key={index} className="p-3 bg-pink-50 rounded-lg border-l-4 border-pink-400">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-medium text-pink-900">
+                                          {sentiment.sentiment === 'POSITIVE' ? '正面' : 
+                                           sentiment.sentiment === 'NEGATIVE' ? '負面' : '中性'}
+                                        </span>
+                                        <span className="text-xs px-2 py-1 bg-pink-100 text-pink-800 rounded-full">
+                                          {Math.round(sentiment.confidence * 100)}%
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-slate-700">{sentiment.text}</p>
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Content Safety */}
+                        {selectedTranscription.contentSafety && (
+                          <Card className="border-red-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-red-700">
+                                <BarChart3 className="w-4 h-4 mr-2" />
+                                內容安全檢測
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {Array.isArray(selectedTranscription.contentSafety) &&
+                                  selectedTranscription.contentSafety.map((safety: any, index: number) => (
+                                    <div key={index} className="p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-medium text-red-900">{safety.label}</span>
+                                        <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded-full">
+                                          {Math.round(safety.confidence * 100)}%
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-slate-700">{safety.text}</p>
                                     </div>
                                   ))
                                 }
