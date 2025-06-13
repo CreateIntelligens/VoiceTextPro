@@ -244,8 +244,13 @@ export default function TranscriptionResultsPage() {
     try {
       const result = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-analysis`, 'POST');
       
-      // Refresh the transcription data to show new analysis
+      // Invalidate both the transcriptions list and the specific transcription
+      await queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcriptionId}`] });
+      
+      // Force refetch both queries to show analysis results immediately
       refetch();
+      refetchSelected();
       
       toast({
         title: "AI分析完成",
@@ -743,30 +748,58 @@ export default function TranscriptionResultsPage() {
                           </Card>
                         )}
 
+                        {/* Action Items */}
+                        {selectedTranscription.entityDetection && (selectedTranscription.entityDetection as any)?.actionItems && (
+                          <Card className="border-blue-100">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm flex items-center text-blue-700">
+                                <Target className="w-4 h-4 mr-2" />
+                                行動項目
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {((selectedTranscription.entityDetection as any)?.actionItems || []).map((item: string, index: number) => (
+                                  <div key={`action-${index}`} className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                                    <p className="text-slate-700 text-sm">{item}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
                         {/* Speaker Analysis */}
-                        {selectedTranscription.entityDetection && Array.isArray(selectedTranscription.entityDetection) && selectedTranscription.entityDetection.length > 0 && (
+                        {selectedTranscription.entityDetection && (selectedTranscription.entityDetection as any)?.speakerAnalysis && (
                           <Card className="border-indigo-100">
                             <CardHeader className="pb-3">
                               <CardTitle className="text-sm flex items-center text-indigo-700">
                                 <Users className="w-4 h-4 mr-2" />
-                                實體識別
+                                講者分析
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
                               <div className="space-y-4">
-                                {selectedTranscription.entityDetection.map((entity: any, index: number) => (
-                                    <div key={`entity-${index}`} className="p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <h5 className="font-medium text-indigo-900">{entity.entity_type}</h5>
-                                        <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full">
-                                          {entity.text}
-                                        </span>
+                                {Object.entries((selectedTranscription.entityDetection as any)?.speakerAnalysis || {}).map(([speaker, analysis]: [string, any]) => (
+                                  <div key={`speaker-analysis-${speaker}`} className="p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <h5 className="font-medium text-indigo-900">講者 {speaker}</h5>
+                                      <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full">
+                                        參與度: {analysis.participationLevel}
+                                      </span>
+                                    </div>
+                                    <div className="space-y-2 text-sm text-slate-700">
+                                      <div>
+                                        <span className="font-medium text-indigo-800">發言特點:</span>
+                                        <p className="mt-1">{analysis.speakingCharacteristics}</p>
                                       </div>
-                                      <div className="text-sm text-indigo-600">
-                                        <span className="font-medium">時間:</span> {Math.floor(entity.start/1000)}s - {Math.floor(entity.end/1000)}s
+                                      <div>
+                                        <span className="font-medium text-indigo-800">主要觀點:</span>
+                                        <p className="mt-1">{analysis.mainPoints}</p>
                                       </div>
                                     </div>
-                                  ))}
+                                  </div>
+                                ))}
                               </div>
                             </CardContent>
                           </Card>
