@@ -921,10 +921,25 @@ ${originalText}
         .map(seg => `${seg.speaker}: ${seg.text}`)
         .join('\n');
 
-      // Update transcription with cleaned segments and text
+      // Extract speakers from cleaned segments
+      const speakersMap = new Map();
+      const colors = ['hsl(220, 70%, 50%)', 'hsl(120, 70%, 50%)', 'hsl(0, 70%, 50%)', 'hsl(280, 70%, 50%)', 'hsl(30, 70%, 50%)', 'hsl(180, 70%, 50%)'];
+      
+      finalSegments.forEach((segment: any) => {
+        if (segment.speaker && !speakersMap.has(segment.speaker)) {
+          speakersMap.set(segment.speaker, {
+            id: segment.speaker,
+            label: segment.speaker,
+            color: colors[speakersMap.size % colors.length]
+          });
+        }
+      });
+
+      // Update transcription with cleaned segments, text, and speakers
       await storage.updateTranscription(transcriptionId, {
         segments: finalSegments,
-        transcriptText: cleanedTranscriptText
+        transcriptText: cleanedTranscriptText,
+        speakers: Array.from(speakersMap.values())
       });
 
       await AdminLogger.log({

@@ -458,7 +458,11 @@ export default function TranscriptionResultsPage() {
                             {selectedTranscription.originalName || selectedTranscription.filename}
                           </h3>
                           <p className="text-slate-600">
-                            識別到 <span className="font-medium">{selectedTranscription.speakers?.length || 0}</span> 位對話者
+                            識別到 <span className="font-medium">{
+                              selectedTranscription.speakers?.length || 
+                              (selectedTranscription.segments ? 
+                                new Set(selectedTranscription.segments.map((s: any) => s.speaker)).size : 0)
+                            }</span> 位對話者
                           </p>
                         </div>
                       </div>
