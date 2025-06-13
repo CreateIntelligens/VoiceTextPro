@@ -28,7 +28,7 @@ export default function TranscriptionResultsPage() {
   });
 
   // Query for selected transcription details
-  const { data: selectedTranscription } = useQuery<TranscriptionStatus>({
+  const { data: selectedTranscription, refetch: refetchSelected } = useQuery<TranscriptionStatus>({
     queryKey: [`/api/transcriptions/${selectedTranscriptionId}`],
     enabled: !!selectedTranscriptionId,
   });
@@ -268,8 +268,13 @@ export default function TranscriptionResultsPage() {
     try {
       const result = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-cleanup`, 'POST');
       
-      // Refresh the transcription data to show cleaned content
+      // Invalidate both the transcriptions list and the specific transcription
+      await queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcriptionId}`] });
+      
+      // Force refetch both queries to show cleaned segments immediately
       refetch();
+      refetchSelected();
       
       toast({
         title: "逐字稿整理完成",
