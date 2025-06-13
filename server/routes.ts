@@ -686,6 +686,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       const updateData = updateTranscriptionSchema.parse(req.body);
       
+      // If updating with segments, extract and create speakers array
+      if (updateData.segments && Array.isArray(updateData.segments)) {
+        const speakersMap = new Map();
+        const colors = ['hsl(220, 70%, 50%)', 'hsl(120, 70%, 50%)', 'hsl(0, 70%, 50%)', 'hsl(280, 70%, 50%)', 'hsl(30, 70%, 50%)', 'hsl(180, 70%, 50%)'];
+        
+        updateData.segments.forEach((segment: any) => {
+          if (segment.speaker && !speakersMap.has(segment.speaker)) {
+            speakersMap.set(segment.speaker, {
+              id: segment.speaker,
+              label: segment.speaker,
+              color: colors[speakersMap.size % colors.length]
+            });
+          }
+        });
+        
+        // Add speakers array to update data
+        if (speakersMap.size > 0) {
+          updateData.speakers = Array.from(speakersMap.values());
+        }
+      }
+      
       const updatedTranscription = await storage.updateTranscription(id, updateData);
       
       if (!updatedTranscription) {

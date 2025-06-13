@@ -268,17 +268,18 @@ def update_database_with_results(transcription_id, transcript_data):
                     skipped_count += 1
                     continue
                 
-                # Handle null or empty speaker labels
+                # Handle null or empty speaker labels - preserve original speaker ID
                 if speaker_label in ['None', 'null', '', 'UNKNOWN']:
-                    speaker_label = 'SPEAKER_UNKNOWN'
+                    speaker_label = f'SPEAKER_UNKNOWN_{i}'  # Make unique for each unknown speaker
                 
-                # Create consistent speaker mapping
+                # Create consistent speaker mapping with proper indexing
                 if speaker_label not in speaker_map:
                     speaker_map[speaker_label] = f"講者 {chr(65 + speaker_counter)}"
                     speaker_counter += 1
                 
                 speaker_name = speaker_map[speaker_label]
-                speaker_index = list(speaker_map.keys()).index(speaker_label)
+                # Use the speaker_counter-1 for consistent color indexing
+                speaker_index = speaker_counter - 1 if speaker_label in speaker_map else 0
                 speaker_color = get_speaker_color(speaker_index)
                 
                 # Create clean segment object
