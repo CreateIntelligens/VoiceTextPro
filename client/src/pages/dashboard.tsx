@@ -29,13 +29,6 @@ import {
 } from 'lucide-react';
 
 interface UsageStats {
-  assemblyai: {
-    totalTranscriptions: number;
-    totalAudioMinutes: number;
-    monthlyUsage: number;
-    remainingMinutes: number;
-    costEstimate: number;
-  };
   gemini: {
     totalRequests: number;
     totalTokens: number;
@@ -44,6 +37,8 @@ interface UsageStats {
     costEstimate: number;
   };
   system: {
+    totalTranscriptions: number;
+    totalAudioMinutes: number;
     totalStorageUsed: number;
     activeTranscriptions: number;
     completedTranscriptions: number;
@@ -141,7 +136,6 @@ export default function Dashboard() {
 
   if (!stats) return null;
 
-  const assemblyaiUsagePercent = Math.min(100, (stats.assemblyai.monthlyUsage / (500 * 60)) * 100);
   const geminiUsagePercent = Math.min(100, (stats.gemini.monthlyTokens / 1000000) * 100);
 
   const systemStatusData = [
@@ -168,7 +162,7 @@ export default function Dashboard() {
               <FileText className="w-4 h-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(stats.assemblyai.totalTranscriptions)}</div>
+              <div className="text-2xl font-bold">{formatNumber(stats.system.totalTranscriptions)}</div>
               <p className="text-xs text-gray-500">累計處理檔案</p>
             </CardContent>
           </Card>
@@ -180,7 +174,7 @@ export default function Dashboard() {
               <Clock className="w-4 h-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(stats.assemblyai.totalAudioMinutes)}</div>
+              <div className="text-2xl font-bold">{formatNumber(stats.system.totalAudioMinutes)}</div>
               <p className="text-xs text-gray-500">分鐘</p>
             </CardContent>
           </Card>
@@ -193,7 +187,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${(stats.assemblyai.costEstimate + stats.gemini.costEstimate).toFixed(2)}
+                ${stats.gemini.costEstimate.toFixed(2)}
               </div>
               <p className="text-xs text-gray-500">USD</p>
             </CardContent>
@@ -212,50 +206,14 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* API Usage Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* AssemblyAI Usage */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Zap className="w-5 h-5 mr-2 text-blue-600" />
-                AssemblyAI 使用狀況
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium">本月使用量</span>
-                  <Badge variant={assemblyaiUsagePercent > 80 ? "destructive" : "secondary"}>
-                    {assemblyaiUsagePercent.toFixed(1)}%
-                  </Badge>
-                </div>
-                <Progress value={assemblyaiUsagePercent} className="h-2" />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>{stats.assemblyai.monthlyUsage} 分鐘</span>
-                  <span>限額: 30,000 分鐘/月</span>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-600">剩餘時間</p>
-                  <p className="font-semibold">{formatNumber(stats.assemblyai.remainingMinutes)} 分鐘</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">本月成本</p>
-                  <p className="font-semibold">${stats.assemblyai.costEstimate.toFixed(2)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Gemini API Usage */}
+        {/* AI Usage Section */}
+        <div className="grid grid-cols-1 gap-6 mb-8">
+          {/* Gemini AI Usage */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
                 <TrendingUp className="w-5 h-5 mr-2 text-green-600" />
-                Gemini API 使用狀況
+                Gemini AI 使用狀況
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -273,7 +231,11 @@ export default function Dashboard() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">總請求數</p>
+                  <p className="font-semibold">{formatNumber(stats.gemini.totalRequests)}</p>
+                </div>
                 <div>
                   <p className="text-gray-600">剩餘 Tokens</p>
                   <p className="font-semibold">{formatNumber(stats.gemini.remainingTokens)}</p>
