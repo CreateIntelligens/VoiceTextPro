@@ -274,7 +274,7 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
               </div>
               <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">拖拽檔案至此處或點擊上傳</h3>
               <div className="text-sm sm:text-base text-slate-600 mb-4">
-                <p>支援 MP3、WAV、M4A 等格式</p>
+                <p>支援 MP3、WAV、M4A 等格式，使用AI智能轉錄</p>
                 {isAdmin ? (
                   <div className="flex items-center justify-center gap-2 mt-1">
                     <Badge variant="outline" className="text-blue-600 border-blue-300">
