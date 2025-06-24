@@ -19,13 +19,20 @@ export const transcriptions = pgTable("transcriptions", {
   duration: integer("duration"), // Audio duration in seconds
   wordCount: integer("word_count"),
   errorMessage: text("error_message"),
-  // Advanced features
-  summary: text("summary"), // Auto-generated summary
+  // Gemini AI Analysis Features
+  summary: text("summary"), // Meeting summary with key points
+  keyDecisions: jsonb("key_decisions"), // Important decisions made
+  actionItems: jsonb("action_items"), // Action items and tasks
+  speakerAnalysis: jsonb("speaker_analysis"), // Speaker identification and roles
+  sentimentAnalysis: jsonb("sentiment_analysis"), // Emotion and tone analysis
+  keyTopics: jsonb("key_topics"), // Extracted topics and themes
+  keywordExtraction: jsonb("keyword_extraction"), // Important keywords and phrases
+  meetingStructure: jsonb("meeting_structure"), // Meeting flow and structure
+  // Legacy fields (kept for compatibility)
   summaryType: text("summary_type"), // bullets, paragraph, headline
   autoHighlights: jsonb("auto_highlights"), // Key phrases and highlights
   autoChapters: jsonb("auto_chapters"), // Auto-generated chapters
   topicsDetection: jsonb("topics_detection"), // Detected topics and IAB categories
-  sentimentAnalysis: jsonb("sentiment_analysis"), // Sentiment analysis results
   entityDetection: jsonb("entity_detection"), // Named entities (persons, locations, etc.)
   contentSafety: jsonb("content_safety"), // Content moderation results
   // Recording metadata

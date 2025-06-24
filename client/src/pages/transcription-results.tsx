@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3, Edit2, Check, X, Wand2 } from "lucide-react";
+import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3, Edit2, Check, X, Wand2, BookOpen, UserCheck, Heart, Search, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { TranscriptionStatus } from "@/lib/types";
@@ -18,6 +18,7 @@ export default function TranscriptionResultsPage() {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [analysisType, setAnalysisType] = useState<string>('all');
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null);
   const [speakerEditValue, setSpeakerEditValue] = useState("");
   const { toast } = useToast();
