@@ -26,7 +26,7 @@ export default function ProcessingSection({ transcription, onCancel }: Processin
             </div>
             <div>
               <h3 className="text-lg font-semibold text-slate-900">正在處理您的音頻檔案</h3>
-              <p className="text-slate-600">使用 AssemblyAI 最佳語音模型進行轉錄...</p>
+              <p className="text-slate-600">使用 AI 智能語音模型進行轉錄...</p>
             </div>
           </div>
           {onCancel && (
