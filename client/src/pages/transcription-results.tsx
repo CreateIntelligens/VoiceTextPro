@@ -313,7 +313,7 @@ export default function TranscriptionResultsPage() {
       
       toast({
         title: "逐字稿整理完成",
-        description: "AI已成功整理並優化逐字稿內容",
+        description: "AI已成功整理並優化逐字稿內容，現有內容已被取代",
       });
     } catch (error) {
       console.error('AI cleanup error:', error);
@@ -343,8 +343,14 @@ export default function TranscriptionResultsPage() {
         speakers: updatedSpeakers
       });
 
-      // Refresh the transcription data
+      // Force refresh both transcriptions list and selected transcription
+      await queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcriptionId}`] });
+      
+      // Refetch data to ensure UI updates
       refetch();
+      refetchSelected();
+      
       setEditingSpeaker(null);
       setSpeakerEditValue("");
       

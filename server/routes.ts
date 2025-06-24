@@ -1237,8 +1237,22 @@ ${originalText}
       // Also update segments to reflect new speaker names
       if (transcription.segments) {
         const segments = JSON.parse(JSON.stringify(transcription.segments));
+        const oldSpeakers = transcription.speakers as any[];
+        
         const updatedSegments = segments.map((segment: any) => {
-          const speakerIndex = (transcription.speakers as string[])?.indexOf(segment.speaker);
+          // Find the speaker in the old speakers array
+          let speakerIndex = -1;
+          if (oldSpeakers) {
+            speakerIndex = oldSpeakers.findIndex((speaker: any) => {
+              if (typeof speaker === 'string') {
+                return speaker === segment.speaker;
+              } else {
+                return speaker.id === segment.speaker || speaker.label === segment.speaker;
+              }
+            });
+          }
+          
+          // Update the segment with the new speaker name
           if (speakerIndex !== -1 && speakerIndex < speakers.length) {
             return { ...segment, speaker: speakers[speakerIndex] };
           }
