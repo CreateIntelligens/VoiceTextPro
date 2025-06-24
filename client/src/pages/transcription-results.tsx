@@ -269,6 +269,35 @@ export default function TranscriptionResultsPage() {
     }
   };
 
+  const handleGeminiAnalysis = async (transcriptionId: number, analysisType: string) => {
+    setIsAnalyzing(true);
+    try {
+      const result = await apiRequest(`/api/transcriptions/${transcriptionId}/gemini-analysis`, 'POST', { analysisType });
+      
+      // Invalidate both the transcriptions list and the specific transcription
+      await queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcriptionId}`] });
+      
+      // Force refetch both queries to show analysis results immediately
+      refetch();
+      refetchSelected();
+      
+      toast({
+        title: "Gemini AI分析完成",
+        description: `${analysisType === 'all' ? '完整分析' : '特定分析'}已完成，請查看結果`,
+      });
+    } catch (error) {
+      console.error('Gemini analysis error:', error);
+      toast({
+        title: "Gemini分析失敗",
+        description: "無法完成AI分析，請稍後再試",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleAICleanup = async (transcriptionId: number) => {
     setIsCleaning(true);
     try {

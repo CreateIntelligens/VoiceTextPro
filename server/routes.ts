@@ -942,6 +942,243 @@ ${originalText}
         speakers: Array.from(speakersMap.values())
       });
 
+  });
+
+  // Comprehensive Gemini AI Analysis
+  app.post("/api/transcriptions/:id/gemini-analysis", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transcriptionId = parseInt(req.params.id);
+      const { analysisType } = req.body; // 'summary', 'speaker', 'sentiment', 'keywords', 'all'
+      
+      const transcription = await storage.getTranscription(transcriptionId);
+      
+      if (!transcription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+
+      if (transcription.status !== 'completed') {
+        return res.status(400).json({ message: "轉錄尚未完成，無法進行AI分析" });
+      }
+
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const segments = transcription.segments as any[];
+      const originalText = transcription.transcriptText || 
+        segments.map(seg => `${seg.speaker}: ${seg.text}`).join('\n');
+
+      let analysisResults: any = {};
+
+      // Meeting Summary and Key Points
+      if (analysisType === 'summary' || analysisType === 'all') {
+        const summaryPrompt = `
+請分析以下會議逐字稿，提煉出重要資訊。請用繁體中文回應，格式為JSON：
+
+${originalText}
+
+請提供以下分析：
+{
+  "meetingSummary": "會議整體摘要，包含主要討論內容",
+  "keyPoints": ["重點1", "重點2", "重點3"],
+  "keyDecisions": ["決議1", "決議2"],
+  "actionItems": [
+    {"task": "任務描述", "assignee": "負責人", "deadline": "期限"},
+    {"task": "任務描述", "assignee": "負責人", "deadline": "期限"}
+  ],
+  "meetingStructure": {
+    "openingTopic": "開場主題",
+    "mainDiscussions": ["討論點1", "討論點2"],
+    "conclusions": "結論"
+  }
+}
+
+請只回傳JSON格式，不要其他解釋。
+`;
+
+        try {
+          const summaryResult = await model.generateContent(summaryPrompt);
+          const summaryResponse = await summaryResult.response;
+          const summaryText = summaryResponse.text();
+          const summaryData = JSON.parse(summaryText.replace(/```json\n?|\n?```/g, ''));
+          
+          analysisResults = {
+            ...analysisResults,
+            summary: summaryData.meetingSummary,
+            keyDecisions: summaryData.keyDecisions,
+            actionItems: summaryData.actionItems,
+            meetingStructure: summaryData.meetingStructure,
+            keyPoints: summaryData.keyPoints
+          };
+        } catch (error) {
+          console.error("Summary analysis error:", error);
+        }
+      }
+
+      // Speaker Analysis
+      if (analysisType === 'speaker' || analysisType === 'all') {
+        const speakerPrompt = `
+請分析以下會議逐字稿中的講者特徵。請用繁體中文回應，格式為JSON：
+
+${originalText}
+
+請分析每位講者的特徵：
+{
+  "speakerAnalysis": {
+    "講者 A": {
+      "role": "角色推測（如：主持人、參與者、專家等）",
+      "speakingStyle": "說話風格描述",
+      "keyContributions": ["主要貢獻1", "主要貢獻2"],
+      "talkTime": "發言時間比例估計"
+    }
+  },
+  "speakerInteraction": "講者互動模式描述"
+}
+
+請只回傳JSON格式，不要其他解釋。
+`;
+
+        try {
+          const speakerResult = await model.generateContent(speakerPrompt);
+          const speakerResponse = await speakerResult.response;
+          const speakerText = speakerResponse.text();
+          const speakerData = JSON.parse(speakerText.replace(/```json\n?|\n?```/g, ''));
+          
+          analysisResults = {
+            ...analysisResults,
+            speakerAnalysis: speakerData.speakerAnalysis,
+            speakerInteraction: speakerData.speakerInteraction
+          };
+        } catch (error) {
+          console.error("Speaker analysis error:", error);
+        }
+      }
+
+      // Sentiment Analysis
+      if (analysisType === 'sentiment' || analysisType === 'all') {
+        const sentimentPrompt = `
+請分析以下會議逐字稿的情緒和語氣。請用繁體中文回應，格式為JSON：
+
+${originalText}
+
+請分析情緒和語氣：
+{
+  "overallSentiment": {
+    "tone": "整體語氣（正面/中性/負面）",
+    "mood": "會議氛圍描述",
+    "confidence": 0.85
+  },
+  "speakerSentiments": {
+    "講者 A": {
+      "dominantEmotion": "主要情緒",
+      "emotionalVariations": ["情緒變化1", "情緒變化2"],
+      "conflictLevel": "衝突程度（低/中/高）"
+    }
+  },
+  "emotionalHighlights": [
+    {"timeframe": "時間段", "emotion": "情緒", "description": "描述"}
+  ]
+}
+
+請只回傳JSON格式，不要其他解釋。
+`;
+
+        try {
+          const sentimentResult = await model.generateContent(sentimentPrompt);
+          const sentimentResponse = await sentimentResult.response;
+          const sentimentText = sentimentResponse.text();
+          const sentimentData = JSON.parse(sentimentText.replace(/```json\n?|\n?```/g, ''));
+          
+          analysisResults = {
+            ...analysisResults,
+            sentimentAnalysis: sentimentData
+          };
+        } catch (error) {
+          console.error("Sentiment analysis error:", error);
+        }
+      }
+
+      // Keyword Extraction
+      if (analysisType === 'keywords' || analysisType === 'all') {
+        const keywordPrompt = `
+請從以下會議逐字稿中提取關鍵資訊。請用繁體中文回應，格式為JSON：
+
+${originalText}
+
+請提取關鍵資訊：
+{
+  "keyTopics": [
+    {"topic": "主題名稱", "importance": "高/中/低", "mentions": 5}
+  ],
+  "keywordExtraction": {
+    "importantTerms": ["關鍵詞1", "關鍵詞2"],
+    "technicalTerms": ["技術詞彙1", "技術詞彙2"],
+    "peopleNames": ["人名1", "人名2"],
+    "organizationNames": ["組織名1", "組織名2"],
+    "locations": ["地點1", "地點2"],
+    "dates": ["日期1", "日期2"]
+  },
+  "topicProgression": [
+    {"sequence": 1, "topic": "開場主題", "duration": "估計時長"}
+  ]
+}
+
+請只回傳JSON格式，不要其他解釋。
+`;
+
+        try {
+          const keywordResult = await model.generateContent(keywordPrompt);
+          const keywordResponse = await keywordResult.response;
+          const keywordText = keywordResponse.text();
+          const keywordData = JSON.parse(keywordText.replace(/```json\n?|\n?```/g, ''));
+          
+          analysisResults = {
+            ...analysisResults,
+            keyTopics: keywordData.keyTopics,
+            keywordExtraction: keywordData.keywordExtraction,
+            topicProgression: keywordData.topicProgression
+          };
+        } catch (error) {
+          console.error("Keyword analysis error:", error);
+        }
+      }
+
+      // Update transcription with analysis results
+      await storage.updateTranscription(transcriptionId, analysisResults);
+
+      await AdminLogger.log({
+        category: 'ai_analysis',
+        action: 'gemini_analysis_completed',
+        description: `轉錄${transcriptionId}完成Gemini AI分析`,
+        details: {
+          transcriptionId,
+          analysisType,
+          analysisComponents: Object.keys(analysisResults)
+        }
+      });
+
+      res.json({
+        success: true,
+        message: "AI分析完成",
+        analysisType,
+        results: analysisResults,
+        transcription: await storage.getTranscription(transcriptionId)
+      });
+
+    } catch (error) {
+      console.error("Gemini analysis error:", error);
+      await AdminLogger.log({
+        category: 'ai_analysis',
+        action: 'gemini_analysis_error',
+        description: `轉錄${req.params.id} Gemini AI分析失敗`,
+        severity: 'high',
+        details: { error: (error as Error).message }
+      });
+      
+      res.status(500).json({ message: "AI分析失敗，請稍後再試" });
+    }
+  });
+
       await AdminLogger.log({
         category: 'ai_cleanup',
         action: 'transcript_cleanup_completed',
@@ -949,8 +1186,7 @@ ${originalText}
         details: {
           transcriptionId,
           originalSegments: segments.length,
-          cleanedSegments: cleanedSegments.length,
-          cleanedSuccessfully: cleanedSegments.filter(s => s.isAiCleaned).length
+          cleanedSegments: cleanedSegments.length
         }
       });
 
