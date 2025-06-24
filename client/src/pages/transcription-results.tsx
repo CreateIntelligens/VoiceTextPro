@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3, Edit2, Check, X, Wand2, BookOpen, UserCheck, Heart, Search, Settings } from "lucide-react";
+import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3, Edit2, Check, X, Wand2, BookOpen, UserCheck, Heart, Search, Settings, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { TranscriptionStatus } from "@/lib/types";
@@ -1128,21 +1128,21 @@ export default function TranscriptionResultsPage() {
                             <div className="space-y-3 text-sm">
                               <div className="bg-white rounded p-3">
                                 <span className="font-medium text-slate-700">發言特點：</span>
-                                <p className="text-slate-600 mt-1">{analysis.發言特點}</p>
+                                <p className="text-slate-600 mt-1">{analysis.發言特點 || analysis.characteristics}</p>
                               </div>
                               <div className="bg-white rounded p-3">
                                 <span className="font-medium text-slate-700">參與度：</span>
                                 <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium ${
-                                  analysis.參與度 === '高' ? 'bg-green-100 text-green-800' : 
-                                  analysis.參與度 === '中' ? 'bg-yellow-100 text-yellow-800' : 
+                                  (analysis.參與度 || analysis.participation) === '高' ? 'bg-green-100 text-green-800' : 
+                                  (analysis.參與度 || analysis.participation) === '中' ? 'bg-yellow-100 text-yellow-800' : 
                                   'bg-red-100 text-red-800'
                                 }`}>
-                                  {analysis.參與度}
+                                  {analysis.參與度 || analysis.participation}
                                 </span>
                               </div>
                               <div className="bg-white rounded p-3">
                                 <span className="font-medium text-slate-700">主要觀點：</span>
-                                <p className="text-slate-600 mt-1">{analysis.主要觀點}</p>
+                                <p className="text-slate-600 mt-1">{analysis.主要觀點 || analysis.mainPoints}</p>
                               </div>
                             </div>
                           </div>
