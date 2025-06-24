@@ -174,14 +174,13 @@ ${cleanedText}
   }
 
   async analyzeTranscription(transcription: Transcription): Promise<AnalysisResult> {
-    if (!transcription.segments) {
-      throw new Error('Transcription must have segments data');
-    }
-    
-    // Extract segments data
+    // Check if we have either segments or transcript text
     const segments = transcription.segments as any[];
-    if (!Array.isArray(segments) || segments.length === 0) {
-      throw new Error('No valid segments found in transcription');
+    const hasValidSegments = Array.isArray(segments) && segments.length > 0;
+    const hasTranscriptText = transcription.transcriptText && transcription.transcriptText.trim().length > 0;
+    
+    if (!hasValidSegments && !hasTranscriptText) {
+      throw new Error('No valid content found for analysis - missing both segments and transcript text');
     }
 
     const prompt = this.buildAnalysisPrompt(transcription);
@@ -199,36 +198,45 @@ ${cleanedText}
   }
 
   private buildAnalysisPrompt(transcription: Transcription): string {
-    // Extract segments data
+    // Check if we have segments or just transcript text
     const segments = transcription.segments as any[];
-    if (!Array.isArray(segments)) {
-      throw new Error('Segments data is not in array format');
+    const hasValidSegments = Array.isArray(segments) && segments.length > 0;
+    
+    let conversationText = '';
+    let speakerList = '';
+    
+    if (hasValidSegments) {
+      // Extract unique speakers from segments
+      const speakersSet = new Set<string>();
+      segments.forEach((segment: any) => {
+        if (segment.speaker) {
+          speakersSet.add(segment.speaker);
+        }
+      });
+      const speakers = Array.from(speakersSet);
+
+      speakerList = speakers
+        .map((speaker: string, index: number) => `- ${speaker}`)
+        .join('\n');
+
+      conversationText = segments
+        .map((segment: any) => {
+          // Handle both old and new segment formats
+          const startTime = segment.start || segment.timestamp || 0;
+          const timeInMinutes = Math.floor(startTime / 60000);
+          const timeInSeconds = Math.floor((startTime % 60000) / 1000);
+          const timeFormat = `${timeInMinutes}:${timeInSeconds.toString().padStart(2, '0')}`;
+          
+          return `[${timeFormat}] ${segment.speaker}: ${segment.text}`;
+        })
+        .join('\n');
+    } else if (transcription.transcriptText) {
+      // Use transcript text if segments are not available
+      conversationText = transcription.transcriptText;
+      speakerList = '- 說話者（未識別）';
+    } else {
+      throw new Error('No valid content found for analysis');
     }
-
-    // Extract unique speakers from segments
-    const speakersSet = new Set<string>();
-    segments.forEach((segment: any) => {
-      if (segment.speaker) {
-        speakersSet.add(segment.speaker);
-      }
-    });
-    const speakers = Array.from(speakersSet);
-
-    const speakerList = speakers
-      .map((speaker: string, index: number) => `- ${speaker}`)
-      .join('\n');
-
-    const conversationText = segments
-      .map((segment: any) => {
-        // Handle both old and new segment formats
-        const startTime = segment.start || segment.timestamp || 0;
-        const timeInMinutes = Math.floor(startTime / 60000);
-        const timeInSeconds = Math.floor((startTime % 60000) / 1000);
-        const timeFormat = `${timeInMinutes}:${timeInSeconds.toString().padStart(2, '0')}`;
-        
-        return `[${timeFormat}] ${segment.speaker}: ${segment.text}`;
-      })
-      .join('\n');
 
     return `
 請分析以下會議轉錄內容，並提供詳細的分析報告。請用繁體中文回覆。
