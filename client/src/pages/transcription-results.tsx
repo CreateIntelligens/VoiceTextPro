@@ -21,6 +21,8 @@ export default function TranscriptionResultsPage() {
   const [analysisType, setAnalysisType] = useState<string>('all');
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null);
   const [speakerEditValue, setSpeakerEditValue] = useState("");
+  const [showAnalysisResults, setShowAnalysisResults] = useState(false);
+  const [analysisData, setAnalysisData] = useState<any>(null);
   const { toast } = useToast();
 
   // Query for all transcriptions - no automatic polling to prevent infinite API calls
@@ -252,6 +254,15 @@ export default function TranscriptionResultsPage() {
       // Force refetch both queries to show analysis results immediately
       refetch();
       refetchSelected();
+      
+      // Get the updated transcription data with analysis results
+      const updatedTranscription = await apiRequest(`/api/transcriptions/${transcriptionId}`, 'GET');
+      
+      // Show analysis results in modal
+      if (updatedTranscription.entityDetection) {
+        setAnalysisData(updatedTranscription.entityDetection);
+        setShowAnalysisResults(true);
+      }
       
       toast({
         title: "AI分析完成",
@@ -1054,6 +1065,114 @@ export default function TranscriptionResultsPage() {
           </div>
         </div>
       </div>
+
+      {/* AI Analysis Results Modal */}
+      {showAnalysisResults && analysisData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-slate-900 flex items-center">
+                  <Brain className="w-6 h-6 mr-2 text-blue-600" />
+                  AI 智能分析結果
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAnalysisResults(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Action Items */}
+                {analysisData.actionItems && analysisData.actionItems.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-lg">
+                        <Target className="w-5 h-5 mr-2 text-red-600" />
+                        行動項目 ({analysisData.actionItems.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {analysisData.actionItems.map((item: string, index: number) => (
+                          <div key={index} className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
+                            <CheckCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                            <p className="text-slate-700 leading-relaxed">{item}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Speaker Analysis */}
+                {analysisData.speakerAnalysis && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-lg">
+                        <Users className="w-5 h-5 mr-2 text-blue-600" />
+                        講者分析 ({Object.keys(analysisData.speakerAnalysis).length} 位講者)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {Object.entries(analysisData.speakerAnalysis).map(([speaker, analysis]: [string, any]) => (
+                          <div key={speaker} className="border rounded-lg p-4 bg-blue-50">
+                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center">
+                              <User className="w-4 h-4 mr-2" />
+                              {speaker}
+                            </h4>
+                            <div className="space-y-3 text-sm">
+                              <div className="bg-white rounded p-3">
+                                <span className="font-medium text-slate-700">發言特點：</span>
+                                <p className="text-slate-600 mt-1">{analysis.發言特點}</p>
+                              </div>
+                              <div className="bg-white rounded p-3">
+                                <span className="font-medium text-slate-700">參與度：</span>
+                                <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium ${
+                                  analysis.參與度 === '高' ? 'bg-green-100 text-green-800' : 
+                                  analysis.參與度 === '中' ? 'bg-yellow-100 text-yellow-800' : 
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {analysis.參與度}
+                                </span>
+                              </div>
+                              <div className="bg-white rounded p-3">
+                                <span className="font-medium text-slate-700">主要觀點：</span>
+                                <p className="text-slate-600 mt-1">{analysis.主要觀點}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Summary Information */}
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <div className="flex items-center text-sm text-slate-600">
+                    <Brain className="w-4 h-4 mr-2" />
+                    分析由 AI 智能語音模型 生成，結果僅供參考
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6 pt-4 border-t">
+                <Button 
+                  onClick={() => setShowAnalysisResults(false)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  關閉分析結果
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
