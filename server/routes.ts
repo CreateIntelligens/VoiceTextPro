@@ -942,6 +942,36 @@ ${originalText}
         speakers: Array.from(speakersMap.values())
       });
 
+      await AdminLogger.log({
+        category: 'ai_cleanup',
+        action: 'transcript_cleanup_completed',
+        description: `轉錄${transcriptionId}完成AI逐字稿整理`,
+        details: {
+          transcriptionId,
+          originalSegments: segments.length,
+          cleanedSegments: cleanedSegments.length
+        }
+      });
+
+      res.json({
+        success: true,
+        message: "逐字稿整理完成",
+        cleanedSegments: cleanedSegments.length,
+        transcription: await storage.getTranscription(transcriptionId)
+      });
+
+    } catch (error) {
+      console.error("AI cleanup error:", error);
+      await AdminLogger.log({
+        category: 'ai_cleanup',
+        action: 'transcript_cleanup_error',
+        description: `轉錄${req.params.id}AI逐字稿整理失敗`,
+        severity: 'high',
+        details: { error: (error as Error).message }
+      });
+      
+      res.status(500).json({ message: "逐字稿整理失敗，請稍後再試" });
+    }
   });
 
   // Comprehensive Gemini AI Analysis
@@ -1176,38 +1206,6 @@ ${originalText}
       });
       
       res.status(500).json({ message: "AI分析失敗，請稍後再試" });
-    }
-  });
-
-      await AdminLogger.log({
-        category: 'ai_cleanup',
-        action: 'transcript_cleanup_completed',
-        description: `轉錄${transcriptionId}完成AI逐字稿整理`,
-        details: {
-          transcriptionId,
-          originalSegments: segments.length,
-          cleanedSegments: cleanedSegments.length
-        }
-      });
-
-      res.json({
-        success: true,
-        message: "逐字稿整理完成",
-        cleanedSegments: cleanedSegments.length,
-        transcription: await storage.getTranscription(transcriptionId)
-      });
-
-    } catch (error) {
-      console.error("AI cleanup error:", error);
-      await AdminLogger.log({
-        category: 'ai_cleanup',
-        action: 'transcript_cleanup_error',
-        description: `轉錄${req.params.id}AI逐字稿整理失敗`,
-        severity: 'high',
-        details: { error: error.message }
-      });
-      
-      res.status(500).json({ message: "逐字稿整理失敗，請稍後再試" });
     }
   });
 
