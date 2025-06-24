@@ -3,13 +3,6 @@ import { transcriptions } from '@shared/schema';
 import { count, sql } from 'drizzle-orm';
 
 interface UsageStats {
-  assemblyai: {
-    totalTranscriptions: number;
-    totalAudioMinutes: number;
-    monthlyUsage: number;
-    remainingMinutes?: number;
-    costEstimate: number;
-  };
   gemini: {
     totalRequests: number;
     totalTokens: number;
@@ -18,6 +11,8 @@ interface UsageStats {
     costEstimate: number;
   };
   system: {
+    totalTranscriptions: number;
+    totalAudioMinutes: number;
     totalStorageUsed: number;
     activeTranscriptions: number;
     completedTranscriptions: number;
@@ -26,9 +21,7 @@ interface UsageStats {
 }
 
 export class UsageTracker {
-  private static readonly ASSEMBLYAI_COST_PER_HOUR = 0.37; // USD per hour
   private static readonly GEMINI_COST_PER_1M_TOKENS = 1.5; // USD per 1M tokens
-  private static readonly ASSEMBLYAI_MONTHLY_LIMIT = 500; // hours per month
   private static readonly GEMINI_MONTHLY_LIMIT = 1000000; // tokens per month
 
   async getUsageStats(): Promise<UsageStats> {

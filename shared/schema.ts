@@ -21,7 +21,6 @@ export const transcriptions = pgTable("transcriptions", {
   errorMessage: text("error_message"),
   // Gemini AI Analysis Features
   summary: text("summary"), // Meeting summary with key points
-  keyDecisions: jsonb("key_decisions"), // Important decisions made
   actionItems: jsonb("action_items"), // Action items and tasks
   speakerAnalysis: jsonb("speaker_analysis"), // Speaker identification and roles
   sentimentAnalysis: jsonb("sentiment_analysis"), // Emotion and tone analysis
