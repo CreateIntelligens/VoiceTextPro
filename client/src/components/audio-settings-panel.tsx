@@ -101,14 +101,13 @@ export default function AudioSettingsPanel({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="icon"
           disabled={isRecording}
-          className="gap-2"
+          className="h-12 w-12 rounded-xl shrink-0"
         >
-          <Settings className="h-4 w-4" />
-          音頻設定
+          <Settings className="h-5 w-5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

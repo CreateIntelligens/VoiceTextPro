@@ -143,7 +143,7 @@ export default function TranscriptionPage() {
   console.log('Status:', actualTranscription?.status);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-8">
           {/* Left sidebar - Transcription list */}
@@ -197,34 +197,34 @@ export default function TranscriptionPage() {
 
         {/* Features Section */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-8 sm:mt-12">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-center">
+          <div className="bg-card rounded-xl p-6 shadow-sm border border-border text-center">
             <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
               <Languages className="w-6 h-6 text-white" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">繁體中文支援</h3>
-            <p className="text-slate-600">專門優化的繁體中文語音識別，提供最高品質的轉錄效果</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">繁體中文支援</h3>
+            <p className="text-muted-foreground">專門優化的繁體中文語音識別，提供最高品質的轉錄效果</p>
           </div>
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-center">
+          <div className="bg-card rounded-xl p-6 shadow-sm border border-border text-center">
             <div className="w-12 h-12 bg-success rounded-full flex items-center justify-center mx-auto mb-4">
               <Users className="w-6 h-6 text-white" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">多人對話識別</h3>
-            <p className="text-slate-600">自動識別不同對話者，清楚標示每位講者的發言內容</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">多人對話識別</h3>
+            <p className="text-muted-foreground">自動識別不同對話者，清楚標示每位講者的發言內容</p>
           </div>
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-center">
+          <div className="bg-card rounded-xl p-6 shadow-sm border border-border text-center">
             <div className="w-12 h-12 bg-warning rounded-full flex items-center justify-center mx-auto mb-4">
               <Zap className="w-6 h-6 text-white" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">快速準確</h3>
-            <p className="text-slate-600">採用 AssemblyAI 最佳模型，確保轉錄速度快且準確度高</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">快速準確</h3>
+            <p className="text-muted-foreground">採用 AssemblyAI 最佳模型，確保轉錄速度快且準確度高</p>
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-16">
+      <footer className="bg-card border-t border-border mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center text-slate-600">
+          <div className="text-center text-muted-foreground">
             <p>&copy; 2024 語音轉文字平台. 由 AssemblyAI 技術驅動</p>
           </div>
         </div>

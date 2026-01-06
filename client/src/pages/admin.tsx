@@ -1,22 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { AdminLogs } from '@/components/admin-logs';
-import { 
-  Users, 
-  UserPlus, 
-  Check, 
-  X, 
-  Clock, 
-  Mail, 
+import {
+  Users,
+  UserPlus,
+  Check,
+  X,
+  Clock,
+  Mail,
   Calendar,
   Shield,
   AlertTriangle,
@@ -24,11 +21,34 @@ import {
   FileAudio,
   Trash2,
   Eye,
-  Download,
   Edit,
-  UserCog,
-  Crown
+  Crown,
+  Loader2,
+  Settings,
+  Gauge,
+  Save
 } from 'lucide-react';
+
+interface DefaultLimits {
+  weeklyAudioMinutes: number;
+  monthlyAudioMinutes: number;
+  dailyTranscriptionCount: number;
+  weeklyTranscriptionCount: number;
+  maxFileSizeMb: number;
+  totalStorageMb: number;
+}
+
+interface UserUsage {
+  daily: { transcriptionCount: number; limit: number; percentage: number };
+  weekly: {
+    audioMinutes: number;
+    transcriptionCount: number;
+    limits: { audioMinutes: number; transcriptionCount: number };
+    percentage: { audioMinutes: number; transcriptionCount: number };
+  };
+  monthly: { audioMinutes: number; limit: number; percentage: number };
+  storage: { usedMb: number; limitMb: number; percentage: number };
+}
 
 interface Application {
   id: number;
@@ -84,14 +104,175 @@ export default function Admin() {
   const [newUserRole, setNewUserRole] = useState('user');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [creatingUser, setCreatingUser] = useState(false);
+  const [activeTab, setActiveTab] = useState<'applications' | 'users' | 'transcriptions' | 'logs' | 'settings'>('applications');
   const { toast } = useToast();
+
+  // Settings State
+  const [registrationMode, setRegistrationMode] = useState<'open' | 'application'>('application');
+  const [defaultLimits, setDefaultLimits] = useState<DefaultLimits>({
+    weeklyAudioMinutes: 300,
+    monthlyAudioMinutes: 1000,
+    dailyTranscriptionCount: 10,
+    weeklyTranscriptionCount: 50,
+    maxFileSizeMb: 500,
+    totalStorageMb: 5000
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [selectedUserForLimits, setSelectedUserForLimits] = useState<User | null>(null);
+  const [userLimitsDialog, setUserLimitsDialog] = useState(false);
+  const [userLimits, setUserLimits] = useState<DefaultLimits | null>(null);
+  const [userUsage, setUserUsage] = useState<UserUsage | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && user?.role === 'admin') {
       fetchData();
       fetchTranscriptions();
+      fetchSettings();
     }
   }, [isAuthenticated, user]);
+
+  const fetchSettings = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const [modeRes, limitsRes] = await Promise.all([
+        fetch('/api/admin/settings/registration-mode', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch('/api/admin/default-limits', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+
+      if (modeRes.ok) {
+        const modeData = await modeRes.json();
+        setRegistrationMode(modeData.mode);
+      }
+
+      if (limitsRes.ok) {
+        const limitsData = await limitsRes.json();
+        setDefaultLimits(limitsData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch settings:', error);
+    }
+  };
+
+  const saveRegistrationMode = async (mode: 'open' | 'application') => {
+    setSavingSettings(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/admin/settings/registration-mode', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+
+      if (response.ok) {
+        setRegistrationMode(mode);
+        toast({ title: "設定已儲存", description: `註冊模式已切換為${mode === 'open' ? '開放註冊' : '申請制'}` });
+      }
+    } catch (error) {
+      toast({ title: "儲存失敗", variant: "destructive" });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const saveDefaultLimits = async () => {
+    setSavingSettings(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/admin/default-limits', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(defaultLimits)
+      });
+
+      if (response.ok) {
+        toast({ title: "設定已儲存", description: "預設限制已更新" });
+      }
+    } catch (error) {
+      toast({ title: "儲存失敗", variant: "destructive" });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const openUserLimitsDialog = async (u: User) => {
+    setSelectedUserForLimits(u);
+    setUserLimitsDialog(true);
+    setUserLimits(null);
+    setUserUsage(null);
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const [limitsRes, usageRes] = await Promise.all([
+        fetch(`/api/admin/users/${u.id}/limits`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`/api/admin/users/${u.id}/usage`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+
+      if (limitsRes.ok) {
+        const data = await limitsRes.json();
+        setUserLimits(data);
+      }
+
+      if (usageRes.ok) {
+        const data = await usageRes.json();
+        setUserUsage(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user limits:', error);
+    }
+  };
+
+  const saveUserLimits = async () => {
+    if (!selectedUserForLimits || !userLimits) return;
+
+    setSavingSettings(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/admin/users/${selectedUserForLimits.id}/limits`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limits: userLimits })
+      });
+
+      if (response.ok) {
+        toast({ title: "用戶限制已更新" });
+        setUserLimitsDialog(false);
+      }
+    } catch (error) {
+      toast({ title: "儲存失敗", variant: "destructive" });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const resetUserLimits = async () => {
+    if (!selectedUserForLimits) return;
+
+    setSavingSettings(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/admin/users/${selectedUserForLimits.id}/limits`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        toast({ title: "已恢復預設限制" });
+        setUserLimitsDialog(false);
+      }
+    } catch (error) {
+      toast({ title: "操作失敗", variant: "destructive" });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -115,11 +296,7 @@ export default function Admin() {
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
-      toast({
-        title: "載入失敗",
-        description: "無法載入管理數據",
-        variant: "destructive",
-      });
+      toast({ title: "載入失敗", description: "無法載入管理數據", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -135,16 +312,9 @@ export default function Admin() {
       if (response.ok) {
         const data = await response.json();
         setTranscriptions(data);
-      } else {
-        throw new Error('Failed to fetch transcriptions');
       }
     } catch (error) {
       console.error('Failed to fetch transcriptions:', error);
-      toast({
-        title: "載入失敗",
-        description: "無法載入轉錄資料",
-        variant: "destructive",
-      });
     } finally {
       setTranscriptionsLoading(false);
     }
@@ -155,30 +325,17 @@ export default function Admin() {
       const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
 
       if (response.ok) {
         await fetchData();
         setEditingUser(null);
-        toast({
-          title: "更新成功",
-          description: "用戶資訊已更新",
-        });
-      } else {
-        throw new Error('Failed to update user');
+        toast({ title: "更新成功", description: "用戶資訊已更新" });
       }
     } catch (error) {
-      console.error('Failed to update user:', error);
-      toast({
-        title: "更新失敗",
-        description: "無法更新用戶資訊",
-        variant: "destructive",
-      });
+      toast({ title: "更新失敗", description: "無法更新用戶資訊", variant: "destructive" });
     }
   };
 
@@ -193,42 +350,16 @@ export default function Admin() {
       if (response.ok) {
         await fetchData();
         setShowDeleteDialog(null);
-        toast({
-          title: "刪除成功",
-          description: "用戶已被刪除",
-        });
-      } else {
-        throw new Error('Failed to delete user');
+        toast({ title: "刪除成功", description: "用戶已被刪除" });
       }
     } catch (error) {
-      console.error('Failed to delete user:', error);
-      toast({
-        title: "刪除失敗",
-        description: "無法刪除用戶",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRoleChange = (role: string) => {
-    if (editingUser) {
-      handleEditUser(editingUser.id, { role });
-    }
-  };
-
-  const handleStatusChange = (status: string) => {
-    if (editingUser) {
-      handleEditUser(editingUser.id, { status });
+      toast({ title: "刪除失敗", description: "無法刪除用戶", variant: "destructive" });
     }
   };
 
   const handleApproveApplication = async (applicationId: number) => {
     if (!newPassword) {
-      toast({
-        title: "密碼不能為空",
-        description: "請為新用戶設定密碼",
-        variant: "destructive",
-      });
+      toast({ title: "密碼不能為空", description: "請為新用戶設定密碼", variant: "destructive" });
       return;
     }
 
@@ -237,30 +368,17 @@ export default function Admin() {
       const token = localStorage.getItem('auth_token');
       const response = await fetch(`/api/admin/applications/${applicationId}/approve`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: newPassword })
       });
 
       if (response.ok) {
-        toast({
-          title: "帳號已開通",
-          description: "用戶帳號已成功創建",
-        });
+        toast({ title: "帳號已開通", description: "用戶帳號已成功創建" });
         setNewPassword('');
         fetchData();
-      } else {
-        const error = await response.json();
-        throw new Error(error.message);
       }
     } catch (error) {
-      toast({
-        title: "開通失敗",
-        description: error instanceof Error ? error.message : "無法開通帳號",
-        variant: "destructive",
-      });
+      toast({ title: "開通失敗", variant: "destructive" });
     } finally {
       setProcessingId(null);
     }
@@ -276,21 +394,11 @@ export default function Admin() {
       });
 
       if (response.ok) {
-        toast({
-          title: "申請已拒絕",
-          description: "申請已被拒絕",
-        });
+        toast({ title: "申請已拒絕" });
         fetchData();
-      } else {
-        const error = await response.json();
-        throw new Error(error.message);
       }
     } catch (error) {
-      toast({
-        title: "操作失敗",
-        description: error instanceof Error ? error.message : "無法拒絕申請",
-        variant: "destructive",
-      });
+      toast({ title: "操作失敗", variant: "destructive" });
     } finally {
       setProcessingId(null);
     }
@@ -298,11 +406,7 @@ export default function Admin() {
 
   const handleCreateUser = async () => {
     if (!newUserEmail || !newUserName) {
-      toast({
-        title: "輸入錯誤",
-        description: "請填寫所有必填欄位",
-        variant: "destructive",
-      });
+      toast({ title: "請填寫所有必填欄位", variant: "destructive" });
       return;
     }
 
@@ -311,10 +415,7 @@ export default function Admin() {
       const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/admin/create-user', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: newUserEmail,
           name: newUserName,
@@ -327,9 +428,7 @@ export default function Admin() {
         const result = await response.json();
         toast({
           title: "用戶創建成功",
-          description: result.temporaryPassword 
-            ? `帳號已創建，臨時密碼：${result.temporaryPassword}` 
-            : "用戶帳號已成功創建",
+          description: result.temporaryPassword ? `臨時密碼：${result.temporaryPassword}` : "帳號已創建"
         });
         setShowCreateUserDialog(false);
         setNewUserEmail('');
@@ -337,61 +436,30 @@ export default function Admin() {
         setNewUserRole('user');
         setNewUserPassword('');
         fetchData();
-      } else {
-        const error = await response.json();
-        throw new Error(error.message);
       }
     } catch (error) {
-      toast({
-        title: "創建失敗",
-        description: error instanceof Error ? error.message : "無法創建用戶帳號",
-        variant: "destructive",
-      });
+      toast({ title: "創建失敗", variant: "destructive" });
     } finally {
       setCreatingUser(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" />待處理</Badge>;
-      case 'approved':
-        return <Badge className="bg-green-600"><Check className="w-3 h-3 mr-1" />已批准</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive"><X className="w-3 h-3 mr-1" />已拒絕</Badge>;
-      case 'active':
-        return <Badge className="bg-green-600">啟用</Badge>;
-      case 'suspended':
-        return <Badge variant="destructive">停用</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
   if (!isAuthenticated || user?.role !== 'admin') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-96">
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <Shield className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">存取被拒絕</h3>
-              <p className="text-gray-600">您沒有權限存取此頁面</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center">
+          <Shield className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">存取被拒絕</h3>
+          <p className="text-sm text-muted-foreground">您沒有權限存取此頁面</p>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">載入管理面板...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -399,562 +467,485 @@ export default function Admin() {
   const pendingApplications = applications.filter(app => app.status === 'pending');
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">管理員面板</h1>
-          <p className="text-sm sm:text-base text-gray-600">管理用戶帳號、申請和系統日誌</p>
+    <div className="min-h-screen bg-background pb-24">
+      {/* Header */}
+      <header className="pt-6 pb-4 px-4">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-2xl font-semibold text-foreground">管理員面板</h1>
+          <p className="text-sm text-muted-foreground mt-1">用戶管理和系統設定</p>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4">
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-3 mb-6">
+          <div className="p-3 rounded-xl bg-card/50 border border-border/50 text-center">
+            <div className="text-xl font-semibold text-amber-500">{pendingApplications.length}</div>
+            <p className="text-[10px] text-muted-foreground">待處理</p>
+          </div>
+          <div className="p-3 rounded-xl bg-card/50 border border-border/50 text-center">
+            <div className="text-xl font-semibold text-primary">{users.length}</div>
+            <p className="text-[10px] text-muted-foreground">用戶數</p>
+          </div>
+          <div className="p-3 rounded-xl bg-card/50 border border-border/50 text-center">
+            <div className="text-xl font-semibold text-emerald-500">{users.filter(u => u.status === 'active').length}</div>
+            <p className="text-[10px] text-muted-foreground">啟用</p>
+          </div>
+          <div className="p-3 rounded-xl bg-card/50 border border-border/50 text-center">
+            <div className="text-xl font-semibold text-secondary">{users.filter(u => u.role === 'admin').length}</div>
+            <p className="text-[10px] text-muted-foreground">管理員</p>
+          </div>
         </div>
 
-        <Tabs defaultValue="applications" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="applications" className="flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
-              申請管理
-            </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              用戶管理
-            </TabsTrigger>
-            <TabsTrigger value="transcriptions" className="flex items-center gap-2">
-              <FileAudio className="w-4 h-4" />
-              轉錄管理
-            </TabsTrigger>
-            <TabsTrigger value="logs" className="flex items-center gap-2">
-              <Bug className="w-4 h-4" />
-              系統日誌
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="applications" className="mt-6">
-            {/* Statistics */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-              <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">待處理申請</CardTitle>
-              <AlertTriangle className="w-4 h-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{pendingApplications.length}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">總用戶數</CardTitle>
-              <Users className="w-4 h-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{users.length}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">啟用用戶</CardTitle>
-              <UserPlus className="w-4 h-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {users.filter(u => u.status === 'active').length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">管理員</CardTitle>
-              <Shield className="w-4 h-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {users.filter(u => u.role === 'admin').length}
-              </div>
-            </CardContent>
-          </Card>
+        {/* Tabs */}
+        <div className="flex p-1 mb-4 bg-muted/30 rounded-xl overflow-x-auto">
+          {(['applications', 'users', 'transcriptions', 'logs', 'settings'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                activeTab === tab
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab === 'applications' ? '申請' : tab === 'users' ? '用戶' : tab === 'transcriptions' ? '資料' : tab === 'logs' ? '日誌' : '設定'}
+            </button>
+          ))}
         </div>
 
-        {/* Pending Applications */}
-        {pendingApplications.length > 0 && (
-          <Card className="mb-6 sm:mb-8">
-            <CardHeader className="px-4 sm:px-6">
-              <CardTitle className="flex items-center text-lg sm:text-xl">
-                <UserPlus className="w-5 h-5 mr-2 text-orange-600" />
-                待處理申請 ({pendingApplications.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 sm:px-6">
-              <div className="space-y-4">
-                {pendingApplications.map((application) => (
-                  <div key={application.id} className="border rounded-lg p-3 sm:p-4 bg-white">
-                    <div className="space-y-3 sm:space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center mb-2">
-                        <div className="flex items-center mb-2 sm:mb-0">
-                          <Mail className="w-4 h-4 text-gray-400 mr-2" />
-                          <span className="font-medium text-sm sm:text-base break-all">{application.email}</span>
-                        </div>
-                        {application.name && (
-                          <span className="text-gray-500 text-sm sm:ml-2">({application.name})</span>
-                        )}
+        {/* Applications Tab */}
+        {activeTab === 'applications' && (
+          <div className="space-y-4">
+            {pendingApplications.length > 0 ? (
+              pendingApplications.map((app) => (
+                <div key={app.id} className="p-4 rounded-xl bg-card/50 border border-border/50">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">{app.email}</span>
                       </div>
-                      
-                      <div className="flex items-center text-xs sm:text-sm text-gray-500">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        申請時間：{new Date(application.appliedAt).toLocaleString('zh-TW')}
-                      </div>
-                      
-                      {application.reason && (
-                        <div className="bg-gray-50 p-3 rounded">
-                          <p className="text-xs sm:text-sm"><strong>申請理由：</strong>{application.reason}</p>
-                        </div>
-                      )}
-                      
-                      <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-                        <Input
-                          type="password"
-                          placeholder="為新用戶設定密碼"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full sm:max-w-xs"
-                        />
-                        <div className="flex space-x-2">
-                          <Button
-                            onClick={() => handleApproveApplication(application.id)}
-                            disabled={processingId === application.id || !newPassword}
-                            className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
-                            size="sm"
-                          >
-                            {processingId === application.id ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                            ) : (
-                              <Check className="w-4 h-4 mr-2" />
-                            )}
-                            批准
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => handleRejectApplication(application.id)}
-                            disabled={processingId === application.id}
-                            className="flex-1 sm:flex-none"
-                            size="sm"
-                          >
-                            <X className="w-4 h-4 mr-2" />
-                            拒絕
-                          </Button>
-                        </div>
-                      </div>
+                      {app.name && <p className="text-xs text-muted-foreground mt-1">{app.name}</p>}
                     </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(app.appliedAt).toLocaleDateString('zh-TW')}
+                    </span>
                   </div>
-                ))}
+
+                  {app.reason && (
+                    <p className="text-xs text-muted-foreground p-2 rounded-lg bg-muted/30 mb-3">
+                      {app.reason}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="password"
+                      placeholder="設定密碼"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="flex-1 h-8 text-xs rounded-lg"
+                    />
+                    <Button
+                      onClick={() => handleApproveApplication(app.id)}
+                      disabled={processingId === app.id || !newPassword}
+                      size="sm"
+                      className="h-8 rounded-lg bg-emerald-500 hover:bg-emerald-600"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleRejectApplication(app.id)}
+                      disabled={processingId === app.id}
+                      size="sm"
+                      className="h-8 rounded-lg"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 text-center">
+                <UserPlus className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">沒有待處理的申請</p>
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         )}
 
-            {/* Users List */}
-            <Card>
-              <CardHeader className="px-4 sm:px-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
-                  <CardTitle className="flex items-center text-lg sm:text-xl">
-                    <Users className="w-5 h-5 mr-2 text-blue-600" />
-                    用戶列表 ({users.length})
-                  </CardTitle>
-                  <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
-                    <DialogTrigger asChild>
-                      <Button className="bg-blue-600 hover:bg-blue-700">
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        新增用戶
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>新增用戶帳號</DialogTitle>
-                        <DialogDescription>
-                          為平台新增用戶帳號，系統將自動生成密碼。
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">電子郵件</label>
-                          <Input
-                            type="email"
-                            placeholder="輸入用戶電子郵件"
-                            value={newUserEmail}
-                            onChange={(e) => setNewUserEmail(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">姓名</label>
-                          <Input
-                            type="text"
-                            placeholder="輸入用戶姓名"
-                            value={newUserName}
-                            onChange={(e) => setNewUserName(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">角色</label>
-                          <Select value={newUserRole} onValueChange={setNewUserRole}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="選擇用戶角色" />
-                            </SelectTrigger>
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="h-8 rounded-lg">
+                    <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                    新增用戶
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>新增用戶帳號</DialogTitle>
+                    <DialogDescription>為平台新增用戶帳號</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 py-4">
+                    <Input placeholder="電子郵件" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} className="rounded-lg" />
+                    <Input placeholder="姓名" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} className="rounded-lg" />
+                    <Select value={newUserRole} onValueChange={setNewUserRole}>
+                      <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">一般用戶</SelectItem>
+                        <SelectItem value="admin">管理員</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input type="password" placeholder="密碼（選填）" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} className="rounded-lg" />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowCreateUserDialog(false)} className="rounded-lg">取消</Button>
+                    <Button onClick={handleCreateUser} disabled={!newUserEmail || !newUserName || creatingUser} className="rounded-lg">
+                      {creatingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : '創建'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {users.map((u) => (
+              <div key={u.id} className="p-4 rounded-xl bg-card/50 border border-border/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${u.role === 'admin' ? 'bg-amber-500/10' : 'bg-primary/10'}`}>
+                      {u.role === 'admin' ? <Crown className="w-4 h-4 text-amber-500" /> : <Users className="w-4 h-4 text-primary" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{u.name || u.email}</p>
+                      <p className="text-[10px] text-muted-foreground">{u.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${u.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-muted text-muted-foreground'}`}>
+                      {u.status === 'active' ? '啟用' : '停用'}
+                    </span>
+                    <button
+                      onClick={() => openUserLimitsDialog(u)}
+                      className="p-1.5 rounded-lg hover:bg-muted/50 text-muted-foreground"
+                      title="使用量/限制"
+                    >
+                      <Gauge className="w-3.5 h-3.5" />
+                    </button>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button onClick={() => setEditingUser(u)} className="p-1.5 rounded-lg hover:bg-muted/50 text-muted-foreground">
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>編輯用戶</DialogTitle>
+                          <DialogDescription>{u.email}</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-3 py-4">
+                          <Select defaultValue={u.role} onValueChange={(role) => handleEditUser(u.id, { role })}>
+                            <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="user">一般用戶</SelectItem>
                               <SelectItem value="admin">管理員</SelectItem>
                             </SelectContent>
                           </Select>
+                          <Select defaultValue={u.status} onValueChange={(status) => handleEditUser(u.id, { status })}>
+                            <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">啟用</SelectItem>
+                              <SelectItem value="inactive">停用</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">密碼（選填）</label>
-                          <Input
-                            type="password"
-                            placeholder="留空將自動生成密碼"
-                            value={newUserPassword}
-                            onChange={(e) => setNewUserPassword(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setShowCreateUserDialog(false);
-                            setNewUserEmail('');
-                            setNewUserName('');
-                            setNewUserRole('user');
-                            setNewUserPassword('');
-                          }}
-                        >
-                          取消
-                        </Button>
-                        <Button
-                          onClick={handleCreateUser}
-                          disabled={!newUserEmail || !newUserName || creatingUser}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          {creatingUser ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                          ) : (
-                            <UserPlus className="w-4 h-4 mr-2" />
-                          )}
-                          創建帳號
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardHeader>
-              <CardContent className="px-4 sm:px-6">
-            {/* Mobile Card Layout */}
-            <div className="block sm:hidden space-y-4">
-              {users.map((user) => (
-                <div key={user.id} className="border rounded-lg p-4 bg-white">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="font-medium text-sm break-all">{user.email}</div>
-                      {user.name && (
-                        <div className="text-gray-500 text-sm mt-1">{user.name}</div>
-                      )}
-                    </div>
-                    <div className="ml-2">
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                        {user.role === 'admin' ? '管理員' : '用戶'}
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                    <span>狀態：</span>
-                    {getStatusBadge(user.status)}
-                  </div>
-                  
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <div>創建：{new Date(user.createdAt).toLocaleDateString('zh-TW')}</div>
-                    <div>
-                      最後登入：{user.lastLoginAt 
-                        ? new Date(user.lastLoginAt).toLocaleDateString('zh-TW')
-                        : '從未登入'
-                      }
-                    </div>
+                      </DialogContent>
+                    </Dialog>
+                    <button
+                      onClick={() => setShowDeleteDialog(u)}
+                      disabled={u.id === user?.id}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive disabled:opacity-30"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
-              ))}
+
+                <AlertDialog open={showDeleteDialog?.id === u.id} onOpenChange={() => setShowDeleteDialog(null)}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>確認刪除</AlertDialogTitle>
+                      <AlertDialogDescription>確定要刪除用戶 "{u.name || u.email}" 嗎？此操作無法復原。</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="rounded-lg">取消</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive hover:bg-destructive/90 rounded-lg">刪除</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Transcriptions Tab */}
+        {activeTab === 'transcriptions' && (
+          <div className="space-y-3">
+            {transcriptionsLoading ? (
+              <div className="py-12 text-center">
+                <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
+              </div>
+            ) : transcriptions.length === 0 ? (
+              <div className="py-12 text-center">
+                <FileAudio className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">沒有轉錄資料</p>
+              </div>
+            ) : (
+              transcriptions.map((t) => (
+                <div key={t.id} className="p-3 rounded-xl bg-card/50 border border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{t.displayName || t.originalName}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {t.userEmail || '未知'} · {t.wordCount ? `${t.wordCount}字` : ''} · {new Date(t.createdAt).toLocaleDateString('zh-TW')}
+                      </p>
+                    </div>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                      t.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' :
+                      t.status === 'error' ? 'bg-destructive/10 text-destructive' :
+                      'bg-muted text-muted-foreground'
+                    }`}>
+                      {t.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Logs Tab */}
+        {activeTab === 'logs' && <AdminLogs />}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            {/* Registration Mode */}
+            <div className="p-4 rounded-xl bg-card/50 border border-border/50">
+              <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                註冊模式
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => saveRegistrationMode('open')}
+                  disabled={savingSettings}
+                  className={`p-3 rounded-lg text-xs font-medium transition-all ${
+                    registrationMode === 'open'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  開放註冊
+                  <p className="text-[10px] opacity-70 mt-0.5">用戶可自行註冊並驗證 Email</p>
+                </button>
+                <button
+                  onClick={() => saveRegistrationMode('application')}
+                  disabled={savingSettings}
+                  className={`p-3 rounded-lg text-xs font-medium transition-all ${
+                    registrationMode === 'application'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  申請制
+                  <p className="text-[10px] opacity-70 mt-0.5">用戶需驗證後等待管理員審核</p>
+                </button>
+              </div>
             </div>
 
-            {/* Desktop Table Layout */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 text-sm font-medium">Email</th>
-                    <th className="text-left py-2 text-sm font-medium">姓名</th>
-                    <th className="text-left py-2 text-sm font-medium">角色</th>
-                    <th className="text-left py-2 text-sm font-medium">狀態</th>
-                    <th className="text-left py-2 text-sm font-medium">創建時間</th>
-                    <th className="text-left py-2 text-sm font-medium">最後登入</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b">
-                      <td className="py-3 text-sm break-all">{user.email}</td>
-                      <td className="py-3 text-sm">{user.name || '-'}</td>
-                      <td className="py-3">
-                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                          {user.role === 'admin' ? '管理員' : '用戶'}
-                        </Badge>
-                      </td>
-                      <td className="py-3">{getStatusBadge(user.status)}</td>
-                      <td className="py-3 text-sm text-gray-500">
-                        {new Date(user.createdAt).toLocaleDateString('zh-TW')}
-                      </td>
-                      <td className="py-3 text-sm text-gray-500">
-                        {user.lastLoginAt 
-                          ? new Date(user.lastLoginAt).toLocaleDateString('zh-TW')
-                          : '從未登入'
-                        }
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Default Limits */}
+            <div className="p-4 rounded-xl bg-card/50 border border-border/50">
+              <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                <Gauge className="w-4 h-4" />
+                預設使用限制
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-muted-foreground">每週音頻（分鐘）</label>
+                  <Input
+                    type="number"
+                    value={defaultLimits.weeklyAudioMinutes}
+                    onChange={(e) => setDefaultLimits({ ...defaultLimits, weeklyAudioMinutes: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-xs rounded-lg mt-1"
+                  />
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="users" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  用戶管理
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-2 text-gray-600">載入用戶資料中...</p>
-                  </div>
-                ) : users.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">目前沒有用戶</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {users.map((u) => (
-                      <div key={u.id} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                {u.role === 'admin' ? (
-                                  <Crown className="w-5 h-5 text-yellow-600" />
-                                ) : (
-                                  <Users className="w-5 h-5 text-blue-600" />
-                                )}
-                              </div>
-                              <div>
-                                <h3 className="font-medium text-gray-900">{u.name || u.email}</h3>
-                                <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
-                                  <span>📧 {u.email}</span>
-                                  <span>🛡️ {u.role}</span>
-                                  <span>📅 {new Date(u.createdAt).toLocaleDateString('zh-TW')}</span>
-                                  {u.lastLoginAt && (
-                                    <span>🕒 最後登入: {new Date(u.lastLoginAt).toLocaleDateString('zh-TW')}</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge 
-                              variant={u.status === 'active' ? 'default' : 'secondary'}
-                            >
-                              {u.status === 'active' ? '啟用' : '停用'}
-                            </Badge>
-                            <Badge 
-                              variant={u.role === 'admin' ? 'destructive' : 'outline'}
-                            >
-                              {u.role === 'admin' ? '管理員' : '用戶'}
-                            </Badge>
-                            
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => setEditingUser(u)}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>編輯用戶 - {u.name || u.email}</DialogTitle>
-                                  <DialogDescription>
-                                    修改用戶權限和狀態設定
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  <div>
-                                    <label className="text-sm font-medium">用戶角色</label>
-                                    <Select 
-                                      defaultValue={u.role} 
-                                      onValueChange={handleRoleChange}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="user">一般用戶</SelectItem>
-                                        <SelectItem value="admin">管理員</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium">帳號狀態</label>
-                                    <Select 
-                                      defaultValue={u.status} 
-                                      onValueChange={handleStatusChange}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="active">啟用</SelectItem>
-                                        <SelectItem value="inactive">停用</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-red-600 hover:text-red-700"
-                              onClick={() => setShowDeleteDialog(u)}
-                              disabled={u.id === user?.id}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-
-                            <AlertDialog open={showDeleteDialog?.id === u.id} onOpenChange={() => setShowDeleteDialog(null)}>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>確認刪除用戶</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    您確定要刪除用戶 "{u.name || u.email}" 嗎？此操作無法復原。
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>取消</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => handleDeleteUser(u.id)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    刪除
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="transcriptions" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileAudio className="w-5 h-5" />
-                  轉錄資料管理
-                </CardTitle>
-                <Button 
-                  onClick={fetchTranscriptions}
-                  disabled={transcriptionsLoading}
-                  className="ml-auto"
-                >
-                  {transcriptionsLoading ? "載入中..." : "重新載入"}
+                <div>
+                  <label className="text-[10px] text-muted-foreground">每月音頻（分鐘）</label>
+                  <Input
+                    type="number"
+                    value={defaultLimits.monthlyAudioMinutes}
+                    onChange={(e) => setDefaultLimits({ ...defaultLimits, monthlyAudioMinutes: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-xs rounded-lg mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">每日轉錄次數</label>
+                  <Input
+                    type="number"
+                    value={defaultLimits.dailyTranscriptionCount}
+                    onChange={(e) => setDefaultLimits({ ...defaultLimits, dailyTranscriptionCount: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-xs rounded-lg mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">每週轉錄次數</label>
+                  <Input
+                    type="number"
+                    value={defaultLimits.weeklyTranscriptionCount}
+                    onChange={(e) => setDefaultLimits({ ...defaultLimits, weeklyTranscriptionCount: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-xs rounded-lg mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">單檔大小上限（MB）</label>
+                  <Input
+                    type="number"
+                    value={defaultLimits.maxFileSizeMb}
+                    onChange={(e) => setDefaultLimits({ ...defaultLimits, maxFileSizeMb: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-xs rounded-lg mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">總儲存空間（MB）</label>
+                  <Input
+                    type="number"
+                    value={defaultLimits.totalStorageMb}
+                    onChange={(e) => setDefaultLimits({ ...defaultLimits, totalStorageMb: parseInt(e.target.value) || 0 })}
+                    className="h-8 text-xs rounded-lg mt-1"
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button onClick={saveDefaultLimits} disabled={savingSettings} size="sm" className="h-8 rounded-lg">
+                  {savingSettings ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                  儲存
                 </Button>
-              </CardHeader>
-              <CardContent>
-                {transcriptionsLoading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-2 text-gray-600">載入轉錄資料中...</p>
-                  </div>
-                ) : transcriptions.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileAudio className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">目前沒有轉錄資料</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {transcriptions.map((transcription) => (
-                      <div key={transcription.id} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3">
-                              <div>
-                                <h3 className="font-medium text-gray-900">
-                                  {transcription.displayName || transcription.originalName}
-                                </h3>
-                                <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
-                                  <span>用戶: {transcription.userEmail || '未知用戶'}</span>
-                                  <span>狀態: {transcription.status}</span>
-                                  {transcription.wordCount && (
-                                    <span>字數: {transcription.wordCount}</span>
-                                  )}
-                                  {transcription.duration && (
-                                    <span>時長: {Math.round(transcription.duration / 60)}分鐘</span>
-                                  )}
-                                </div>
-                                <div className="text-xs text-gray-400 mt-1">
-                                  建立時間: {new Date(transcription.createdAt).toLocaleString('zh-TW')}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge 
-                              variant={
-                                transcription.status === 'completed' ? 'default' : 
-                                transcription.status === 'error' ? 'destructive' : 'secondary'
-                              }
-                            >
-                              {transcription.status}
-                            </Badge>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </div>
+          </div>
+        )}
 
-          <TabsContent value="logs" className="mt-6">
-            <AdminLogs />
-          </TabsContent>
-        </Tabs>
-      </div>
+        {/* User Limits Dialog */}
+        <Dialog open={userLimitsDialog} onOpenChange={setUserLimitsDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>用戶使用量和限制</DialogTitle>
+              <DialogDescription>{selectedUserForLimits?.email}</DialogDescription>
+            </DialogHeader>
+            {userUsage && userLimits ? (
+              <div className="space-y-4 py-2">
+                {/* Usage Stats */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground">目前使用量</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2 rounded-lg bg-muted/30">
+                      <p className="text-[10px] text-muted-foreground">今日轉錄</p>
+                      <p className="text-sm font-medium">{userUsage.daily.transcriptionCount} / {userUsage.daily.limit}</p>
+                      <div className="h-1 bg-muted rounded-full mt-1 overflow-hidden">
+                        <div className="h-full bg-primary transition-all" style={{ width: `${Math.min(100, userUsage.daily.percentage)}%` }} />
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/30">
+                      <p className="text-[10px] text-muted-foreground">本週音頻</p>
+                      <p className="text-sm font-medium">{userUsage.weekly.audioMinutes} / {userUsage.weekly.limits.audioMinutes} 分</p>
+                      <div className="h-1 bg-muted rounded-full mt-1 overflow-hidden">
+                        <div className="h-full bg-primary transition-all" style={{ width: `${Math.min(100, userUsage.weekly.percentage.audioMinutes)}%` }} />
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/30">
+                      <p className="text-[10px] text-muted-foreground">本月音頻</p>
+                      <p className="text-sm font-medium">{userUsage.monthly.audioMinutes} / {userUsage.monthly.limit} 分</p>
+                      <div className="h-1 bg-muted rounded-full mt-1 overflow-hidden">
+                        <div className="h-full bg-primary transition-all" style={{ width: `${Math.min(100, userUsage.monthly.percentage)}%` }} />
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/30">
+                      <p className="text-[10px] text-muted-foreground">儲存空間</p>
+                      <p className="text-sm font-medium">{userUsage.storage.usedMb} / {userUsage.storage.limitMb} MB</p>
+                      <div className="h-1 bg-muted rounded-full mt-1 overflow-hidden">
+                        <div className="h-full bg-primary transition-all" style={{ width: `${Math.min(100, userUsage.storage.percentage)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custom Limits */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground">自訂限制（留空則使用預設）</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">每週音頻（分鐘）</label>
+                      <Input
+                        type="number"
+                        value={userLimits.weeklyAudioMinutes}
+                        onChange={(e) => setUserLimits({ ...userLimits, weeklyAudioMinutes: parseInt(e.target.value) || 0 })}
+                        className="h-8 text-xs rounded-lg mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">每月音頻（分鐘）</label>
+                      <Input
+                        type="number"
+                        value={userLimits.monthlyAudioMinutes}
+                        onChange={(e) => setUserLimits({ ...userLimits, monthlyAudioMinutes: parseInt(e.target.value) || 0 })}
+                        className="h-8 text-xs rounded-lg mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">每日轉錄次數</label>
+                      <Input
+                        type="number"
+                        value={userLimits.dailyTranscriptionCount}
+                        onChange={(e) => setUserLimits({ ...userLimits, dailyTranscriptionCount: parseInt(e.target.value) || 0 })}
+                        className="h-8 text-xs rounded-lg mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">每週轉錄次數</label>
+                      <Input
+                        type="number"
+                        value={userLimits.weeklyTranscriptionCount}
+                        onChange={(e) => setUserLimits({ ...userLimits, weeklyTranscriptionCount: parseInt(e.target.value) || 0 })}
+                        className="h-8 text-xs rounded-lg mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-2">
+                  <Button variant="outline" size="sm" onClick={resetUserLimits} disabled={savingSettings} className="h-8 rounded-lg">
+                    恢復預設
+                  </Button>
+                  <Button size="sm" onClick={saveUserLimits} disabled={savingSettings} className="h-8 rounded-lg">
+                    {savingSettings ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                    儲存
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center">
+                <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto" />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </main>
     </div>
   );
 }

@@ -2,6 +2,38 @@
 
 ## 版本記錄與變更追蹤
 
+---
+
+### 2024-12-31 - 語音轉錄引擎遷移
+
+#### 重大變更
+- **語音引擎遷移**：從 AssemblyAI 遷移至 Google Cloud Speech-to-Text Chirp 模型
+- **繁體中文支援**：使用 `cmn-Hant-TW` 語言代碼，專為繁體中文優化
+- **長音檔支援**：支援 1.5-2 小時的長音檔批量處理
+- **費用優化**：批量模式僅 $0.004/分鐘
+
+#### 技術變更
+- 移除 `assemblyai` npm 依賴
+- 新增 `transcribeWithChirp3()` 方法於 `server/gemini-analysis.ts`
+- 資料庫欄位：`assemblyai_id` → `google_speech_operation_id`
+- 更新 `server/routes.ts`：移除 AssemblyAI 相關函數，新增 `processChirp3Transcription()`
+- 更新 `server/usage-tracker.ts`：改用 Google Cloud 價格計算
+
+#### 文檔更新
+- 刪除 11 個過時文檔
+- 更新 README.md、SYSTEM_USER_MANUAL.md、API_DOCUMENTATION.md、DATABASE_SCHEMA.md
+- 新增 `.env.example` 環境變數範例檔案
+
+#### 環境變數變更
+```diff
+- ASSEMBLYAI_API_KEY=xxx
++ GOOGLE_CLOUD_PROJECT_ID=xxx
++ GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
++ GOOGLE_CLOUD_STORAGE_BUCKET=xxx
+```
+
+---
+
 ### 2024-06-06 - 系統性能優化與管理員日誌系統
 
 #### 性能改進

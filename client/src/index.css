@@ -3,58 +3,53 @@
 @tailwind utilities;
 
 :root {
-  --background: 210 11% 98%; /* #F8FAFC */
-  --foreground: 215 25% 27%; /* #334155 */
-  --muted: 210 11% 96%; /* #F1F5F9 */
-  --muted-foreground: 215 16% 47%; /* #64748B */
-  --popover: 0 0% 100%; /* #FFFFFF */
-  --popover-foreground: 215 25% 27%; /* #334155 */
-  --card: 0 0% 100%; /* #FFFFFF */
-  --card-foreground: 215 25% 27%; /* #334155 */
-  --border: 215 12% 84%; /* #CBD5E1 */
-  --input: 215 12% 84%; /* #CBD5E1 */
-  --primary: 217 91% 60%; /* #3B82F6 */
-  --primary-foreground: 210 40% 98%; /* #F8FAFC */
-  --secondary: 210 11% 96%; /* #F1F5F9 */
-  --secondary-foreground: 215 25% 27%; /* #334155 */
-  --accent: 210 11% 96%; /* #F1F5F9 */
-  --accent-foreground: 215 25% 27%; /* #334155 */
-  --destructive: 0 84% 60%; /* #EF4444 */
-  --destructive-foreground: 0 0% 98%; /* #FEFEFE */
-  --ring: 217 91% 60%; /* #3B82F6 */
-  --radius: 0.75rem;
-  
-  /* Custom colors matching design */
-  --success: 160 84% 39%; /* #059669 */
-  --warning: 25 95% 53%; /* #F59E0B */
-  --error: 0 84% 60%; /* #EF4444 */
-}
+  /* Cyberpunk 深色主題 - 柔和科技風 */
+  --background: 220 70% 12%;      /* #091833 深藍黑 */
+  --foreground: 187 71% 93%;      /* #e0f7fa 淺青白 */
+  --muted: 220 60% 16%;           /* #0d1f3c */
+  --muted-foreground: 187 40% 65%; /* 柔和青色 */
+  --popover: 220 60% 11%;         /* #111827 */
+  --popover-foreground: 187 71% 93%;
+  --card: 220 60% 11%;            /* #111827 */
+  --card-foreground: 187 71% 93%;
+  --border: 183 40% 25%;          /* 青色邊框 */
+  --input: 220 60% 16%;
+  --primary: 183 90% 42%;         /* #0abdc6 霓虹青 */
+  --primary-foreground: 220 70% 8%;
+  --secondary: 304 100% 46%;      /* #ea00d9 霓虹洋紅 */
+  --secondary-foreground: 220 70% 8%;
+  --accent: 285 68% 34%;          /* #711c91 電紫 */
+  --accent-foreground: 187 71% 93%;
+  --destructive: 340 100% 58%;    /* #ff2a6d 霓虹紅 */
+  --destructive-foreground: 187 71% 93%;
+  --ring: 183 90% 42%;
+  --radius: 0.5rem;
 
-.dark {
-  --background: 222 84% 5%; /* #0F172A */
-  --foreground: 210 40% 98%; /* #F8FAFC */
-  --muted: 217 33% 17%; /* #1E293B */
-  --muted-foreground: 215 20% 65%; /* #94A3B8 */
-  --popover: 222 84% 5%; /* #0F172A */
-  --popover-foreground: 210 40% 98%; /* #F8FAFC */
-  --card: 222 84% 5%; /* #0F172A */
-  --card-foreground: 210 40% 98%; /* #F8FAFC */
-  --border: 217 33% 17%; /* #1E293B */
-  --input: 217 33% 17%; /* #1E293B */
-  --primary: 217 91% 60%; /* #3B82F6 */
-  --primary-foreground: 222 84% 5%; /* #0F172A */
-  --secondary: 217 33% 17%; /* #1E293B */
-  --secondary-foreground: 210 40% 98%; /* #F8FAFC */
-  --accent: 217 33% 17%; /* #1E293B */
-  --accent-foreground: 210 40% 98%; /* #F8FAFC */
-  --destructive: 0 63% 31%; /* #B91C1C */
-  --destructive-foreground: 210 40% 98%; /* #F8FAFC */
-  --ring: 217 91% 60%; /* #3B82F6 */
-  
-  /* Custom colors for dark mode */
-  --success: 160 84% 39%; /* #059669 */
-  --warning: 25 95% 53%; /* #F59E0B */
-  --error: 0 84% 60%; /* #EF4444 */
+  /* 自定義霓虹色 */
+  --neon-cyan: 183 90% 42%;       /* #0abdc6 */
+  --neon-magenta: 304 100% 46%;   /* #ea00d9 */
+  --neon-purple: 285 68% 34%;     /* #711c91 */
+  --neon-green: 157 100% 50%;     /* #05ffa1 */
+  --neon-red: 340 100% 58%;       /* #ff2a6d */
+  --neon-yellow: 55 87% 56%;      /* #f0e130 */
+
+  /* 語意色彩 */
+  --success: 157 100% 50%;        /* #05ffa1 霓虹綠 */
+  --warning: 55 87% 56%;          /* #f0e130 霓虹黃 */
+  --error: 340 100% 58%;          /* #ff2a6d 霓虹紅 */
+
+  /* 發光效果變數 */
+  --glow-primary: 0 0 20px rgba(10, 189, 198, 0.3);
+  --glow-secondary: 0 0 20px rgba(234, 0, 217, 0.3);
+  --glow-success: 0 0 20px rgba(5, 255, 161, 0.3);
+  --glow-error: 0 0 20px rgba(255, 42, 109, 0.3);
+
+  /* 圖表色彩 */
+  --chart-1: 183 90% 42%;
+  --chart-2: 304 100% 46%;
+  --chart-3: 157 100% 50%;
+  --chart-4: 285 68% 34%;
+  --chart-5: 55 87% 56%;
 }
 
 @layer base {
@@ -65,43 +60,171 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    /* 微妙的網格背景 */
+    background-image:
+      linear-gradient(rgba(10, 189, 198, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(10, 189, 198, 0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* 自定義滾動條 - Cyberpunk 風格 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(220 60% 11%);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(183 90% 42% / 0.3);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(183 90% 42% / 0.5);
   }
 }
 
 @layer utilities {
+  /* 霓虹色文字 */
+  .text-neon-cyan {
+    color: hsl(var(--neon-cyan));
+  }
+
+  .text-neon-magenta {
+    color: hsl(var(--neon-magenta));
+  }
+
+  .text-neon-green {
+    color: hsl(var(--neon-green));
+  }
+
+  .text-neon-red {
+    color: hsl(var(--neon-red));
+  }
+
+  .text-neon-yellow {
+    color: hsl(var(--neon-yellow));
+  }
+
+  /* 語意色彩 */
   .success {
     color: hsl(var(--success));
   }
-  
+
   .warning {
     color: hsl(var(--warning));
   }
-  
+
   .error {
     color: hsl(var(--error));
   }
-  
+
   .bg-success {
     background-color: hsl(var(--success));
   }
-  
+
   .bg-warning {
     background-color: hsl(var(--warning));
   }
-  
+
   .bg-error {
     background-color: hsl(var(--error));
   }
-  
+
   .text-success {
     color: hsl(var(--success));
   }
-  
+
   .text-warning {
     color: hsl(var(--warning));
   }
-  
+
   .text-error {
     color: hsl(var(--error));
   }
+
+  /* 發光效果 */
+  .glow-primary {
+    box-shadow: var(--glow-primary);
+  }
+
+  .glow-secondary {
+    box-shadow: var(--glow-secondary);
+  }
+
+  .glow-success {
+    box-shadow: var(--glow-success);
+  }
+
+  .glow-error {
+    box-shadow: var(--glow-error);
+  }
+
+  /* 文字發光 */
+  .text-glow-cyan {
+    text-shadow: 0 0 10px rgba(10, 189, 198, 0.5);
+  }
+
+  .text-glow-magenta {
+    text-shadow: 0 0 10px rgba(234, 0, 217, 0.5);
+  }
+
+  /* 漸變背景 */
+  .bg-gradient-cyber {
+    background: linear-gradient(135deg, hsl(var(--neon-cyan)) 0%, hsl(var(--neon-magenta)) 100%);
+  }
+
+  .bg-gradient-cyber-subtle {
+    background: linear-gradient(135deg, hsl(var(--neon-cyan) / 0.1) 0%, hsl(var(--neon-magenta) / 0.1) 100%);
+  }
+
+  /* 邊框發光 */
+  .border-glow {
+    border-color: hsl(var(--neon-cyan) / 0.5);
+    box-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.2);
+  }
+
+  /* 霓虹卡片 */
+  .card-neon {
+    background: hsl(var(--card) / 0.8);
+    border: 1px solid hsl(var(--neon-cyan) / 0.3);
+    backdrop-filter: blur(8px);
+  }
+
+  .card-neon:hover {
+    border-color: hsl(var(--neon-cyan) / 0.5);
+    box-shadow: 0 0 20px hsl(var(--neon-cyan) / 0.15);
+  }
+}
+
+/* 動畫 */
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 15px currentColor, 0 0 25px currentColor;
+  }
+}
+
+@keyframes border-glow {
+  0%, 100% {
+    border-color: hsl(var(--neon-cyan) / 0.3);
+  }
+  50% {
+    border-color: hsl(var(--neon-cyan) / 0.6);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-border-glow {
+  animation: border-glow 3s ease-in-out infinite;
 }

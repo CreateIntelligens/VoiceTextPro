@@ -7,41 +7,103 @@ import * as nodeFs from "fs";
 import { spawn } from "child_process";
 import { storage } from "./storage";
 import { GeminiAnalyzer } from "./gemini-analysis";
+import { VertexAI } from "@google-cloud/vertexai";
 
 import { UsageTracker } from "./usage-tracker";
 import AdminLogger from "./admin-logger";
 import { AuthService, requireAuth, requireAdmin, type AuthenticatedRequest } from "./auth";
 import { db } from "./db";
-import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions, users, accountApplications, notifications, insertApplicationSchema, chatSessions, chatMessages, insertChatSessionSchema, insertChatMessageSchema, userKeywords, insertUserKeywordSchema } from "@shared/schema";
+import { insertTranscriptionSchema, updateTranscriptionSchema, transcriptions, users, accountApplications, notifications, insertApplicationSchema, chatSessions, chatMessages, insertChatSessionSchema, insertChatMessageSchema } from "@shared/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
+import { LimitService } from "./limit-service";
+import { UserUsageService } from "./user-usage-service";
+import { PushNotificationService } from "./push-notification";
+import * as GoogleCalendarService from "./google-calendar";
 
-// Temporary in-memory storage for keywords per transcription
-const transcriptionKeywords = new Map<number, string>();
-
-// Upload audio file to AssemblyAI
-async function uploadAudioFile(filePath: string): Promise<string> {
-  const apiKey = process.env.ASSEMBLYAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("ASSEMBLYAI_API_KEY not configured");
-  }
-
-  const fileBuffer = await fs.readFile(filePath);
-  
-  const response = await fetch('https://api.assemblyai.com/v2/upload', {
-    method: 'POST',
-    headers: {
-      'authorization': apiKey,
-    },
-    body: fileBuffer
+// Vertex AI 輔助函數（使用 ADC 認證，不需要 API key）
+function getVertexAIModel() {
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID || "wonderland-nft";
+  const vertexAI = new VertexAI({
+    project: projectId,
+    location: "us-central1",
   });
+  return vertexAI.getGenerativeModel({ model: "gemini-2.0-flash-001" });
+}
 
-  if (!response.ok) {
-    throw new Error(`Upload failed: ${response.status} - ${await response.text()}`);
+// Google Cloud Speech-to-Text 轉錄處理函數（支援說話人識別）
+async function processSpeechToTextTranscription(transcriptionId: number, audioFilePath: string): Promise<void> {
+  // 獲取轉錄記錄以取得用戶 ID 和檔名
+  const transcription = await storage.getTranscription(transcriptionId);
+  const userId = transcription?.userId || null;
+  const filename = transcription?.originalName || '音檔';
+
+  try {
+    console.log(`[Speech-to-Text-${transcriptionId}] 開始 Google Cloud Speech-to-Text 轉錄: ${audioFilePath}`);
+
+    // 建立 GeminiAnalyzer 實例（包含 Speech-to-Text 客戶端）
+    const analyzer = new GeminiAnalyzer();
+
+    // 使用 Speech-to-Text 進行轉錄，帶進度回調
+    const result = await analyzer.transcribeWithChirp3(audioFilePath, async (progress: number) => {
+      await storage.updateTranscription(transcriptionId, { progress });
+      console.log(`[Speech-to-Text-${transcriptionId}] 進度: ${progress}%`);
+    });
+
+    console.log(`[Speech-to-Text-${transcriptionId}] 轉錄完成. 文字長度: ${result.transcriptText?.length || 0}, 字數: ${result.wordCount}, 講者: ${result.speakers?.length || 0}位`);
+
+    // 更新轉錄結果到資料庫
+    await storage.updateTranscription(transcriptionId, {
+      status: "completed",
+      progress: 100,
+      transcriptText: result.transcriptText || '',
+      speakers: result.speakers,
+      segments: result.segments,
+      confidence: 0.9,
+      duration: result.duration,
+      wordCount: result.wordCount,
+    });
+
+    console.log(`[Speech-to-Text-${transcriptionId}] Speech-to-Text 轉錄已完成`);
+
+    // 記錄使用量
+    try {
+      if (userId !== null) {
+        const durationMinutes = (result.duration || 0) / 60;
+        const transcriptionRecord = await storage.getTranscription(transcriptionId);
+        await UserUsageService.recordUsage(
+          userId,
+          durationMinutes,
+          transcriptionRecord?.fileSize || 0
+        );
+        console.log(`[Speech-to-Text-${transcriptionId}] 使用量已記錄: ${durationMinutes.toFixed(2)} 分鐘`);
+      }
+    } catch (usageError) {
+      console.warn(`[Speech-to-Text-${transcriptionId}] 記錄使用量失敗:`, usageError);
+    }
+
+    // 發送推送通知
+    try {
+      await PushNotificationService.notifyTranscriptionComplete(userId, transcriptionId, filename);
+    } catch (pushError) {
+      console.warn(`[Speech-to-Text-${transcriptionId}] 推送通知失敗:`, pushError);
+    }
+
+  } catch (error) {
+    console.error(`[Speech-to-Text-${transcriptionId}] 轉錄錯誤:`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await storage.updateTranscription(transcriptionId, {
+      status: "error",
+      errorMessage: `語音辨識失敗: ${errorMessage}`,
+    });
+
+    // 發送失敗通知
+    try {
+      await PushNotificationService.notifyTranscriptionFailed(userId, transcriptionId, filename, errorMessage);
+    } catch (pushError) {
+      console.warn(`[Speech-to-Text-${transcriptionId}] 失敗通知發送失敗:`, pushError);
+    }
   }
-
-  const result = await response.json();
-  return result.upload_url;
 }
 
 // Create different upload configurations for regular users and admins
@@ -55,10 +117,19 @@ const createUploadConfig = (isAdmin: boolean = false) => multer({
     const allowedMimes = [
       'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/aac', 'audio/flac', 'audio/mpeg',
       'audio/mp4', 'audio/x-m4a', 'audio/mpeg4-generic', 'audio/aiff', 'audio/x-aiff',
-      'audio/ogg', 'audio/webm', 'audio/3gpp', 'audio/amr'
+      'audio/ogg', 'audio/webm', 'audio/3gpp', 'audio/amr',
+      // 增加更多 M4A 變體支援
+      'audio/mp4a-latm', 'audio/mpeg4', 'video/mp4', 'application/mp4'
     ];
     const allowedExts = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.mp4', '.aiff', '.aif', '.ogg', '.webm', '.3gp', '.amr'];
     const ext = path.extname(file.originalname).toLowerCase();
+    
+    // 特別處理 M4A 檔案
+    if (ext === '.m4a') {
+      console.log(`[M4A-DEBUG] 檔案: ${file.originalname}, MIME類型: ${file.mimetype}`);
+      cb(null, true);
+      return;
+    }
     
     if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
       cb(null, true);
@@ -86,6 +157,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await AuthService.login(email, password);
       if (!result) {
         return res.status(401).json({ message: "Email 或密碼錯誤" });
+      }
+
+      // 如果有錯誤訊息（帳號狀態問題）
+      if (result.error) {
+        return res.status(401).json({ message: result.error });
       }
 
       res.cookie('auth_token', result.token, {
@@ -117,24 +193,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User registration with automated email
+  // User self-registration with email verification
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, name, role = 'user' } = req.body;
-      
-      if (!email) {
-        return res.status(400).json({ message: "Email 為必填項目" });
+      const { email, password, name } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email 和密碼為必填項目" });
       }
 
-      const result = await AuthService.registerUser(email, name, role);
-      
+      if (password.length < 8) {
+        return res.status(400).json({ message: "密碼必須至少 8 個字符" });
+      }
+
+      // Check registration mode
+      const registrationMode = await AuthService.getRegistrationMode();
+
+      // Get base URL for verification link
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:5000';
+      const baseUrl = `${protocol}://${host}`;
+
+      const result = await AuthService.registerWithEmailVerification(email, password, name, baseUrl);
+
       if (!result.success) {
         return res.status(400).json({ message: result.error });
       }
 
-      res.json({ 
-        message: "註冊成功！密碼已發送到您的郵箱",
-        success: true 
+      res.json({
+        message: result.message,
+        success: true,
+        requiresVerification: result.requiresVerification
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -142,37 +231,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Password reset request
-  app.post("/api/auth/forgot-password", async (req, res) => {
+  // Admin creates user (original flow - no email verification)
+  app.post("/api/auth/admin-register", requireAdmin, async (req, res) => {
     try {
-      const { email } = req.body;
-      
+      const { email, name, role = 'user' } = req.body;
+
       if (!email) {
         return res.status(400).json({ message: "Email 為必填項目" });
       }
 
-      const result = await AuthService.resetPassword(email);
-      
+      const result = await AuthService.registerUser(email, name, role);
+
       if (!result.success) {
         return res.status(400).json({ message: result.error });
       }
 
-      res.json({ 
-        message: "新密碼已發送到您的郵箱",
-        success: true 
+      res.json({
+        message: "註冊成功！密碼已發送到用戶郵箱",
+        success: true
+      });
+    } catch (error) {
+      console.error("Admin registration error:", error);
+      res.status(500).json({ message: "註冊失敗，請稍後再試" });
+    }
+  });
+
+  // Password reset request (send reset link)
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "Email 為必填項目" });
+      }
+
+      // Get base URL for reset link
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:5000';
+      const baseUrl = `${protocol}://${host}`;
+
+      const result = await AuthService.sendPasswordResetLink(email, baseUrl);
+
+      // Always return success to prevent email enumeration
+      res.json({
+        message: "如果該信箱已註冊，您將收到密碼重設連結",
+        success: true
       });
     } catch (error) {
       console.error("Password reset error:", error);
-      res.status(500).json({ message: "密碼重置失敗，請稍後再試" });
+      // Still return success to prevent enumeration
+      res.json({
+        message: "如果該信箱已註冊，您將收到密碼重設連結",
+        success: true
+      });
+    }
+  });
+
+  // Verify password reset token
+  app.get("/api/auth/verify-reset-token/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const result = await AuthService.verifyResetToken(token);
+
+      if (!result.valid) {
+        return res.status(400).json({
+          valid: false,
+          message: result.error || "無效或已過期的重設連結"
+        });
+      }
+
+      res.json({
+        valid: true,
+        email: result.email
+      });
+    } catch (error) {
+      console.error("Verify reset token error:", error);
+      res.status(400).json({
+        valid: false,
+        message: "驗證失敗"
+      });
+    }
+  });
+
+  // Reset password with token
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+
+      if (!token || !newPassword) {
+        return res.status(400).json({ message: "缺少必要參數" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "密碼必須至少 8 個字符" });
+      }
+
+      const result = await AuthService.resetPasswordWithToken(token, newPassword);
+
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+
+      res.json({
+        message: "密碼已成功重設，請使用新密碼登入",
+        success: true
+      });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ message: "密碼重設失敗，請稍後再試" });
     }
   });
 
   // Change password (for first-time login or user-initiated changes)
-  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+  app.post("/api/auth/change-password", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { newPassword } = req.body;
       const user = req.user;
-      
+
       if (!newPassword || newPassword.length < 6) {
         return res.status(400).json({ message: "密碼必須至少6個字符" });
       }
@@ -214,6 +390,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/auth/me", requireAuth, async (req: AuthenticatedRequest, res) => {
     res.json({ user: req.user });
+  });
+
+  // Get registration mode
+  app.get("/api/auth/registration-mode", async (req, res) => {
+    try {
+      const mode = await AuthService.getRegistrationMode();
+      res.json({ mode });
+    } catch (error) {
+      console.error("Get registration mode error:", error);
+      res.status(500).json({ message: "獲取註冊模式失敗" });
+    }
+  });
+
+  // Email verification endpoint
+  app.get("/api/auth/verify-email/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const result = await AuthService.verifyEmail(token);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error || "驗證失敗"
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Email 驗證成功！您現在可以登入系統",
+        email: result.email
+      });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).json({
+        success: false,
+        message: "驗證失敗，請稍後再試"
+      });
+    }
+  });
+
+  // Resend verification email
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "請提供 Email" });
+      }
+
+      // Get base URL
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:5000';
+      const baseUrl = `${protocol}://${host}`;
+
+      const result = await AuthService.resendVerificationEmail(email, baseUrl);
+
+      // Always return success to prevent enumeration
+      res.json({
+        success: true,
+        message: "如果該信箱需要驗證，驗證郵件已發送"
+      });
+    } catch (error) {
+      console.error("Resend verification error:", error);
+      res.json({
+        success: true,
+        message: "如果該信箱需要驗證，驗證郵件已發送"
+      });
+    }
+  });
+
+  // ==================== 用戶使用量和限制 API ====================
+
+  // Get current user's usage stats
+  app.get("/api/user/usage", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const usage = await LimitService.getUserUsage(userId);
+      res.json(usage);
+    } catch (error) {
+      console.error("Get user usage error:", error);
+      res.status(500).json({ message: "獲取使用量失敗" });
+    }
+  });
+
+  // Get current user's limits
+  app.get("/api/user/limits", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const limits = await LimitService.getUserLimits(userId);
+      res.json(limits);
+    } catch (error) {
+      console.error("Get user limits error:", error);
+      res.status(500).json({ message: "獲取限制設定失敗" });
+    }
+  });
+
+  // Get current user's usage history
+  app.get("/api/user/usage-history", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const periodType = (req.query.period as 'daily' | 'weekly' | 'monthly') || 'daily';
+      const limit = parseInt(req.query.limit as string) || 30;
+
+      const history = await UserUsageService.getUsageHistory(userId, periodType, limit);
+      res.json(history);
+    } catch (error) {
+      console.error("Get usage history error:", error);
+      res.status(500).json({ message: "獲取使用歷史失敗" });
+    }
   });
 
   // Admin routes for user management
@@ -316,6 +602,163 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== 管理員系統設定 API ====================
+
+  // Get registration mode (admin)
+  app.get("/api/admin/settings/registration-mode", requireAdmin, async (req, res) => {
+    try {
+      const mode = await AuthService.getRegistrationMode();
+      res.json({ mode });
+    } catch (error) {
+      console.error("Get registration mode error:", error);
+      res.status(500).json({ message: "獲取註冊模式失敗" });
+    }
+  });
+
+  // Set registration mode (admin)
+  app.patch("/api/admin/settings/registration-mode", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { mode } = req.body;
+
+      if (!['open', 'application'].includes(mode)) {
+        return res.status(400).json({ message: "無效的註冊模式" });
+      }
+
+      await AuthService.setRegistrationMode(mode);
+
+      await AdminLogger.log({
+        category: "admin",
+        action: "registration_mode_changed",
+        description: `註冊模式已更改為: ${mode === 'open' ? '開放註冊' : '申請制'}`,
+        severity: "info",
+        userId: req.user!.id,
+        details: { newMode: mode }
+      });
+
+      res.json({ message: "註冊模式已更新", mode });
+    } catch (error) {
+      console.error("Set registration mode error:", error);
+      res.status(500).json({ message: "更新註冊模式失敗" });
+    }
+  });
+
+  // ==================== 管理員限制設定 API ====================
+
+  // Get default limits
+  app.get("/api/admin/default-limits", requireAdmin, async (req, res) => {
+    try {
+      const limits = await LimitService.getDefaultLimits();
+      res.json(limits);
+    } catch (error) {
+      console.error("Get default limits error:", error);
+      res.status(500).json({ message: "獲取預設限制失敗" });
+    }
+  });
+
+  // Update default limits
+  app.patch("/api/admin/default-limits", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const updates = req.body;
+      const newLimits = await LimitService.setDefaultLimits(updates);
+
+      await AdminLogger.log({
+        category: "admin",
+        action: "default_limits_updated",
+        description: "系統預設使用限制已更新",
+        severity: "info",
+        userId: req.user!.id,
+        details: updates
+      });
+
+      res.json({ message: "預設限制已更新", limits: newLimits });
+    } catch (error) {
+      console.error("Update default limits error:", error);
+      res.status(500).json({ message: "更新預設限制失敗" });
+    }
+  });
+
+  // Get specific user's limits
+  app.get("/api/admin/users/:id/limits", requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const limits = await LimitService.getUserLimits(userId);
+      res.json(limits);
+    } catch (error) {
+      console.error("Get user limits error:", error);
+      res.status(500).json({ message: "獲取用戶限制失敗" });
+    }
+  });
+
+  // Set specific user's limits
+  app.patch("/api/admin/users/:id/limits", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { limits, notes } = req.body;
+
+      await LimitService.setUserLimits(userId, limits, notes);
+
+      await AdminLogger.log({
+        category: "admin",
+        action: "user_limits_updated",
+        description: `用戶 ${userId} 的使用限制已更新`,
+        severity: "info",
+        userId: req.user!.id,
+        details: { targetUserId: userId, limits, notes }
+      });
+
+      res.json({ message: "用戶限制已更新" });
+    } catch (error) {
+      console.error("Set user limits error:", error);
+      res.status(500).json({ message: "更新用戶限制失敗" });
+    }
+  });
+
+  // Remove user's custom limits (reset to default)
+  app.delete("/api/admin/users/:id/limits", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+
+      await LimitService.removeUserLimits(userId);
+
+      await AdminLogger.log({
+        category: "admin",
+        action: "user_limits_removed",
+        description: `用戶 ${userId} 的自訂限制已移除，恢復為預設值`,
+        severity: "info",
+        userId: req.user!.id,
+        details: { targetUserId: userId }
+      });
+
+      res.json({ message: "已恢復預設限制" });
+    } catch (error) {
+      console.error("Remove user limits error:", error);
+      res.status(500).json({ message: "移除用戶限制失敗" });
+    }
+  });
+
+  // Get specific user's usage stats (admin)
+  app.get("/api/admin/users/:id/usage", requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const usage = await LimitService.getUserUsage(userId);
+      res.json(usage);
+    } catch (error) {
+      console.error("Get user usage error:", error);
+      res.status(500).json({ message: "獲取用戶使用量失敗" });
+    }
+  });
+
+  // Get users who are over limit
+  app.get("/api/admin/users/over-limit", requireAdmin, async (req, res) => {
+    try {
+      const overLimitUsers = await LimitService.getOverLimitUsers();
+      res.json(overLimitUsers);
+    } catch (error) {
+      console.error("Get over limit users error:", error);
+      res.status(500).json({ message: "獲取超額用戶列表失敗" });
+    }
+  });
+
   app.get("/api/notifications", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const userNotifications = await db
@@ -382,6 +825,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`[UPLOAD] File uploaded: ${req.file.originalname}, size: ${req.file.size}`);
 
+        // Check user limits before processing
+        const fileSizeMb = req.file.size / (1024 * 1024);
+        const limitCheck = await LimitService.checkUserLimits(req.user!.id, fileSizeMb);
+
+        if (!limitCheck.allowed) {
+          // Delete the uploaded file since we're rejecting it
+          try {
+            await fs.unlink(path.join("uploads", req.file.filename));
+          } catch (e) {
+            console.error("Failed to delete rejected file:", e);
+          }
+          return res.status(403).json({
+            message: limitCheck.message || "已達使用限制",
+            limitType: limitCheck.limitType,
+            current: limitCheck.current,
+            limit: limitCheck.limit
+          });
+        }
+
         // Check if this is a recording file (contains timestamp pattern)
         const isRecording = req.file.originalname.includes('recording_');
         const recordingType = isRecording ? 'recorded' : 'uploaded';
@@ -396,23 +858,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notes = 'Admin uploaded file (no size restrictions)';
         }
 
+        // Get analysis mode from form data (default to 'meeting')
+        const analysisMode = (req.body?.analysisMode === 'rd' ? 'rd' : 'meeting') as 'meeting' | 'rd';
+        console.log(`[UPLOAD] Analysis mode: ${analysisMode}`);
+
+        // Get displayName from form data (optional - for Google Calendar meeting name or custom name)
+        const displayName = req.body?.displayName ? String(req.body.displayName).trim() : null;
+        if (displayName) {
+          console.log(`[UPLOAD] Display name: ${displayName}`);
+        }
+
         const transcriptionData = {
           userId: req.user!.id,
           filename: req.file.filename,
           originalName: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
+          displayName: displayName || undefined,
           fileSize: req.file.size,
           recordingType: recordingType,
           notes: notes,
+          analysisMode: analysisMode,
         };
 
         const validatedData = insertTranscriptionSchema.parse(transcriptionData);
         const transcription = await storage.createTranscription(validatedData);
-
-        // Store keywords for later use in transcription
-        if (req.body.keywords) {
-          transcriptionKeywords.set(transcription.id, req.body.keywords);
-          console.log(`[UPLOAD] Custom keywords stored for transcription ${transcription.id}: ${req.body.keywords}`);
-        }
 
         // Log admin privilege usage
         if (req.user!.role === 'admin') {
@@ -458,153 +926,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update status to processing
       await storage.updateTranscription(id, { status: "processing", progress: 0 });
 
-      // Start Python transcription process with real AssemblyAI and custom keywords
+      // 使用 Google Cloud Speech-to-Text 進行轉錄和說話人識別
       const filePath = path.join("uploads", transcription.filename);
-      const customKeywords = transcriptionKeywords.get(id) || "";
-      console.log(`[LOG-${id}] Starting real transcription for file: ${filePath}`);
-      if (customKeywords) {
-        console.log(`[LOG-${id}] Using custom keywords: ${customKeywords}`);
-      }
-      
-      // Check file size to determine processing strategy
-      const fs = await import('fs');
-      const fileStats = fs.default.statSync(filePath);
-      const fileSizeBytes = fileStats.size;
-      const fileSizeMB = fileSizeBytes / (1024 * 1024);
-      const isLargeFile = fileSizeMB > 100; // Files over 100MB use large file processor
-      
-      console.log(`[LOG-${id}] File size: ${fileSizeMB.toFixed(2)}MB ${isLargeFile ? '(Large file detected)' : ''}`);
-      
-      // Check if we should use recovery mode, fast mode, or large file mode
-      const useRecovery = req.body.useRecovery || false;
-      const useFast = req.body.useFast !== false; // Default to fast mode
-      const forceLargeFile = req.body.forceLargeFile || false;
-      
-      let scriptName: string;
-      let args: string[];
-      
-      if (isLargeFile || forceLargeFile) {
-        // Use fast transcription for large files (simplified approach)
-        scriptName = "fast_transcription.py";
-        console.log(`[LOG-${id}] Using fast transcription for large file (${fileSizeMB.toFixed(2)}MB)`);
-        const uploadUrl = await uploadAudioFile(filePath);
-        console.log(`[LOG-${id}] Large file uploaded, starting transcription...`);
-        args = [scriptName, id.toString(), uploadUrl, process.env.ASSEMBLYAI_API_KEY || ""];
-        if (customKeywords) {
-          args.push(customKeywords);
-        }
-      } else if (useRecovery) {
-        scriptName = "recovery_transcription.py";
-        args = [scriptName, filePath, id.toString()];
-      } else if (useFast) {
-        // Use optimized fast transcription with file upload
-        scriptName = "fast_transcription.py";
-        // First upload the file, then use the upload URL
-        console.log(`[LOG-${id}] Uploading audio file for fast transcription...`);
-        const uploadUrl = await uploadAudioFile(filePath);
-        console.log(`[LOG-${id}] Audio uploaded, starting fast transcription...`);
-        args = [scriptName, id.toString(), uploadUrl, process.env.ASSEMBLYAI_API_KEY || ""];
-        if (customKeywords) {
-          args.push(customKeywords);
-        }
-      } else {
-        scriptName = "simple_transcription.py";
-        args = [scriptName, filePath, id.toString()];
-        if (customKeywords) {
-          args.push(customKeywords);
-        }
-      }
-      const pythonProcess = spawn("python3", args);
-      
-      // Import and start auto-monitoring
-      let assemblyaiId = null;
+      console.log(`[Speech-to-Text-${id}] 開始 Speech-to-Text 轉錄: ${filePath}`);
 
-      let outputBuffer = "";
-      
-      pythonProcess.stdout.on("data", async (data) => {
-        try {
-          outputBuffer += data.toString();
-          const lines = outputBuffer.split('\n');
-          outputBuffer = lines.pop() || ""; // Keep incomplete line in buffer
-          
-          for (const line of lines) {
-            const output = line.trim();
-            if (!output) continue;
-            
-            console.log(`[LOG-${id}] Python output: "${output}"`);
-            
-            if (output.startsWith("PROGRESS:")) {
-              const progress = parseInt(output.split(":")[1]);
-              console.log(`[LOG-${id}] Updating progress to ${progress}%`);
-              await storage.updateTranscription(id, { progress });
-              console.log(`[LOG-${id}] Progress update completed`);
-            } else if (output.startsWith("RESULT:")) {
-              console.log(`[LOG-${id}] Processing transcription result`);
-              const resultJson = output.substring(7);
-              console.log(`[LOG-${id}] Result JSON length: ${resultJson.length}`);
-              const result = JSON.parse(resultJson);
-              console.log(`[LOG-${id}] Parsed result keys:`, Object.keys(result));
-              console.log(`[LOG-${id}] Text length: ${result.transcript_text?.length || 0}`);
-              console.log(`[LOG-${id}] Speaker count: ${result.speakers?.length || 0}`);
-              
-              await storage.updateTranscription(id, {
-                status: "completed",
-                progress: 100,
-                assemblyaiId: result.assemblyai_id,
-                transcriptText: result.transcript_text,
-                speakers: result.speakers,
-                segments: result.segments,
-                confidence: result.confidence,
-                duration: result.duration,
-                wordCount: result.word_count,
-              });
-              // Clean up keywords from memory
-              transcriptionKeywords.delete(id);
-              console.log(`[LOG-${id}] Transcription marked as completed`);
-            } else if (output.startsWith("ERROR:")) {
-              console.log(`[LOG-${id}] Error received: ${output}`);
-              await storage.updateTranscription(id, {
-                status: "error",
-                errorMessage: output.substring(6),
-              });
-              // Clean up keywords from memory on error
-              transcriptionKeywords.delete(id);
-            } else if (output.startsWith("DEBUG:")) {
-              console.log(`[LOG-${id}] Debug: ${output}`);
-            } else if (output.startsWith("SUCCESS:")) {
-              console.log(`[LOG-${id}] Success message: ${output}`);
-            }
-          }
-        } catch (error) {
-          console.error(`[LOG-${id}] Error processing output:`, error);
-          console.error(`[LOG-${id}] Raw output: "${data.toString()}"`);
-        }
-      });
-
-      pythonProcess.stderr.on("data", async (data) => {
-        const error = data.toString().trim();
-        console.error("Python transcription error:", error);
-        await storage.updateTranscription(id, {
+      // 非同步處理轉錄
+      processSpeechToTextTranscription(id, filePath).catch(error => {
+        console.error(`[Speech-to-Text-${id}] 轉錄失敗:`, error);
+        storage.updateTranscription(id, {
           status: "error",
-          errorMessage: error,
+          errorMessage: "語音辨識失敗: " + (error instanceof Error ? error.message : String(error))
         });
       });
 
-      pythonProcess.on("exit", async (code) => {
-        if (code !== 0) {
-          await storage.updateTranscription(id, {
-            status: "error",
-            errorMessage: "轉錄程序異常結束",
-          });
-        }
+      res.json({ 
+        message: "轉錄處理已開始", 
+        status: "processing",
+        progress: 0
       });
-
-      res.json({ message: "轉錄已開始" });
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : "啟動轉錄失敗" });
     }
   });
-
   // Get transcription by ID
   app.get("/api/transcriptions/:id", async (req, res) => {
     try {
@@ -669,8 +1012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: {
           transcription_id: id,
           filename: transcription.filename,
-          previous_status: transcription.status,
-          assemblyai_id: transcription.assemblyaiId
+          previous_status: transcription.status
         }
       });
 
@@ -741,38 +1083,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "轉錄尚未完成，無法進行AI分析" });
       }
 
-      if (!transcription.transcriptText) {
-        return res.status(400).json({ message: "缺少轉錄文本，無法進行分析" });
+      // 優先使用整理後的逐字稿，沒有則使用原始逐字稿
+      const textToAnalyze = (transcription as any).cleanedTranscriptText || transcription.transcriptText;
+
+      if (!textToAnalyze) {
+        return res.status(400).json({ message: "缺少轉錄文本，無法進行分析。請先進行逐字稿整理。" });
       }
 
-      // Use Gemini AI for analysis
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      console.log(`[AI Analysis] 使用${(transcription as any).cleanedTranscriptText ? '整理後' : '原始'}逐字稿進行分析`);
+
+      // Use Vertex AI for analysis (ADC 認證)
+      const model = getVertexAIModel();
 
       const analysisPrompt = `
 請對以下中文轉錄內容進行全面的AI智能分析，並以JSON格式回應：
 
 轉錄內容：
-${transcription.transcriptText}
+${textToAnalyze.substring(0, 15000)}
 
 請提供以下分析結果（請用繁體中文回應）：
+
 1. summary: 內容摘要（200字以內）
+
 2. keyTopics: 關鍵主題和話題（陣列格式，最多10個）
-3. actionItems: 行動項目和決策要點（陣列格式）
+
+3. actionItems: 重點追蹤事項（陣列格式，每項為物件），請分析並提取：
+   - type: 類型，可為 "todo"(待辦)、"decision"(決策)、"commitment"(承諾)、"deadline"(時間節點)、"followup"(追蹤)
+   - content: 具體內容描述
+   - assignee: 負責人（如有提及）
+   - dueDate: 截止日期（如有提及）
+   - priority: 優先級 "high"(高)、"medium"(中)、"low"(低)
+
+   範例格式：
+   [
+     {"type": "todo", "content": "準備下週會議資料", "assignee": "講者A", "priority": "high"},
+     {"type": "decision", "content": "確定採用方案B", "priority": "medium"},
+     {"type": "deadline", "content": "專案截止日", "dueDate": "下週五", "priority": "high"}
+   ]
+
 4. highlights: 重要段落摘錄（陣列格式，最多5個）
+
 5. speakerAnalysis: 講者分析（物件格式，分析各講者的發言特點、參與度、主要觀點等）
 
 請確保回應為有效的JSON格式。
 `;
 
       const result = await model.generateContent(analysisPrompt);
-      const response = await result.response;
-      let analysisText = response.text();
+      const response = result.response;
+      let analysisText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
       // Clean and parse JSON response
       analysisText = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      
+
       let analysis;
       try {
         const parsedAnalysis = JSON.parse(analysisText);
@@ -796,18 +1158,19 @@ ${transcription.transcriptText}
       }
 
       // Update transcription with AI analysis results
-      const entityDetectionData = {
-        actionItems: analysis.actionItems || [],
-        speakerAnalysis: analysis.speakerAnalysis || null
-      };
-      
-      console.log('Saving entity detection data:', JSON.stringify(entityDetectionData, null, 2));
-      
+      console.log('[AI Analysis] 儲存分析結果:', {
+        summary: analysis.summary?.length || 0,
+        keyTopics: analysis.keyTopics?.length || 0,
+        actionItems: analysis.actionItems?.length || 0,
+        highlights: analysis.highlights?.length || 0
+      });
+
       await storage.updateTranscription(transcriptionId, {
         summary: analysis.summary || null,
         topicsDetection: analysis.keyTopics || null,
         autoHighlights: analysis.highlights || null,
-        entityDetection: entityDetectionData
+        actionItems: analysis.actionItems || null,
+        speakerAnalysis: analysis.speakerAnalysis || null
       });
 
       await AdminLogger.log({
@@ -818,7 +1181,8 @@ ${transcription.transcriptText}
           transcriptionId,
           analysisFeatures: Object.keys(analysis),
           summaryLength: analysis.summary?.length || 0,
-          topicsCount: analysis.keyTopics?.length || 0
+          topicsCount: analysis.keyTopics?.length || 0,
+          actionItemsCount: analysis.actionItems?.length || 0
         }
       });
 
@@ -830,14 +1194,15 @@ ${transcription.transcriptText}
 
     } catch (error) {
       console.error("AI Analysis error:", error);
+      const errMsg = error instanceof Error ? error.message : String(error);
       await AdminLogger.log({
         category: 'ai_analysis',
         action: 'gemini_analysis_error',
         description: `轉錄${req.params.id}AI分析失敗`,
         severity: 'high',
-        details: { error: error.message }
+        details: { error: errMsg }
       });
-      
+
       res.status(500).json({ message: "AI分析失敗，請稍後再試" });
     }
   });
@@ -846,8 +1211,9 @@ ${transcription.transcriptText}
   app.post("/api/transcriptions/:id/ai-cleanup", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const transcriptionId = parseInt(req.params.id);
+      const { attendees } = req.body; // 接收與會者名單
       const transcription = await storage.getTranscription(transcriptionId);
-      
+
       if (!transcription) {
         return res.status(404).json({ message: "轉錄記錄不存在" });
       }
@@ -865,81 +1231,153 @@ ${transcription.transcriptText}
         return res.status(400).json({ message: "缺少分段資料，無法進行整理" });
       }
 
-      // Use Gemini AI for transcript cleanup
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      console.log(`[AI Cleanup] 與會者名單:`, attendees);
+
+      // Use Vertex AI for transcript cleanup (ADC 認證)
+      const model = getVertexAIModel();
 
       const segments = transcription.segments as any[];
-      
+
       // Use existing transcript text for more efficient processing
-      const originalText = transcription.transcriptText || 
+      const originalText = transcription.transcriptText ||
         segments.map(seg => `${seg.speaker}: ${seg.text}`).join('\n');
 
-      const cleanupPrompt = `
-請整理以下中文逐字稿內容，修正語法錯誤、填補語言間隙、移除重複用詞，並使內容更加流暢易懂。
-保持原意不變，保留對話者資訊。請用繁體中文回應：
+      // 分段處理長文本，每段最多 5000 字
+      const CHUNK_SIZE = 5000;
+      const textChunks: string[] = [];
 
-${originalText}
+      for (let i = 0; i < originalText.length; i += CHUNK_SIZE) {
+        textChunks.push(originalText.substring(i, i + CHUNK_SIZE));
+      }
 
-請按照原格式回應，每行格式為：
-對話者: 整理後的內容
+      console.log(`[AI Cleanup] 文本長度: ${originalText.length}，分為 ${textChunks.length} 段處理`);
 
-不要添加額外的解釋或標記。
-`;
+      let allCleanedSegments: any[] = [];
+      const speakerSet = new Set<string>();
 
-      const result = await model.generateContent(cleanupPrompt);
-      const response = await result.response;
-      const cleanedText = response.text();
+      // 建立與會者名單說明
+      const attendeesList = attendees && attendees.length > 0
+        ? attendees.map((name: string, i: number) => `${i + 1}. ${name}`).join('\n')
+        : null;
 
-      // Parse cleaned text back to segments
-      const cleanedLines = cleanedText.split('\n').filter(line => line.trim());
-      const cleanedSegments = [];
+      // 逐段處理
+      for (let chunkIndex = 0; chunkIndex < textChunks.length; chunkIndex++) {
+        const chunk = textChunks[chunkIndex];
+        const isFirstChunk = chunkIndex === 0;
 
-      let segmentIndex = 0;
-      for (const line of cleanedLines) {
-        const match = line.match(/^([^:]+):\s*(.+)$/);
-        if (match && segmentIndex < segments.length) {
-          const speaker = match[1].trim();
-          const text = match[2].trim();
-          const originalSegment = segments[segmentIndex];
-          
-          cleanedSegments.push({
-            ...originalSegment,
-            text: text,
-            speaker: speaker
-          });
-          segmentIndex++;
+        const cleanupPrompt = `
+你是一個專業的語音轉錄整理助手。請完成以下任務：
+
+${attendeesList ? `**與會者名單：**
+${attendeesList}
+
+**任務 1：說話者識別**
+根據與會者名單，分析對話內容，識別每段話是誰說的。
+- 使用與會者的實際姓名（如「${attendees[0]}」）
+- 根據語氣、用詞、問答模式來判斷說話者
+- 如果無法確定是哪位與會者，請用「未知講者」標記` : `**任務 1：說話者識別**
+分析對話內容，根據語氣、用詞、問答模式識別不同的說話者。
+- 如果明顯有多人對話，標記為「講者A」、「講者B」等
+- 如果只有一人獨白，全部標記為「講者A」
+- 最多識別 6 位說話者`}
+
+**任務 2：文字整理**
+- 修正語法錯誤和錯別字
+- 移除重複用詞和口語贅詞（如「嗯」、「啊」、「那個」）
+- 添加適當的標點符號
+- 保持原意不變
+
+**原始逐字稿（第 ${chunkIndex + 1}/${textChunks.length} 段）：**
+${chunk}
+
+**請直接回應整理後的文字，格式為：**
+${attendeesList ? `${attendees[0]}：整理後的內容
+${attendees[1] || '其他與會者'}：整理後的內容` : `講者A：整理後的內容
+講者B：整理後的內容`}
+...
+
+不要回應 JSON，直接用上述格式回應。`;
+
+        try {
+          const result = await model.generateContent(cleanupPrompt);
+          const response = result.response;
+          const cleanedText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+          // 解析「姓名：內容」格式
+          const lines = cleanedText.split('\n').filter(line => line.trim());
+
+          for (const line of lines) {
+            // 匹配「姓名：內容」或「姓名: 內容」格式（支援中文姓名和講者A格式）
+            const match = line.match(/^([^：:]+)[：:]\s*(.+)$/);
+            if (match) {
+              const speaker = match[1].trim();
+              const text = match[2].trim();
+
+              // 排除非說話者內容（如標題、說明等）
+              if (text.length > 0 && !speaker.includes('任務') && !speaker.includes('原始') && !speaker.includes('整理')) {
+                speakerSet.add(speaker);
+                allCleanedSegments.push({
+                  text: text,
+                  speaker: speaker,
+                  start: 0,
+                  end: 0,
+                  confidence: 0.9
+                });
+              }
+            }
+          }
+
+          console.log(`[AI Cleanup] 第 ${chunkIndex + 1} 段完成，累計 ${allCleanedSegments.length} 個段落`);
+
+        } catch (chunkError) {
+          console.error(`[AI Cleanup] 第 ${chunkIndex + 1} 段處理失敗:`, chunkError);
         }
       }
 
-      // If parsed segments don't match original count, keep original segments
-      const finalSegments = cleanedSegments.length === segments.length ? cleanedSegments : segments;
+      // 分配時間戳
+      if (allCleanedSegments.length > 0 && segments.length > 0) {
+        const totalDuration = segments[segments.length - 1]?.end || 30000;
+        const avgDuration = totalDuration / allCleanedSegments.length;
+
+        allCleanedSegments = allCleanedSegments.map((seg, index) => ({
+          ...seg,
+          start: Math.floor(index * avgDuration),
+          end: Math.floor((index + 1) * avgDuration)
+        }));
+      }
+
+      const speakerColors = [
+        "hsl(220, 70%, 50%)",
+        "hsl(120, 70%, 50%)",
+        "hsl(0, 70%, 50%)",
+        "hsl(280, 70%, 50%)",
+        "hsl(60, 70%, 50%)",
+        "hsl(180, 70%, 50%)",
+      ];
+
+      // 建立說話者列表
+      const speakerList = Array.from(speakerSet).sort();
+      const speakers = speakerList.map((label, index) => ({
+        id: String.fromCharCode(65 + index),
+        label,
+        color: speakerColors[index % speakerColors.length]
+      }));
+
+      console.log(`[AI Cleanup] 整理完成: ${allCleanedSegments.length} 個段落，${speakers.length} 位說話者`);
+
+      // 如果解析失敗，保留原始段落
+      const finalSegments = allCleanedSegments.length > 0 ? allCleanedSegments : segments;
 
       // Update transcript text with cleaned segments
       const cleanedTranscriptText = finalSegments
         .map(seg => `${seg.speaker}: ${seg.text}`)
         .join('\n');
 
-      // Extract speakers from cleaned segments
-      const speakersMap = new Map();
-      const colors = ['hsl(220, 70%, 50%)', 'hsl(120, 70%, 50%)', 'hsl(0, 70%, 50%)', 'hsl(280, 70%, 50%)', 'hsl(30, 70%, 50%)', 'hsl(180, 70%, 50%)'];
-      
-      finalSegments.forEach((segment: any) => {
-        if (segment.speaker && !speakersMap.has(segment.speaker)) {
-          speakersMap.set(segment.speaker, {
-            id: segment.speaker,
-            label: segment.speaker,
-            color: colors[speakersMap.size % colors.length]
-          });
-        }
-      });
-
-      // Update transcription with cleaned segments, text, and speakers
+      // Save cleaned content to separate fields (preserve original)
       await storage.updateTranscription(transcriptionId, {
-        segments: finalSegments,
-        transcriptText: cleanedTranscriptText,
-        speakers: Array.from(speakersMap.values())
+        cleanedSegments: finalSegments,
+        cleanedTranscriptText: cleanedTranscriptText,
+        speakers: speakers.length > 0 ? speakers : undefined,
       });
 
       await AdminLogger.log({
@@ -949,14 +1387,16 @@ ${originalText}
         details: {
           transcriptionId,
           originalSegments: segments.length,
-          cleanedSegments: cleanedSegments.length
+          cleanedSegments: finalSegments.length,
+          speakersIdentified: speakers.length
         }
       });
 
       res.json({
         success: true,
         message: "逐字稿整理完成",
-        cleanedSegments: cleanedSegments.length,
+        cleanedSegments: finalSegments.length,
+        speakers: speakers,
         transcription: await storage.getTranscription(transcriptionId)
       });
 
@@ -990,9 +1430,8 @@ ${originalText}
         return res.status(400).json({ message: "轉錄尚未完成，無法進行AI分析" });
       }
 
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // Use Vertex AI for Gemini analysis (ADC 認證)
+      const model = getVertexAIModel();
 
       const segments = transcription.segments as any[];
       const originalText = transcription.transcriptText || 
@@ -1028,8 +1467,8 @@ ${originalText}
 
         try {
           const summaryResult = await model.generateContent(summaryPrompt);
-          const summaryResponse = await summaryResult.response;
-          const summaryText = summaryResponse.text();
+          const summaryResponse = summaryResult.response;
+          const summaryText = summaryResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
           const summaryData = JSON.parse(summaryText.replace(/```json\n?|\n?```/g, ''));
           
           analysisResults = {
@@ -1070,8 +1509,8 @@ ${originalText}
 
         try {
           const speakerResult = await model.generateContent(speakerPrompt);
-          const speakerResponse = await speakerResult.response;
-          const speakerText = speakerResponse.text();
+          const speakerResponse = speakerResult.response;
+          const speakerText = speakerResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
           const speakerData = JSON.parse(speakerText.replace(/```json\n?|\n?```/g, ''));
           
           analysisResults = {
@@ -1115,8 +1554,8 @@ ${originalText}
 
         try {
           const sentimentResult = await model.generateContent(sentimentPrompt);
-          const sentimentResponse = await sentimentResult.response;
-          const sentimentText = sentimentResponse.text();
+          const sentimentResponse = sentimentResult.response;
+          const sentimentText = sentimentResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
           const sentimentData = JSON.parse(sentimentText.replace(/```json\n?|\n?```/g, ''));
           
           analysisResults = {
@@ -1158,8 +1597,8 @@ ${originalText}
 
         try {
           const keywordResult = await model.generateContent(keywordPrompt);
-          const keywordResponse = await keywordResult.response;
-          const keywordText = keywordResponse.text();
+          const keywordResponse = keywordResult.response;
+          const keywordText = keywordResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
           const keywordData = JSON.parse(keywordText.replace(/```json\n?|\n?```/g, ''));
           
           analysisResults = {
@@ -1374,19 +1813,391 @@ ${originalText}
         return res.status(400).json({ message: "轉錄尚未完成，無法進行分析" });
       }
 
-      const analyzer = new GeminiAnalyzer();
-      const analysis = await analyzer.analyzeTranscription(transcription);
+      // 優先使用整理後的逐字稿
+      const textToAnalyze = (transcription as any).cleanedTranscriptText || transcription.transcriptText;
 
-      res.json(analysis);
+      if (!textToAnalyze) {
+        return res.status(400).json({ message: "缺少轉錄文本，無法進行分析" });
+      }
+
+      console.log(`[AI Analysis] 使用${(transcription as any).cleanedTranscriptText ? '整理後' : '原始'}逐字稿進行分析`);
+
+      // Use Vertex AI for analysis (ADC 認證)
+      const model = getVertexAIModel();
+
+      const analysisPrompt = `
+請對以下中文轉錄內容進行全面的AI智能分析，並以JSON格式回應：
+
+轉錄內容：
+${textToAnalyze.substring(0, 15000)}
+
+請提供以下分析結果（請用繁體中文回應）：
+
+1. summary: 內容摘要（200字以內）
+
+2. keyTopics: 關鍵主題和話題（陣列格式，最多10個）
+
+3. actionItems: 重點追蹤事項（陣列格式，每項為物件），請分析並提取：
+   - type: 類型，可為 "todo"(待辦)、"decision"(決策)、"commitment"(承諾)、"deadline"(時間節點)、"followup"(追蹤)
+   - content: 具體內容描述
+   - assignee: 負責人（如有提及）
+   - dueDate: 截止日期（如有提及）
+   - priority: 優先級 "high"(高)、"medium"(中)、"low"(低)
+
+   範例格式：
+   [
+     {"type": "todo", "content": "準備下週會議資料", "assignee": "講者A", "priority": "high"},
+     {"type": "decision", "content": "確定採用方案B", "priority": "medium"},
+     {"type": "deadline", "content": "專案截止日", "dueDate": "下週五", "priority": "high"}
+   ]
+
+4. highlights: 重要段落摘錄（陣列格式，最多5個）
+
+5. speakerAnalysis: 講者分析（物件格式，分析各講者的發言特點、參與度、主要觀點等）
+
+請確保回應為有效的JSON格式。
+`;
+
+      const result = await model.generateContent(analysisPrompt);
+      const response = result.response;
+      let analysisText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      // Clean and parse JSON response
+      analysisText = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+      let analysis;
+      try {
+        const parsedAnalysis = JSON.parse(analysisText);
+        analysis = {
+          summary: parsedAnalysis.summary,
+          keyTopics: parsedAnalysis.keyTopics,
+          actionItems: parsedAnalysis.actionItems,
+          highlights: parsedAnalysis.highlights,
+          speakerAnalysis: parsedAnalysis.speakerAnalysis
+        };
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        analysis = {
+          summary: analysisText.substring(0, 200) + "...",
+          keyTopics: ["AI分析"],
+          actionItems: [],
+          highlights: [analysisText.substring(0, 100) + "..."]
+        };
+      }
+
+      // Log the analysis results
+      console.log('[AI Analysis] 儲存分析結果:', {
+        summary: analysis.summary?.length || 0,
+        keyTopics: analysis.keyTopics?.length || 0,
+        actionItems: analysis.actionItems?.length || 0,
+        highlights: analysis.highlights?.length || 0,
+        speakerAnalysis: analysis.speakerAnalysis ? Object.keys(analysis.speakerAnalysis).length : 0
+      });
+
+      // Save analysis results to database
+      await storage.updateTranscription(id, {
+        summary: analysis.summary || null,
+        topicsDetection: analysis.keyTopics || null,
+        actionItems: analysis.actionItems || null,
+        autoHighlights: analysis.highlights || null,
+        speakerAnalysis: analysis.speakerAnalysis || null,
+      });
+
+      // Return updated transcription
+      const updatedTranscription = await storage.getTranscription(id);
+      res.json(updatedTranscription);
     } catch (error) {
       console.error("Gemini analysis error:", error);
-      res.status(500).json({ 
-        message: error instanceof Error ? error.message : "AI 分析失敗" 
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "AI 分析失敗"
       });
     }
   });
 
+  // RD Mode Analysis - Generate technical documentation from engineering discussions
+  app.post("/api/transcriptions/:id/analyze-rd", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transcription = await storage.getTranscription(id);
 
+      if (!transcription) {
+        return res.status(404).json({ message: "找不到轉錄記錄" });
+      }
+
+      if (transcription.status !== 'completed') {
+        return res.status(400).json({ message: "轉錄尚未完成，無法進行 RD 分析" });
+      }
+
+      // Prefer cleaned transcript if available
+      const textToAnalyze = (transcription as any).cleanedTranscriptText || transcription.transcriptText;
+
+      if (!textToAnalyze) {
+        return res.status(400).json({ message: "缺少轉錄文本，無法進行 RD 分析" });
+      }
+
+      console.log(`[RD Analysis] 開始 RD 模式分析，使用${(transcription as any).cleanedTranscriptText ? '整理後' : '原始'}逐字稿`);
+
+      // Use Vertex AI for RD analysis
+      const model = getVertexAIModel();
+
+      const rdAnalysisPrompt = `
+你是一位資深軟體架構師和技術文件專家。
+請根據以下 RD 團隊的會議討論內容，產出完整的技術文檔和圖表。
+
+會議記錄內容：
+${textToAnalyze.substring(0, 20000)}
+
+===== 輸出要求 =====
+請用繁體中文回應，輸出格式為嚴格的 JSON。
+
+===== JSON 結構 =====
+{
+  "documents": {
+    "userStories": [
+      {
+        "id": "US-001",
+        "asA": "作為什麼角色",
+        "iWant": "我想要什麼功能",
+        "soThat": "以便達成什麼目的",
+        "acceptanceCriteria": ["驗收條件1", "驗收條件2"],
+        "priority": "high" | "medium" | "low"
+      }
+    ],
+    "requirements": [
+      {
+        "id": "REQ-001",
+        "title": "需求標題",
+        "description": "詳細描述",
+        "type": "functional" | "non-functional",
+        "priority": "must" | "should" | "could" | "wont",
+        "relatedUserStories": ["US-001"]
+      }
+    ],
+    "apiDesign": [
+      {
+        "method": "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+        "path": "/api/example",
+        "description": "端點說明",
+        "requestBody": {
+          "contentType": "application/json",
+          "schema": {"field": "type"},
+          "example": {"field": "value"}
+        },
+        "responseBody": {
+          "statusCode": 200,
+          "schema": {"field": "type"},
+          "example": {"field": "value"}
+        },
+        "authentication": "Bearer Token"
+      }
+    ],
+    "systemArchitecture": {
+      "overview": "系統架構概述",
+      "components": [
+        {
+          "name": "組件名稱",
+          "description": "組件描述",
+          "technology": "使用技術",
+          "responsibilities": ["職責1", "職責2"]
+        }
+      ],
+      "interactions": [
+        {
+          "from": "組件A",
+          "to": "組件B",
+          "description": "交互說明"
+        }
+      ]
+    },
+    "databaseDesign": [
+      {
+        "tableName": "表名",
+        "description": "表描述",
+        "columns": [
+          {
+            "name": "欄位名",
+            "type": "資料類型",
+            "nullable": false,
+            "primaryKey": true,
+            "foreignKey": {"table": "關聯表", "column": "關聯欄位"},
+            "description": "欄位說明"
+          }
+        ],
+        "indexes": ["index_name"]
+      }
+    ],
+    "technicalDecisions": [
+      {
+        "id": "ADR-001",
+        "title": "決策標題",
+        "context": "背景說明",
+        "decision": "決策內容",
+        "consequences": "影響與後果",
+        "alternatives": ["替代方案1", "替代方案2"],
+        "status": "proposed" | "accepted" | "deprecated"
+      }
+    ]
+  },
+  "diagrams": {
+    "flowchart": {
+      "title": "流程圖標題",
+      "description": "圖表描述",
+      "code": "flowchart TD\\n    A[開始] --> B[步驟1]\\n    B --> C[結束]"
+    },
+    "sequenceDiagram": {
+      "title": "循序圖標題",
+      "description": "圖表描述",
+      "code": "sequenceDiagram\\n    participant User\\n    participant Server\\n    User->>Server: 請求\\n    Server-->>User: 回應"
+    },
+    "erDiagram": {
+      "title": "ER 圖標題",
+      "description": "圖表描述",
+      "code": "erDiagram\\n    USER ||--o{ ORDER : places\\n    USER {\\n        int id PK\\n        string name\\n    }"
+    },
+    "stateDiagram": null,
+    "c4Diagram": null
+  },
+  "metadata": {
+    "projectName": "專案名稱（如有提及）",
+    "discussionDate": "${new Date().toISOString().split('T')[0]}",
+    "participants": ["參與者1", "參與者2"],
+    "summary": "討論摘要（100字以內）"
+  }
+}
+
+===== Mermaid 圖表規則 =====
+1. 使用 \\n 表示換行（不是實際換行）
+2. 中文文字用引號包裹，例如 A["開始處理"]
+3. 未討論到的圖表設為 null
+4. 圖表元素不超過 15 個節點
+5. 確保語法正確可渲染
+
+===== 重要注意事項 =====
+1. 只提取明確討論的內容，不要憑空捏造
+2. 如果某類文檔沒有相關討論，設為空陣列 []
+3. 優先產出最相關的文檔類型
+4. API 設計需符合 RESTful 規範
+5. 資料庫設計需考慮正規化
+6. 各類型文檔數量適中（3-10 項）
+
+請確保回應為有效的 JSON 格式，不要包含任何 markdown 標記或解釋文字。
+`;
+
+      const result = await model.generateContent(rdAnalysisPrompt);
+      const response = result.response;
+      let analysisText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      // Clean JSON response
+      analysisText = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+      let rdAnalysis: {
+        documents: {
+          userStories: unknown[];
+          requirements: unknown[];
+          apiDesign: unknown[];
+          systemArchitecture: { overview: string; components: unknown[]; interactions: unknown[] };
+          databaseDesign: unknown[];
+          technicalDecisions: unknown[];
+        };
+        diagrams: Record<string, unknown>;
+        metadata: { discussionDate: string; participants: string[]; summary: string; projectName?: string };
+      };
+      try {
+        const parsed = JSON.parse(analysisText);
+
+        // Build validated structure with defaults
+        rdAnalysis = {
+          documents: {
+            userStories: parsed.documents?.userStories || [],
+            requirements: parsed.documents?.requirements || [],
+            apiDesign: parsed.documents?.apiDesign || [],
+            systemArchitecture: parsed.documents?.systemArchitecture || { overview: '', components: [], interactions: [] },
+            databaseDesign: parsed.documents?.databaseDesign || [],
+            technicalDecisions: parsed.documents?.technicalDecisions || []
+          },
+          diagrams: parsed.diagrams || {},
+          metadata: {
+            discussionDate: parsed.metadata?.discussionDate || new Date().toISOString().split('T')[0],
+            participants: parsed.metadata?.participants || [],
+            summary: parsed.metadata?.summary || '',
+            projectName: parsed.metadata?.projectName
+          }
+        };
+
+        console.log('[RD Analysis] 解析成功:', {
+          userStories: rdAnalysis.documents?.userStories?.length || 0,
+          requirements: rdAnalysis.documents?.requirements?.length || 0,
+          apiDesign: rdAnalysis.documents?.apiDesign?.length || 0,
+          databaseDesign: rdAnalysis.documents?.databaseDesign?.length || 0,
+          technicalDecisions: rdAnalysis.documents?.technicalDecisions?.length || 0,
+          diagrams: Object.keys(rdAnalysis.diagrams || {}).filter(k => rdAnalysis.diagrams[k] !== null).length
+        });
+
+      } catch (parseError) {
+        console.error("[RD Analysis] JSON 解析錯誤:", parseError);
+        console.error("[RD Analysis] 原始回應:", analysisText.substring(0, 500));
+
+        // Fallback structure
+        rdAnalysis = {
+          documents: {
+            userStories: [],
+            requirements: [],
+            apiDesign: [],
+            systemArchitecture: {
+              overview: "無法解析 AI 回應",
+              components: [],
+              interactions: []
+            },
+            databaseDesign: [],
+            technicalDecisions: []
+          },
+          diagrams: {},
+          metadata: {
+            discussionDate: new Date().toISOString().split('T')[0],
+            participants: [],
+            summary: "AI 分析結果解析失敗，請重試"
+          }
+        };
+      }
+
+      // Save RD analysis results to database
+      await storage.updateTranscription(id, {
+        rdAnalysis: rdAnalysis,
+        analysisMode: 'rd'
+      });
+
+      // Return updated transcription
+      const updatedTranscription = await storage.getTranscription(id);
+
+      await AdminLogger.log({
+        category: 'ai_analysis',
+        action: 'rd_analysis_completed',
+        description: `轉錄${id}完成 RD 模式分析`,
+        details: {
+          transcriptionId: id,
+          userStories: rdAnalysis.documents?.userStories?.length || 0,
+          requirements: rdAnalysis.documents?.requirements?.length || 0,
+          apiEndpoints: rdAnalysis.documents?.apiDesign?.length || 0,
+          diagrams: Object.keys(rdAnalysis.diagrams || {}).filter(k => rdAnalysis.diagrams[k] !== null).length
+        }
+      });
+
+      res.json(updatedTranscription);
+    } catch (error) {
+      console.error("[RD Analysis] 錯誤:", error);
+
+      await AdminLogger.log({
+        category: 'ai_analysis',
+        action: 'rd_analysis_error',
+        description: `轉錄${req.params.id} RD 分析失敗`,
+        details: { error: error instanceof Error ? error.message : String(error) }
+      });
+
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "RD 分析失敗"
+      });
+    }
+  });
 
   // Clean transcription text with Gemini AI
   app.post("/api/transcriptions/:id/clean", async (req, res) => {
@@ -1442,77 +2253,7 @@ ${originalText}
     }
   });
 
-  // Restore original transcription data from AssemblyAI
-  app.post("/api/transcriptions/:id/restore", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const transcription = await storage.getTranscription(id);
-
-      if (!transcription || !transcription.assemblyaiId) {
-        return res.status(404).json({ message: "找不到轉錄記錄或 AssemblyAI ID" });
-      }
-
-      // Fetch original data from AssemblyAI
-      const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcription.assemblyaiId}`, {
-        headers: {
-          'authorization': process.env.ASSEMBLYAI_API_KEY || ''
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('無法從 AssemblyAI 獲取原始資料');
-      }
-
-      const data = await response.json();
-      
-      // Restore original segments and speakers from utterances
-      const originalSegments = data.utterances?.map((utterance: any) => {
-        const totalSeconds = Math.floor(utterance.start / 1000);
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        const timestamp = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        
-        return {
-          text: utterance.text,
-          speaker: utterance.speaker,
-          start: utterance.start,
-          end: utterance.end,
-          confidence: Math.round(utterance.confidence * 100),
-          timestamp: timestamp
-        };
-      }) || [];
-
-      // Get unique speakers and create speaker objects
-      const colors = ['hsl(220, 70%, 50%)', 'hsl(120, 70%, 50%)', 'hsl(0, 70%, 50%)', 'hsl(280, 70%, 50%)', 'hsl(45, 70%, 50%)', 'hsl(180, 70%, 50%)'];
-      const speakerIds = data.utterances?.map((u: any) => u.speaker) || [];
-      const uniqueSpeakerIds: string[] = [];
-      speakerIds.forEach((id: string) => {
-        if (!uniqueSpeakerIds.includes(id)) {
-          uniqueSpeakerIds.push(id);
-        }
-      });
-      
-      const originalSpeakers = uniqueSpeakerIds.map((speakerId, index) => ({
-        id: speakerId,
-        label: `講者 ${speakerId}`,
-        color: colors[index % colors.length]
-      }));
-
-      // Update transcription with original data
-      const updatedTranscription = await storage.updateTranscription(id, {
-        segments: originalSegments,
-        speakers: originalSpeakers,
-        transcriptText: data.text
-      });
-
-      res.json(updatedTranscription);
-    } catch (error) {
-      console.error("Restore transcription error:", error);
-      res.status(500).json({ 
-        message: error instanceof Error ? error.message : "恢復原始轉錄資料失敗" 
-      });
-    }
-  });
+  // Note: Restore endpoint removed - now using Google Cloud Speech-to-Text
 
   // Segment cleaned text with AI speaker assignment
   app.post("/api/transcriptions/:id/segment", async (req, res) => {
@@ -1588,30 +2329,36 @@ ${originalText}
     }
   });
 
-  // Get usage statistics
-  app.get("/api/usage/stats", async (req, res) => {
+  // Get usage statistics (admin sees all, user sees own data)
+  app.get("/api/usage/stats", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const usageTracker = new UsageTracker();
-      const stats = await usageTracker.getUsageStats();
+      const isAdmin = req.user!.role === 'admin';
+      // Admin sees all data (userId = null), user sees only their own data
+      const userId = isAdmin ? null : req.user!.id;
+      const stats = await usageTracker.getUsageStats(userId);
       res.json(stats);
     } catch (error) {
       console.error("Get usage stats error:", error);
-      res.status(500).json({ 
-        message: error instanceof Error ? error.message : "獲取使用統計失敗" 
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "獲取使用統計失敗"
       });
     }
   });
 
-  // Get monthly usage trend
-  app.get("/api/usage/trend", async (req, res) => {
+  // Get monthly usage trend (admin sees all, user sees own data)
+  app.get("/api/usage/trend", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const usageTracker = new UsageTracker();
-      const trend = await usageTracker.getMonthlyTrend();
+      const isAdmin = req.user!.role === 'admin';
+      // Admin sees all data (userId = null), user sees only their own data
+      const userId = isAdmin ? null : req.user!.id;
+      const trend = await usageTracker.getMonthlyTrend(userId);
       res.json(trend);
     } catch (error) {
       console.error("Get usage trend error:", error);
-      res.status(500).json({ 
-        message: error instanceof Error ? error.message : "獲取使用趨勢失敗" 
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "獲取使用趨勢失敗"
       });
     }
   });
@@ -1749,7 +2496,7 @@ ${originalText}
           ...validUpdates,
           updatedAt: new Date()
         })
-        .where(eq(users.id, userId.toString()))
+        .where(eq(users.id, userId))
         .returning();
 
       if (!updatedUser) {
@@ -1854,7 +2601,7 @@ ${originalText}
       const [userToDelete] = await db
         .select()
         .from(users)
-        .where(eq(users.id, userId.toString()));
+        .where(eq(users.id, userId));
 
       if (!userToDelete) {
         return res.status(404).json({ message: "找不到用戶" });
@@ -1863,7 +2610,7 @@ ${originalText}
       // Delete user
       await db
         .delete(users)
-        .where(eq(users.id, userId.toString()));
+        .where(eq(users.id, userId));
 
       await AdminLogger.log({
         category: "admin",
@@ -2201,85 +2948,6 @@ ${originalText}
     }
   });
 
-  // User keyword management routes
-  app.get("/api/keywords", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const keywords = await db.select()
-        .from(userKeywords)
-        .where(eq(userKeywords.userId, req.user!.id))
-        .orderBy(desc(userKeywords.usageCount), desc(userKeywords.updatedAt));
-      res.json(keywords);
-    } catch (error) {
-      console.error("Get keywords error:", error);
-      res.status(500).json({ message: "Failed to fetch keywords" });
-    }
-  });
-
-  app.post("/api/keywords", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const { name, keywords } = insertUserKeywordSchema.parse(req.body);
-      
-      const [newKeyword] = await db.insert(userKeywords)
-        .values({
-          userId: req.user!.id,
-          name,
-          keywords,
-        })
-        .returning();
-      
-      await AdminLogger.log({
-        category: "feature",
-        action: "keyword_set_created",
-        description: `用戶創建新的關鍵字集合: ${name}`,
-        severity: "info",
-        details: { userId: req.user!.id, keywordCount: keywords.split(',').length }
-      });
-      
-      res.json(newKeyword);
-    } catch (error) {
-      console.error("Create keyword error:", error);
-      res.status(500).json({ message: "Failed to create keyword set" });
-    }
-  });
-
-  app.patch("/api/keywords/:id/use", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const keywordId = parseInt(req.params.id);
-      
-      await db.update(userKeywords)
-        .set({ 
-          usageCount: sql`${userKeywords.usageCount} + 1`,
-          updatedAt: new Date()
-        })
-        .where(and(
-          eq(userKeywords.id, keywordId),
-          eq(userKeywords.userId, req.user!.id)
-        ));
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Update keyword usage error:", error);
-      res.status(500).json({ message: "Failed to update keyword usage" });
-    }
-  });
-
-  app.delete("/api/keywords/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const keywordId = parseInt(req.params.id);
-      
-      await db.delete(userKeywords)
-        .where(and(
-          eq(userKeywords.id, keywordId),
-          eq(userKeywords.userId, req.user!.id)
-        ));
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Delete keyword error:", error);
-      res.status(500).json({ message: "Failed to delete keyword set" });
-    }
-  });
-
   // Transcription configuration routes
   app.get("/api/transcription-config", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -2296,9 +2964,9 @@ ${originalText}
     try {
       const userId = req.user!.id;
       const config = req.body;
-      
+
       await storage.saveTranscriptionConfig(userId, config);
-      
+
       await AdminLogger.log({
         category: 'transcription',
         action: 'config_updated',
@@ -2314,6 +2982,198 @@ ${originalText}
     } catch (error) {
       console.error("Error saving transcription config:", error);
       res.status(500).json({ message: "保存配置失敗" });
+    }
+  });
+
+  // ==================== 推送通知 API ====================
+
+  // 獲取 VAPID 公鑰
+  app.get("/api/push/vapid-public-key", (req, res) => {
+    const publicKey = PushNotificationService.getVapidPublicKey();
+
+    if (publicKey) {
+      res.json({ publicKey });
+    } else {
+      res.status(503).json({
+        message: "推送服務未配置",
+        error: "VAPID 金鑰未設定"
+      });
+    }
+  });
+
+  // 訂閱推送通知
+  app.post("/api/push/subscribe", async (req: AuthenticatedRequest, res) => {
+    try {
+      const { endpoint, keys } = req.body;
+
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        return res.status(400).json({ message: "缺少必要的訂閱資訊" });
+      }
+
+      // 獲取用戶 ID（如果已登入）
+      const userId = req.user?.id || null;
+
+      const result = await PushNotificationService.saveSubscription(userId, {
+        endpoint,
+        keys,
+      });
+
+      console.log(`[Push API] 訂閱成功: ${result.id}`);
+      res.json({ message: "訂閱成功", subscriptionId: result.id });
+    } catch (error) {
+      console.error("[Push API] 訂閱失敗:", error);
+      res.status(500).json({ message: "訂閱失敗" });
+    }
+  });
+
+  // 取消訂閱推送通知
+  app.post("/api/push/unsubscribe", async (req, res) => {
+    try {
+      const { endpoint } = req.body;
+
+      if (!endpoint) {
+        return res.status(400).json({ message: "缺少 endpoint" });
+      }
+
+      await PushNotificationService.removeSubscription(endpoint);
+
+      console.log(`[Push API] 取消訂閱成功`);
+      res.json({ message: "已取消訂閱" });
+    } catch (error) {
+      console.error("[Push API] 取消訂閱失敗:", error);
+      res.status(500).json({ message: "取消訂閱失敗" });
+    }
+  });
+
+  // 測試推送通知 (僅限管理員)
+  app.post("/api/push/test", requireAdmin, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!PushNotificationService.isAvailable()) {
+        return res.status(503).json({ message: "推送服務未配置" });
+      }
+
+      const count = await PushNotificationService.sendToAll({
+        title: "測試通知",
+        body: "這是一則測試推送通知",
+        icon: "/favicon.ico",
+        tag: "test-notification",
+        data: { url: "/" }
+      });
+
+      res.json({ message: `已發送 ${count} 則通知` });
+    } catch (error) {
+      console.error("[Push API] 測試通知失敗:", error);
+      res.status(500).json({ message: "發送失敗" });
+    }
+  });
+
+  // ==================== Google Calendar API ====================
+
+  // Get Google OAuth authorization URL
+  app.get("/api/google/auth/url", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!GoogleCalendarService.isGoogleCalendarConfigured()) {
+        return res.status(503).json({ message: "Google Calendar 服務未配置" });
+      }
+
+      const userId = req.user!.id;
+      const authUrl = GoogleCalendarService.generateAuthUrl(userId);
+      res.json({ url: authUrl });
+    } catch (error) {
+      console.error("[Google Calendar API] 生成授權 URL 失敗:", error);
+      res.status(500).json({ message: "生成授權連結失敗" });
+    }
+  });
+
+  // OAuth callback handler
+  app.get("/api/google/auth/callback", async (req, res) => {
+    try {
+      const { code, state, error: oauthError } = req.query;
+
+      if (oauthError) {
+        console.error("[Google Calendar API] OAuth error:", oauthError);
+        return res.redirect("/#/account?google_error=access_denied");
+      }
+
+      if (!code || !state || typeof code !== 'string' || typeof state !== 'string') {
+        return res.redirect("/#/account?google_error=invalid_params");
+      }
+
+      const stateData = GoogleCalendarService.parseState(state);
+      if (!stateData) {
+        return res.redirect("/#/account?google_error=invalid_state");
+      }
+
+      const result = await GoogleCalendarService.handleOAuthCallback(code, stateData.userId);
+
+      if (result.success) {
+        res.redirect(`/#/account?google_success=true&email=${encodeURIComponent(result.email || '')}`);
+      } else {
+        res.redirect(`/#/account?google_error=${encodeURIComponent(result.error || 'unknown')}`);
+      }
+    } catch (error) {
+      console.error("[Google Calendar API] OAuth callback 失敗:", error);
+      res.redirect("/#/account?google_error=callback_failed");
+    }
+  });
+
+  // Get calendar status (check if linked)
+  app.get("/api/google/calendar/status", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const status = await GoogleCalendarService.getCalendarStatus(userId);
+      res.json({
+        configured: GoogleCalendarService.isGoogleCalendarConfigured(),
+        ...status
+      });
+    } catch (error) {
+      console.error("[Google Calendar API] 取得狀態失敗:", error);
+      res.status(500).json({ message: "取得 Google Calendar 狀態失敗" });
+    }
+  });
+
+  // Get calendar events
+  app.get("/api/google/calendar/events", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const { timeMin, timeMax, maxResults } = req.query;
+
+      // Parse dates
+      const startDate = timeMin ? new Date(timeMin as string) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default: past 7 days
+      const endDate = timeMax ? new Date(timeMax as string) : new Date(Date.now() + 24 * 60 * 60 * 1000); // Default: until tomorrow
+
+      const result = await GoogleCalendarService.getCalendarEvents(
+        userId,
+        startDate,
+        endDate,
+        maxResults ? parseInt(maxResults as string, 10) : 50
+      );
+
+      if (result.success) {
+        res.json({ events: result.events });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error) {
+      console.error("[Google Calendar API] 取得事件失敗:", error);
+      res.status(500).json({ message: "取得行事曆事件失敗" });
+    }
+  });
+
+  // Unlink Google Calendar
+  app.delete("/api/google/auth/unlink", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const result = await GoogleCalendarService.unlinkCalendar(userId);
+
+      if (result.success) {
+        res.json({ message: "已解除 Google Calendar 綁定" });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error) {
+      console.error("[Google Calendar API] 解除綁定失敗:", error);
+      res.status(500).json({ message: "解除綁定失敗" });
     }
   });
 

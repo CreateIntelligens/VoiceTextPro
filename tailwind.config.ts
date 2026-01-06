@@ -44,6 +44,15 @@ export default {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
+        // Cyberpunk 霓虹色
+        neon: {
+          cyan: "hsl(var(--neon-cyan))",
+          magenta: "hsl(var(--neon-magenta))",
+          purple: "hsl(var(--neon-purple))",
+          green: "hsl(var(--neon-green))",
+          red: "hsl(var(--neon-red))",
+          yellow: "hsl(var(--neon-yellow))",
+        },
         chart: {
           "1": "hsl(var(--chart-1))",
           "2": "hsl(var(--chart-2))",
@@ -62,6 +71,21 @@ export default {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
+      boxShadow: {
+        // 霓虹發光效果
+        "glow-sm": "0 0 10px rgba(10, 189, 198, 0.2)",
+        "glow": "0 0 20px rgba(10, 189, 198, 0.3)",
+        "glow-lg": "0 0 30px rgba(10, 189, 198, 0.4)",
+        "glow-magenta": "0 0 20px rgba(234, 0, 217, 0.3)",
+        "glow-green": "0 0 20px rgba(5, 255, 161, 0.3)",
+        "glow-red": "0 0 20px rgba(255, 42, 109, 0.3)",
+      },
+      backgroundImage: {
+        // Cyberpunk 漸變
+        "gradient-cyber": "linear-gradient(135deg, hsl(var(--neon-cyan)) 0%, hsl(var(--neon-magenta)) 100%)",
+        "gradient-cyber-vertical": "linear-gradient(180deg, hsl(var(--neon-cyan)) 0%, hsl(var(--neon-magenta)) 100%)",
+        "gradient-dark": "linear-gradient(180deg, hsl(220 70% 12%) 0%, hsl(220 60% 8%) 100%)",
+      },
       keyframes: {
         "accordion-down": {
           from: {
@@ -79,10 +103,39 @@ export default {
             height: "0",
           },
         },
+        "glow-pulse": {
+          "0%, 100%": {
+            opacity: "1",
+            boxShadow: "0 0 5px currentColor, 0 0 10px currentColor",
+          },
+          "50%": {
+            opacity: "0.8",
+            boxShadow: "0 0 15px currentColor, 0 0 25px currentColor",
+          },
+        },
+        "border-glow": {
+          "0%, 100%": {
+            borderColor: "hsl(var(--neon-cyan) / 0.3)",
+          },
+          "50%": {
+            borderColor: "hsl(var(--neon-cyan) / 0.6)",
+          },
+        },
+        "shimmer": {
+          "0%": {
+            backgroundPosition: "-200% 0",
+          },
+          "100%": {
+            backgroundPosition: "200% 0",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+        "border-glow": "border-glow 3s ease-in-out infinite",
+        "shimmer": "shimmer 2s linear infinite",
       },
     },
   },

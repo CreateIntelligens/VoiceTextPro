@@ -101,7 +101,7 @@ CREATE TABLE transcriptions (
   file_size INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   progress INTEGER NOT NULL DEFAULT 0,
-  assemblyai_id TEXT,
+  google_speech_operation_id TEXT,
   transcript_text TEXT,
   speakers JSONB,
   segments JSONB,
@@ -131,7 +131,7 @@ CREATE TABLE transcriptions (
 - `file_size`: 檔案大小（位元組）
 - `status`: 轉錄狀態（'pending', 'processing', 'completed', 'error'）
 - `progress`: 進度百分比（0-100）
-- `assemblyai_id`: AssemblyAI 轉錄任務ID
+- `google_speech_operation_id`: Google Cloud Speech-to-Text 作業 ID
 - `transcript_text`: 轉錄文本內容
 - `speakers`: 對話者信息（JSON格式）
 - `segments`: 分段轉錄內容（JSON格式）

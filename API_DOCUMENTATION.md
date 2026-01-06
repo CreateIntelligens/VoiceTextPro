@@ -1181,7 +1181,7 @@ Authorization: Bearer <token>
   "success": false,
   "error": {
     "code": "EXTERNAL_SERVICE_ERROR",
-    "message": "AssemblyAI 服務暫時不可用，請稍後再試"
+    "message": "Google Cloud Speech-to-Text 服務暫時不可用，請稍後再試"
   }
 }
 ```

@@ -1,10 +1,11 @@
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { db } from './db';
-import { users, userSessions, accountApplications, notifications } from '@shared/schema';
+import { users, userSessions, accountApplications, notifications, systemSettings, SYSTEM_SETTING_KEYS } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import type { Request, Response, NextFunction } from 'express';
 import { EmailService } from './email-service';
+import { TokenService } from './token-service';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -13,12 +14,45 @@ export interface AuthenticatedRequest extends Request {
     name: string | null;
     role: string;
     status: string;
+    emailVerified?: boolean;
   };
 }
+
+export type RegistrationMode = 'open' | 'application';
 
 export class AuthService {
   static async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, 12);
+  }
+
+  /**
+   * 獲取當前註冊模式
+   */
+  static async getRegistrationMode(): Promise<RegistrationMode> {
+    const [setting] = await db.select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, SYSTEM_SETTING_KEYS.REGISTRATION_MODE));
+
+    return (setting?.value as RegistrationMode) || 'application';
+  }
+
+  /**
+   * 設定註冊模式
+   */
+  static async setRegistrationMode(mode: RegistrationMode): Promise<void> {
+    await db.insert(systemSettings)
+      .values({
+        key: SYSTEM_SETTING_KEYS.REGISTRATION_MODE,
+        value: mode,
+        description: '註冊模式：open=開放註冊, application=申請制',
+      })
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: {
+          value: mode,
+          updatedAt: new Date(),
+        },
+      });
   }
 
   static async verifyPassword(password: string, hash: string): Promise<boolean> {
@@ -76,17 +110,37 @@ export class AuthService {
     };
   }
 
-  static async login(email: string, password: string): Promise<{ user: any; token: string; isFirstLogin?: boolean } | null> {
+  static async login(email: string, password: string): Promise<{ user: any; token: string; isFirstLogin?: boolean; error?: string } | null> {
+    console.log('Login attempt for:', email);
+
+    // 先找用戶（不限狀態）
     const [user] = await db
       .select()
       .from(users)
-      .where(and(eq(users.email, email), eq(users.status, 'active')))
+      .where(eq(users.email, email))
       .limit(1);
 
+    console.log('User found:', user ? 'Yes' : 'No');
     if (!user) return null;
 
     const isValid = await this.verifyPassword(password, user.password);
+    console.log('Password valid:', isValid);
     if (!isValid) return null;
+
+    // 檢查用戶狀態
+    console.log('User status:', user.status);
+    if (user.status === 'pending') {
+      return { user: null, token: '', error: '您的帳號正在等待管理員審核，審核通過後將會通知您' };
+    }
+    if (user.status === 'pending_verification') {
+      return { user: null, token: '', error: '請先完成 Email 驗證，驗證郵件已發送至您的信箱' };
+    }
+    if (user.status === 'suspended') {
+      return { user: null, token: '', error: '您的帳號已被停用，請聯繫管理員' };
+    }
+    if (user.status !== 'active') {
+      return { user: null, token: '', error: '帳號狀態異常，請聯繫管理員' };
+    }
 
     // Check if it's first login and update
     const isFirstLogin = user.isFirstLogin;
@@ -117,6 +171,9 @@ export class AuthService {
     await db.delete(userSessions).where(eq(userSessions.token, token));
   }
 
+  /**
+   * 原有的註冊方法（管理員直接創建用戶，不需要 Email 驗證）
+   */
   static async registerUser(email: string, name: string, role: string = 'user'): Promise<{ success: boolean; temporaryPassword?: string; error?: string }> {
     try {
       // Check if user already exists
@@ -134,7 +191,7 @@ export class AuthService {
       const temporaryPassword = EmailService.generateRandomPassword(12);
       const hashedPassword = await this.hashPassword(temporaryPassword);
 
-      // Create user
+      // Create user (已驗證，因為是管理員創建)
       const [newUser] = await db.insert(users).values({
         email,
         name,
@@ -142,6 +199,8 @@ export class AuthService {
         role,
         status: 'active',
         isFirstLogin: true,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
       }).returning();
 
       // Send welcome email with temporary password
@@ -160,6 +219,256 @@ export class AuthService {
     }
   }
 
+  /**
+   * 新的自助註冊方法（需要 Email 驗證）
+   */
+  static async registerWithEmailVerification(
+    email: string,
+    password: string,
+    name: string,
+    baseUrl: string
+  ): Promise<{ success: boolean; message?: string; requiresVerification?: boolean; needsAdminApproval?: boolean; error?: string }> {
+    try {
+      // 檢查用戶是否已存在
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (existingUser) {
+        return { success: false, error: '此郵箱已註冊' };
+      }
+
+      // 驗證密碼強度
+      if (password.length < 8) {
+        return { success: false, error: '密碼需至少 8 個字元' };
+      }
+
+      const hashedPassword = await this.hashPassword(password);
+      const registrationMode = await this.getRegistrationMode();
+
+      // 創建用戶（狀態為待驗證）
+      const [newUser] = await db.insert(users).values({
+        email,
+        name,
+        password: hashedPassword,
+        role: 'user',
+        status: 'pending_verification',
+        isFirstLogin: false,
+        emailVerified: false,
+      }).returning();
+
+      // 創建驗證 Token
+      const token = await TokenService.createEmailVerificationToken(newUser.id);
+      const verificationLink = `${baseUrl}/verify-email/${token}`;
+
+      // 發送驗證郵件
+      const emailSent = await EmailService.sendVerificationEmail(email, name, verificationLink);
+
+      if (!emailSent) {
+        console.error('Failed to send verification email to:', email);
+        // 刪除剛創建的用戶
+        await db.delete(users).where(eq(users.id, newUser.id));
+        return { success: false, error: '驗證郵件發送失敗，請稍後再試' };
+      }
+
+      return {
+        success: true,
+        message: '註冊成功！請檢查您的信箱並點擊驗證連結完成註冊',
+        requiresVerification: true,
+        needsAdminApproval: registrationMode === 'application',
+      };
+    } catch (error) {
+      console.error('Registration with email verification error:', error);
+      return { success: false, error: '註冊失敗，請稍後再試' };
+    }
+  }
+
+  /**
+   * 驗證 Email
+   */
+  static async verifyEmail(token: string): Promise<{ success: boolean; email?: string; needsAdminApproval?: boolean; error?: string }> {
+    try {
+      const result = await TokenService.verifyEmailToken(token);
+
+      if (!result) {
+        return { success: false, error: '驗證連結無效或已過期' };
+      }
+
+      const registrationMode = await this.getRegistrationMode();
+
+      if (registrationMode === 'open') {
+        // 開放註冊模式：直接啟用帳號
+        await db.update(users)
+          .set({ status: 'active', updatedAt: new Date() })
+          .where(eq(users.id, result.userId));
+
+        return { success: true, email: result.email, needsAdminApproval: false };
+      } else {
+        // 申請制模式：更新狀態為待審核
+        await db.update(users)
+          .set({ status: 'pending', updatedAt: new Date() })
+          .where(eq(users.id, result.userId));
+
+        // 通知管理員
+        const adminUsers = await db.select().from(users).where(eq(users.role, 'admin'));
+        for (const admin of adminUsers) {
+          await db.insert(notifications).values({
+            userId: admin.id,
+            type: 'account_application',
+            title: '新用戶待審核',
+            message: `用戶 ${result.email} 已完成 Email 驗證，等待審核。`,
+          });
+        }
+
+        return { success: true, email: result.email, needsAdminApproval: true };
+      }
+    } catch (error) {
+      console.error('Email verification error:', error);
+      return { success: false, error: '驗證失敗，請稍後再試' };
+    }
+  }
+
+  /**
+   * 重新發送驗證郵件（支援 email 或 userId）
+   */
+  static async resendVerificationEmail(emailOrUserId: string | number, baseUrl: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      let user;
+
+      if (typeof emailOrUserId === 'number') {
+        [user] = await db.select().from(users).where(eq(users.id, emailOrUserId));
+      } else {
+        [user] = await db.select().from(users).where(eq(users.email, emailOrUserId));
+      }
+
+      if (!user) {
+        // 為安全起見，不透露用戶是否存在
+        return { success: true };
+      }
+
+      if (user.emailVerified) {
+        return { success: true }; // 不透露詳細資訊
+      }
+
+      const token = await TokenService.createEmailVerificationToken(user.id);
+      const verificationLink = `${baseUrl}/verify-email/${token}`;
+
+      const emailSent = await EmailService.sendVerificationEmail(user.email, user.name || '', verificationLink);
+
+      if (!emailSent) {
+        return { success: false, error: '郵件發送失敗，請稍後再試' };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Resend verification email error:', error);
+      return { success: false, error: '發送失敗，請稍後再試' };
+    }
+  }
+
+  /**
+   * 發送密碼重設連結（新的 Token 驗證方式）
+   */
+  static async sendPasswordResetLink(email: string, baseUrl: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      // 為安全起見，無論用戶是否存在都返回成功（防止用戶枚舉）
+      if (!user) {
+        return { success: true };
+      }
+
+      // 檢查是否最近已請求過
+      const hasRecent = await TokenService.hasRecentPasswordResetRequest(user.id, 5);
+      if (hasRecent) {
+        return { success: false, error: '請等待 5 分鐘後再試' };
+      }
+
+      // 創建重設 Token
+      const token = await TokenService.createPasswordResetToken(user.id);
+      const resetLink = `${baseUrl}/reset-password/${token}`;
+
+      // 發送重設連結郵件
+      const emailSent = await EmailService.sendPasswordResetLinkEmail(email, user.name || '', resetLink);
+
+      if (!emailSent) {
+        console.error('Failed to send password reset link to:', email);
+        return { success: false, error: '郵件發送失敗，請稍後再試' };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Send password reset link error:', error);
+      return { success: false, error: '發送失敗，請稍後再試' };
+    }
+  }
+
+  /**
+   * 驗證密碼重設 Token（僅驗證，不執行重設）
+   */
+  static async verifyResetToken(token: string): Promise<{ valid: boolean; email?: string; error?: string }> {
+    try {
+      const result = await TokenService.verifyPasswordResetToken(token);
+      if (!result) {
+        return { valid: false, error: '重設連結無效或已過期' };
+      }
+
+      return { valid: true, email: result.email };
+    } catch (error) {
+      console.error('Verify reset token error:', error);
+      return { valid: false, error: '驗證失敗' };
+    }
+  }
+
+  /**
+   * 使用 Token 重設密碼
+   */
+  static async resetPasswordWithToken(token: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // 驗證密碼強度
+      if (newPassword.length < 8) {
+        return { success: false, error: '密碼需至少 8 個字元' };
+      }
+
+      // 驗證 Token
+      const result = await TokenService.verifyPasswordResetToken(token);
+      if (!result) {
+        return { success: false, error: '重設連結無效或已過期' };
+      }
+
+      // 更新密碼
+      const hashedPassword = await this.hashPassword(newPassword);
+      await db.update(users)
+        .set({
+          password: hashedPassword,
+          isFirstLogin: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, result.userId));
+
+      // 標記 Token 為已使用
+      await TokenService.markPasswordResetTokenAsUsed(token);
+
+      // 發送密碼已變更通知
+      await EmailService.sendPasswordChangedNotification(result.email);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Reset password with token error:', error);
+      return { success: false, error: '密碼重設失敗，請稍後再試' };
+    }
+  }
+
+  /**
+   * 舊版密碼重設（直接發送新密碼，保留向後兼容）
+   * @deprecated 使用 sendPasswordResetLink 代替
+   */
   static async resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
     try {
       // Check if user exists
@@ -179,7 +488,7 @@ export class AuthService {
 
       // Update user password and set first login flag
       await db.update(users)
-        .set({ 
+        .set({
           password: hashedPassword,
           isFirstLogin: true,
           passwordResetToken: null,

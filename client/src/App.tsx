@@ -1,27 +1,39 @@
-import { useState } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { Menu, X } from "lucide-react";
-import SidebarNavigation from "@/components/sidebar-navigation";
-import BreadcrumbNavigation from "@/components/breadcrumb-navigation";
-import ChatBot from "@/components/chat-bot";
-import Welcome from "@/pages/welcome";
-import TranscriptionPage from "@/pages/transcription";
-import TranscriptionResultsPage from "@/pages/transcription-results";
-import TranscriptionSettings from "@/pages/transcription-settings";
+import BottomNavigation from "@/components/bottom-navigation";
+import HomePage from "@/pages/home";
+import HistoryPage from "@/pages/history";
+import HistoryDetailPage from "@/pages/history-detail";
 import Dashboard from "@/pages/dashboard";
+import AccountPage from "@/pages/account";
 import Login from "@/pages/login";
 import Admin from "@/pages/admin";
+import VerifyEmail from "@/pages/verify-email";
+import ResetPassword from "@/pages/reset-password";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [location] = useLocation();
+
+  // 公開路由（不需要登入）
+  const publicRoutes = ['/verify-email', '/reset-password'];
+  const isPublicRoute = publicRoutes.some(route => location.startsWith(route));
+
+  // 公開路由不需要等待載入完成
+  if (isPublicRoute) {
+    return (
+      <Switch>
+        <Route path="/verify-email/:token" component={VerifyEmail} />
+        <Route path="/reset-password/:token" component={ResetPassword} />
+        <Route component={NotFound} />
+      </Switch>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -39,76 +51,26 @@ function Router() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <SidebarNavigation className="hidden lg:flex" />
-      
-      {/* Mobile Sidebar Overlay */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden">
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          {/* Mobile Sidebar */}
-          <div className="fixed top-0 left-0 h-full w-64 bg-white z-50 transform transition-transform duration-300 ease-in-out">
-            <SidebarNavigation onMobileClose={() => setMobileMenuOpen(false)} />
-          </div>
-        </div>
-      )}
-      
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Navigation Bar for Mobile/Tablet */}
-        <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="mr-2"
-              >
-                {mobileMenuOpen ? (
-                  <X className="w-5 h-5" />
-                ) : (
-                  <Menu className="w-5 h-5" />
-                )}
-              </Button>
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm font-bold">轉</span>
-              </div>
-              <h1 className="text-lg font-bold text-gray-900">智能轉錄平台</h1>
-            </div>
-            <BreadcrumbNavigation />
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-50 pb-16">
+      {/* Main Content Area */}
+      <main className="min-h-screen">
+        <Switch>
+          <Route path="/" component={HomePage} />
+          <Route path="/record" component={HomePage} />
+          <Route path="/upload" component={HomePage} />
+          <Route path="/history" component={HistoryPage} />
+          <Route path="/history/:id" component={HistoryDetailPage} />
+          <Route path="/dashboard" component={Dashboard} />
+          <Route path="/account" component={AccountPage} />
+          <Route path="/admin" component={Admin} />
+          {/* Legacy routes - redirect to new routes */}
+          <Route path="/transcriptions" component={HistoryPage} />
+          <Route path="/transcription-results" component={HistoryPage} />
+          <Route component={NotFound} />
+        </Switch>
+      </main>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Breadcrumb for Desktop */}
-          <div className="hidden lg:block bg-white border-b border-gray-200 px-6 py-4">
-            <BreadcrumbNavigation />
-          </div>
-          
-          {/* Page Content */}
-          <main className="flex-1 overflow-y-auto bg-gray-50">
-            <Switch>
-              <Route path="/" component={Welcome} />
-              <Route path="/record" component={TranscriptionPage} />
-              <Route path="/upload" component={TranscriptionPage} />
-              <Route path="/transcriptions" component={TranscriptionResultsPage} />
-              <Route path="/transcription-results" component={TranscriptionResultsPage} />
-              <Route path="/settings" component={TranscriptionSettings} />
-              <Route path="/keywords" component={Dashboard} />
-              <Route path="/dashboard" component={Dashboard} />
-              <Route path="/admin" component={Admin} />
-              <Route component={NotFound} />
-            </Switch>
-          </main>
-        </div>
-      </div>
-      
-      <ChatBot />
+      <BottomNavigation />
     </div>
   );
 }

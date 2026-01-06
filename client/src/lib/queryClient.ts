@@ -84,7 +84,10 @@ export const getQueryFn: <T>(options: {
       ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     };
 
-    const res = await fetch(queryKey[0] as string, {
+    // 組合 URL：如果有多個 key 部分，用 / 連接
+    const url = queryKey.filter(k => k !== null && k !== undefined).join('/');
+
+    const res = await fetch(url, {
       headers,
       credentials: "include",
     });

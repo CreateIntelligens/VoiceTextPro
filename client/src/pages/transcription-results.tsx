@@ -404,9 +404,9 @@ export default function TranscriptionResultsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-slate-200">
+      <header className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
@@ -418,8 +418,8 @@ export default function TranscriptionResultsPage() {
               </Link>
               <Separator orientation="vertical" className="h-6" />
               <div className="flex items-center space-x-2">
-                <History className="w-5 h-5 text-slate-600" />
-                <h1 className="text-xl font-semibold text-slate-900">轉錄記錄</h1>
+                <History className="w-5 h-5 text-muted-foreground" />
+                <h1 className="text-xl font-semibold text-foreground">轉錄記錄</h1>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -432,7 +432,7 @@ export default function TranscriptionResultsPage() {
               >
                 手動刷新
               </Button>
-              <span className="text-sm text-slate-600">共 {transcriptions.length} 筆記錄</span>
+              <span className="text-sm text-muted-foreground">共 {transcriptions.length} 筆記錄</span>
             </div>
           </div>
         </div>
@@ -449,28 +449,28 @@ export default function TranscriptionResultsPage() {
               <CardContent className="p-0">
                 <div className="space-y-1 max-h-80 sm:max-h-96 overflow-y-auto">
                   {transcriptions.length === 0 ? (
-                    <div className="p-4 text-center text-slate-500">
-                      <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                    <div className="p-4 text-center text-muted-foreground">
+                      <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                       <p className="text-sm">暫無轉錄記錄</p>
                     </div>
                   ) : (
                     transcriptions.map((transcription) => (
                       <div
                         key={transcription.id}
-                        className={`p-3 cursor-pointer border-b border-slate-100 hover:bg-slate-50 transition-colors ${
-                          selectedTranscriptionId === transcription.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                        className={`p-3 cursor-pointer border-b border-border/50 hover:bg-background transition-colors ${
+                          selectedTranscriptionId === transcription.id ? 'bg-primary/10 border-l-4 border-l-primary' : ''
                         }`}
                         onClick={() => setSelectedTranscriptionId(transcription.id)}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-slate-900 truncate">
+                          <span className="text-sm font-medium text-foreground truncate">
                             {transcription.originalName || transcription.filename}
                           </span>
                           <Badge variant="secondary" className={`text-xs ${getStatusColor(transcription.status)}`}>
                             {getStatusText(transcription.status)}
                           </Badge>
                         </div>
-                        <div className="text-xs text-slate-500 space-y-1">
+                        <div className="text-xs text-muted-foreground space-y-1">
                           <div>{formatDate(transcription.createdAt)}</div>
                           {transcription.status === 'completed' && (
                             <div className="flex items-center space-x-2">
@@ -494,17 +494,17 @@ export default function TranscriptionResultsPage() {
               selectedTranscription.status === 'completed' ? (
                 <Card>
                   {/* Results Header */}
-                  <div className="border-b border-slate-200 p-6">
+                  <div className="border-b border-border p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                        <div className="w-10 h-10 bg-neon-green rounded-full flex items-center justify-center">
                           <CheckCircle className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-semibold text-slate-900">
+                          <h3 className="text-lg font-semibold text-foreground">
                             {selectedTranscription.originalName || selectedTranscription.filename}
                           </h3>
-                          <p className="text-slate-600">
+                          <p className="text-muted-foreground">
                             識別到 <span className="font-medium">{
                               selectedTranscription.speakers?.length || 
                               (selectedTranscription.segments ? 
@@ -573,40 +573,40 @@ export default function TranscriptionResultsPage() {
                   <CardContent className="p-6">
                     {/* Summary Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                      <div className="bg-slate-50 rounded-lg p-4 text-center">
-                        <Clock className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-                        <div className="text-2xl font-bold text-slate-900">
+                      <div className="bg-background rounded-lg p-4 text-center">
+                        <Clock className="w-6 h-6 text-muted-foreground/70 mx-auto mb-2" />
+                        <div className="text-2xl font-bold text-foreground">
                           {selectedTranscription.duration ? formatDuration(selectedTranscription.duration) : '--'}
                         </div>
-                        <div className="text-sm text-slate-600">音頻長度</div>
+                        <div className="text-sm text-muted-foreground">音頻長度</div>
                       </div>
-                      <div className="bg-slate-50 rounded-lg p-4 text-center">
-                        <FileText className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-                        <div className="text-2xl font-bold text-slate-900">
+                      <div className="bg-background rounded-lg p-4 text-center">
+                        <FileText className="w-6 h-6 text-muted-foreground/70 mx-auto mb-2" />
+                        <div className="text-2xl font-bold text-foreground">
                           {selectedTranscription.wordCount?.toLocaleString() || '--'}
                         </div>
-                        <div className="text-sm text-slate-600">總字數</div>
+                        <div className="text-sm text-muted-foreground">總字數</div>
                       </div>
-                      <div className="bg-slate-50 rounded-lg p-4 text-center">
-                        <TrendingUp className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-                        <div className="text-2xl font-bold text-slate-900">
+                      <div className="bg-background rounded-lg p-4 text-center">
+                        <TrendingUp className="w-6 h-6 text-muted-foreground/70 mx-auto mb-2" />
+                        <div className="text-2xl font-bold text-foreground">
                           {selectedTranscription.confidence ? Math.round(selectedTranscription.confidence * 100) : '--'}%
                         </div>
-                        <div className="text-sm text-slate-600">準確度</div>
+                        <div className="text-sm text-muted-foreground">準確度</div>
                       </div>
-                      <div className="bg-slate-50 rounded-lg p-4 text-center">
-                        <Users className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-                        <div className="text-2xl font-bold text-slate-900">
+                      <div className="bg-background rounded-lg p-4 text-center">
+                        <Users className="w-6 h-6 text-muted-foreground/70 mx-auto mb-2" />
+                        <div className="text-2xl font-bold text-foreground">
                           {selectedTranscription.speakers?.length || '--'}
                         </div>
-                        <div className="text-sm text-slate-600">對話者</div>
+                        <div className="text-sm text-muted-foreground">對話者</div>
                       </div>
                     </div>
 
                     {/* Speaker Legend */}
                     {selectedTranscription.speakers && selectedTranscription.speakers.length > 0 && (
                       <div className="mb-6">
-                        <h4 className="text-sm font-medium text-slate-700 mb-3">對話者標識</h4>
+                        <h4 className="text-sm font-medium text-foreground/90 mb-3">對話者標識</h4>
                         <div className="flex flex-wrap gap-3">
                           {(selectedTranscription.speakers || []).map((speaker, index) => {
                             const speakerName = typeof speaker === 'string' ? speaker : (speaker as any).name || (speaker as any).id || `講者 ${index + 1}`;
@@ -616,7 +616,7 @@ export default function TranscriptionResultsPage() {
                             
                             if (editingSpeaker === index) {
                               return (
-                                <div key={`speaker-${index}-${speakerName}`} className="flex items-center space-x-2 bg-slate-50 rounded-full px-3 py-1">
+                                <div key={`speaker-${index}-${speakerName}`} className="flex items-center space-x-2 bg-background rounded-full px-3 py-1">
                                   <div 
                                     className="w-3 h-3 rounded-full" 
                                     style={{ backgroundColor: speakerColor }}
@@ -641,7 +641,7 @@ export default function TranscriptionResultsPage() {
                                       className="h-6 w-6 p-0"
                                       onClick={() => handleSpeakerSave(selectedTranscription.id)}
                                     >
-                                      <Check className="h-3 w-3 text-green-600" />
+                                      <Check className="h-3 w-3 text-neon-green" />
                                     </Button>
                                     <Button
                                       size="sm"
@@ -657,19 +657,19 @@ export default function TranscriptionResultsPage() {
                             }
                             
                             return (
-                              <div key={`speaker-${index}-${speakerName}`} className="flex items-center space-x-2 bg-slate-50 rounded-full px-3 py-1 group hover:bg-slate-100">
+                              <div key={`speaker-${index}-${speakerName}`} className="flex items-center space-x-2 bg-background rounded-full px-3 py-1 group hover:bg-slate-100">
                                 <div 
                                   className="w-3 h-3 rounded-full" 
                                   style={{ backgroundColor: speakerColor }}
                                 />
-                                <span className="text-sm font-medium text-slate-700">{speakerName}</span>
+                                <span className="text-sm font-medium text-foreground/90">{speakerName}</span>
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                                   onClick={() => handleSpeakerEdit(index, speakerName)}
                                 >
-                                  <Edit2 className="h-3 w-3 text-slate-400" />
+                                  <Edit2 className="h-3 w-3 text-muted-foreground/70" />
                                 </Button>
                               </div>
                             );
@@ -681,9 +681,9 @@ export default function TranscriptionResultsPage() {
                     {/* Full Transcript Text */}
                     {selectedTranscription.transcriptText && (
                       <div className="space-y-4">
-                        <h4 className="text-sm font-medium text-slate-700 mb-3">完整轉錄內容</h4>
-                        <div className="bg-slate-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                          <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">
+                        <h4 className="text-sm font-medium text-foreground/90 mb-3">完整轉錄內容</h4>
+                        <div className="bg-background rounded-lg p-4 max-h-96 overflow-y-auto">
+                          <p className="text-foreground leading-relaxed whitespace-pre-wrap">
                             {selectedTranscription.transcriptText}
                           </p>
                         </div>
@@ -693,7 +693,7 @@ export default function TranscriptionResultsPage() {
                     {/* Transcript Text */}
                     {selectedTranscription.segments && selectedTranscription.segments.length > 0 && (
                       <div className="space-y-4">
-                        <h4 className="text-sm font-medium text-slate-700 mb-3">分段對話內容</h4>
+                        <h4 className="text-sm font-medium text-foreground/90 mb-3">分段對話內容</h4>
                         {selectedTranscription.segments.map((segment, index) => {
                           const colors = ['#2563eb', '#dc2626', '#059669', '#7c2d12', '#4338ca', '#be185d'];
                           
@@ -721,7 +721,7 @@ export default function TranscriptionResultsPage() {
                           
                           return (
                             <div key={`segment-${index}-${segment.start}-${segment.end}`} className="flex space-x-4 group">
-                              <div className="flex-shrink-0 text-xs text-slate-500 font-mono mt-1 w-16">
+                              <div className="flex-shrink-0 text-xs text-muted-foreground font-mono mt-1 w-16">
                                 {(segment as any).startTime || (segment.start ? `${Math.floor(segment.start/60000)}:${Math.floor((segment.start%60000)/1000).toString().padStart(2,'0')}` : '00:00')}
                               </div>
                               <div className="flex-shrink-0">
@@ -744,7 +744,7 @@ export default function TranscriptionResultsPage() {
                                   >
                                     {speakerName} • {Math.round((segment.confidence || 0) * 100)}% 信心度
                                   </div>
-                                  <p className="text-slate-800 leading-relaxed">{segment.text}</p>
+                                  <p className="text-foreground leading-relaxed">{segment.text}</p>
                                 </div>
                               </div>
                             </div>
@@ -756,8 +756,8 @@ export default function TranscriptionResultsPage() {
                     {/* AI Analysis Results */}
                     {(selectedTranscription.summary || selectedTranscription.topicsDetection || selectedTranscription.autoHighlights) && (
                       <div className="mt-8 space-y-6">
-                        <h4 className="text-lg font-semibold text-slate-900 flex items-center">
-                          <Brain className="w-5 h-5 mr-2 text-blue-600" />
+                        <h4 className="text-lg font-semibold text-foreground flex items-center">
+                          <Brain className="w-5 h-5 mr-2 text-primary" />
                           AI 智能分析結果
                         </h4>
 
@@ -771,7 +771,7 @@ export default function TranscriptionResultsPage() {
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
-                              <p className="text-slate-700 leading-relaxed">{selectedTranscription.summary}</p>
+                              <p className="text-foreground/90 leading-relaxed">{selectedTranscription.summary}</p>
                             </CardContent>
                           </Card>
                         )}
@@ -811,8 +811,8 @@ export default function TranscriptionResultsPage() {
                             <CardContent>
                               <div className="space-y-3">
                                 {((selectedTranscription.entityDetection as any)?.actionItems || []).map((item: string, index: number) => (
-                                  <div key={`action-${index}`} className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
-                                    <p className="text-slate-700 text-sm">{item}</p>
+                                  <div key={`action-${index}`} className="p-3 bg-primary/10 rounded-lg border-l-4 border-blue-400">
+                                    <p className="text-foreground/90 text-sm">{item}</p>
                                   </div>
                                 ))}
                               </div>
@@ -839,7 +839,7 @@ export default function TranscriptionResultsPage() {
                                         參與度: {analysis.participationLevel}
                                       </span>
                                     </div>
-                                    <div className="space-y-2 text-sm text-slate-700">
+                                    <div className="space-y-2 text-sm text-foreground/90">
                                       <div>
                                         <span className="font-medium text-indigo-800">發言特點:</span>
                                         <p className="mt-1">{analysis.speakingCharacteristics}</p>
@@ -867,7 +867,7 @@ export default function TranscriptionResultsPage() {
                             </CardHeader>
                             <CardContent>
                               <div className="p-4 bg-green-50 rounded-lg border-l-4 border-green-400">
-                                <p className="text-slate-700 whitespace-pre-wrap">{selectedTranscription.summary}</p>
+                                <p className="text-foreground/90 whitespace-pre-wrap">{selectedTranscription.summary}</p>
                               </div>
                             </CardContent>
                           </Card>
@@ -887,7 +887,7 @@ export default function TranscriptionResultsPage() {
                                 {Array.isArray(selectedTranscription.autoHighlights) &&
                                   selectedTranscription.autoHighlights.map((highlight: any, index: number) => (
                                     <div key={index} className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-                                      <p className="text-slate-700">
+                                      <p className="text-foreground/90">
                                         {typeof highlight === 'string' ? highlight : highlight.text || highlight.content}
                                       </p>
                                       {highlight.count && (
@@ -922,9 +922,9 @@ export default function TranscriptionResultsPage() {
                                         {Math.floor(chapter.start/60000)}:{Math.floor((chapter.start%60000)/1000).toString().padStart(2,'0')}
                                       </span>
                                     </div>
-                                    <p className="text-sm text-slate-700 mb-2">{chapter.gist}</p>
+                                    <p className="text-sm text-foreground/90 mb-2">{chapter.gist}</p>
                                     {chapter.summary && (
-                                      <p className="text-xs text-slate-600">{chapter.summary}</p>
+                                      <p className="text-xs text-muted-foreground">{chapter.summary}</p>
                                     )}
                                   </div>
                                 ))}
@@ -986,7 +986,7 @@ export default function TranscriptionResultsPage() {
                                           {Math.round(sentiment.confidence * 100)}%
                                         </span>
                                       </div>
-                                      <p className="text-sm text-slate-700">{sentiment.text}</p>
+                                      <p className="text-sm text-foreground/90">{sentiment.text}</p>
                                     </div>
                                   ))
                                 }
@@ -1015,7 +1015,7 @@ export default function TranscriptionResultsPage() {
                                           {Math.round(safety.confidence * 100)}%
                                         </span>
                                       </div>
-                                      <p className="text-sm text-slate-700">{safety.text}</p>
+                                      <p className="text-sm text-foreground/90">{safety.text}</p>
                                     </div>
                                   ))
                                 }
@@ -1027,8 +1027,8 @@ export default function TranscriptionResultsPage() {
                     )}
 
                     {(!selectedTranscription.segments || selectedTranscription.segments.length === 0) && !selectedTranscription.transcriptText && (
-                      <div className="text-center py-8 text-slate-500">
-                        <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                      <div className="text-center py-8 text-muted-foreground">
+                        <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                         <p>暫無轉錄內容</p>
                       </div>
                     )}
@@ -1037,8 +1037,8 @@ export default function TranscriptionResultsPage() {
               ) : (
                 <Card>
                   <CardContent className="p-8 text-center">
-                    <div className="text-slate-500">
-                      <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                    <div className="text-muted-foreground">
+                      <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                       <p className="text-lg mb-2">轉錄尚未完成</p>
                       <p className="text-sm">
                         狀態：{getStatusText(selectedTranscription.status)}
@@ -1054,8 +1054,8 @@ export default function TranscriptionResultsPage() {
             ) : (
               <Card>
                 <CardContent className="p-8 text-center">
-                  <div className="text-slate-500">
-                    <History className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <div className="text-muted-foreground">
+                    <History className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                     <p className="text-lg mb-2">選擇一個轉錄記錄</p>
                     <p className="text-sm">從左側選單選擇一個轉錄記錄來查看詳細內容</p>
                   </div>
@@ -1069,11 +1069,11 @@ export default function TranscriptionResultsPage() {
       {/* AI Analysis Results Modal */}
       {showAnalysisResults && analysisData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-card rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-slate-900 flex items-center">
-                  <Brain className="w-6 h-6 mr-2 text-blue-600" />
+                <h2 className="text-xl font-bold text-foreground flex items-center">
+                  <Brain className="w-6 h-6 mr-2 text-primary" />
                   AI 智能分析結果
                 </h2>
                 <Button
@@ -1100,7 +1100,7 @@ export default function TranscriptionResultsPage() {
                         {analysisData.actionItems.map((item: string, index: number) => (
                           <div key={index} className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
                             <CheckCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-                            <p className="text-slate-700 leading-relaxed">{item}</p>
+                            <p className="text-foreground/90 leading-relaxed">{item}</p>
                           </div>
                         ))}
                       </div>
@@ -1113,25 +1113,25 @@ export default function TranscriptionResultsPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center text-lg">
-                        <Users className="w-5 h-5 mr-2 text-blue-600" />
+                        <Users className="w-5 h-5 mr-2 text-primary" />
                         講者分析 ({Object.keys(analysisData.speakerAnalysis).length} 位講者)
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
                         {Object.entries(analysisData.speakerAnalysis).map(([speaker, analysis]: [string, any]) => (
-                          <div key={speaker} className="border rounded-lg p-4 bg-blue-50">
-                            <h4 className="font-semibold text-slate-900 mb-3 flex items-center">
+                          <div key={speaker} className="border rounded-lg p-4 bg-primary/10">
+                            <h4 className="font-semibold text-foreground mb-3 flex items-center">
                               <User className="w-4 h-4 mr-2" />
                               {speaker}
                             </h4>
                             <div className="space-y-3 text-sm">
-                              <div className="bg-white rounded p-3">
-                                <span className="font-medium text-slate-700">發言特點：</span>
-                                <p className="text-slate-600 mt-1">{analysis.發言特點 || analysis.characteristics}</p>
+                              <div className="bg-card rounded p-3">
+                                <span className="font-medium text-foreground/90">發言特點：</span>
+                                <p className="text-muted-foreground mt-1">{analysis.發言特點 || analysis.characteristics}</p>
                               </div>
-                              <div className="bg-white rounded p-3">
-                                <span className="font-medium text-slate-700">參與度：</span>
+                              <div className="bg-card rounded p-3">
+                                <span className="font-medium text-foreground/90">參與度：</span>
                                 <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium ${
                                   (analysis.參與度 || analysis.participation) === '高' ? 'bg-green-100 text-green-800' : 
                                   (analysis.參與度 || analysis.participation) === '中' ? 'bg-yellow-100 text-yellow-800' : 
@@ -1140,9 +1140,9 @@ export default function TranscriptionResultsPage() {
                                   {analysis.參與度 || analysis.participation}
                                 </span>
                               </div>
-                              <div className="bg-white rounded p-3">
-                                <span className="font-medium text-slate-700">主要觀點：</span>
-                                <p className="text-slate-600 mt-1">{analysis.主要觀點 || analysis.mainPoints}</p>
+                              <div className="bg-card rounded p-3">
+                                <span className="font-medium text-foreground/90">主要觀點：</span>
+                                <p className="text-muted-foreground mt-1">{analysis.主要觀點 || analysis.mainPoints}</p>
                               </div>
                             </div>
                           </div>
@@ -1153,8 +1153,8 @@ export default function TranscriptionResultsPage() {
                 )}
 
                 {/* Summary Information */}
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="flex items-center text-sm text-slate-600">
+                <div className="bg-background rounded-lg p-4">
+                  <div className="flex items-center text-sm text-muted-foreground">
                     <Brain className="w-4 h-4 mr-2" />
                     分析由 AI 智能語音模型 生成，結果僅供參考
                   </div>
@@ -1164,7 +1164,7 @@ export default function TranscriptionResultsPage() {
               <div className="flex justify-end mt-6 pt-4 border-t">
                 <Button 
                   onClick={() => setShowAnalysisResults(false)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-primary hover:bg-primary/90 text-white"
                 >
                   關閉分析結果
                 </Button>

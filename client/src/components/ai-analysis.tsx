@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Brain, Loader2, Lightbulb, Users, CheckSquare, Hash, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { TranscriptionStatus } from "@/lib/types";
@@ -27,13 +25,12 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const { toast } = useToast();
 
-  // Check if we already have AI analysis data in the transcription
-  const hasExistingAnalysis = transcription.segments && transcription.segments.length > 0 && 
+  const hasExistingAnalysis = transcription.segments && transcription.segments.length > 0 &&
     transcription.summaryType !== 'basic';
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
-    
+
     try {
       const response = await fetch(`/api/transcriptions/${transcription.id}/analyze`, {
         method: 'POST',
@@ -47,7 +44,7 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
 
       const result = await response.json();
       setAnalysis(result);
-      
+
       toast({
         title: "AI 分析完成",
         description: "Gemini AI 已完成對話內容分析",
@@ -69,30 +66,32 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
   }
 
   return (
-    <Card className="mb-6">
-      <CardHeader>
+    <div className="rounded-xl bg-card/50 border border-border/50 overflow-hidden">
+      {/* Header */}
+      <div className="p-4 border-b border-border/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Brain className="w-5 h-5 text-purple-600" />
-            <CardTitle className="text-lg">AI 智能分析</CardTitle>
-            <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-              Powered by Gemini
-            </Badge>
+            <Brain className="w-4 h-4 text-secondary" />
+            <span className="text-sm font-medium text-foreground">AI 智能分析</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-secondary/10 text-secondary">
+              Gemini
+            </span>
           </div>
           {!analysis && (
             <Button
               onClick={handleAnalyze}
               disabled={isAnalyzing}
-              className="bg-purple-600 hover:bg-purple-700"
+              size="sm"
+              className="h-8 rounded-lg"
             >
               {isAnalyzing ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                   分析中...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 mr-2" />
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                   開始分析
                 </>
               )}
@@ -100,38 +99,39 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
           )}
         </div>
         {hasExistingAnalysis && (
-          <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">
-            已完成AI語意分析，30個對話段落已處理
-          </div>
+          <p className="text-xs text-emerald-500 mt-2">
+            已完成 AI 語意分析，30 個對話段落已處理
+          </p>
         )}
-      </CardHeader>
+      </div>
 
-      {(analysis || hasExistingAnalysis) && (
-        <CardContent className="space-y-6">
+      {/* Content */}
+      {(analysis || hasExistingAnalysis) ? (
+        <div className="p-4 space-y-4">
           {/* Summary */}
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-3">
-              <Lightbulb className="w-4 h-4 text-purple-600" />
-              <h4 className="font-semibold text-slate-900">會議摘要</h4>
+          <div className="p-3 rounded-xl bg-secondary/5 border border-secondary/20">
+            <div className="flex items-center space-x-2 mb-2">
+              <Lightbulb className="w-3.5 h-3.5 text-secondary" />
+              <span className="text-xs font-medium text-secondary">會議摘要</span>
             </div>
-            <p className="text-slate-700 leading-relaxed">
-              {analysis?.summary || (hasExistingAnalysis ? transcription.summary || "AI語意分析已完成，轉錄內容已分段並優化為更清晰的對話結構。" : "")}
+            <p className="text-sm text-foreground leading-relaxed">
+              {analysis?.summary || (hasExistingAnalysis ? transcription.summary || "AI 語意分析已完成，轉錄內容已分段並優化為更清晰的對話結構。" : "")}
             </p>
           </div>
 
           {/* Key Points */}
           {analysis?.keyPoints && analysis.keyPoints.length > 0 && (
             <div>
-              <div className="flex items-center space-x-2 mb-3">
-                <Hash className="w-4 h-4 text-blue-600" />
-                <h4 className="font-semibold text-slate-900">重要要點</h4>
-                <Badge variant="outline">{analysis?.keyPoints?.length || 0} 項</Badge>
+              <div className="flex items-center space-x-2 mb-2">
+                <Hash className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs font-medium text-foreground">重要要點</span>
+                <span className="text-[10px] text-muted-foreground">{analysis.keyPoints.length} 項</span>
               </div>
-              <ul className="space-y-2">
-                {analysis?.keyPoints?.map((point, index) => (
-                  <li key={index} className="flex items-start space-x-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
-                    <span className="text-slate-700">{point}</span>
+              <ul className="space-y-1.5">
+                {analysis.keyPoints.map((point, index) => (
+                  <li key={index} className="flex items-start space-x-2">
+                    <div className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />
+                    <span className="text-sm text-foreground">{point}</span>
                   </li>
                 ))}
               </ul>
@@ -141,22 +141,18 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
           {/* Speaker Insights */}
           {analysis?.speakerInsights && analysis.speakerInsights.length > 0 && (
             <div>
-              <div className="flex items-center space-x-2 mb-3">
-                <Users className="w-4 h-4 text-green-600" />
-                <h4 className="font-semibold text-slate-900">對話者分析</h4>
+              <div className="flex items-center space-x-2 mb-2">
+                <Users className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-xs font-medium text-foreground">對話者分析</span>
               </div>
-              <div className="space-y-3">
-                {analysis?.speakerInsights?.map((insight, index) => (
-                  <div key={index} className="bg-green-50 rounded-lg p-4">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Badge variant="outline" className="bg-white">
-                        {insight.speaker}
-                      </Badge>
-                      <span className="text-sm font-medium text-green-700">
-                        {insight.role}
-                      </span>
+              <div className="space-y-2">
+                {analysis.speakerInsights.map((insight, index) => (
+                  <div key={index} className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="text-xs font-medium text-emerald-500">{insight.speaker}</span>
+                      <span className="text-[10px] text-muted-foreground">· {insight.role}</span>
                     </div>
-                    <p className="text-slate-700 text-sm">{insight.contribution}</p>
+                    <p className="text-xs text-foreground">{insight.contribution}</p>
                   </div>
                 ))}
               </div>
@@ -166,16 +162,16 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
           {/* Action Items */}
           {analysis?.actionItems && analysis.actionItems.length > 0 && (
             <div>
-              <div className="flex items-center space-x-2 mb-3">
-                <CheckSquare className="w-4 h-4 text-orange-600" />
-                <h4 className="font-semibold text-slate-900">行動項目</h4>
-                <Badge variant="outline">{analysis?.actionItems?.length || 0} 項</Badge>
+              <div className="flex items-center space-x-2 mb-2">
+                <CheckSquare className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-xs font-medium text-foreground">行動項目</span>
+                <span className="text-[10px] text-muted-foreground">{analysis.actionItems.length} 項</span>
               </div>
-              <ul className="space-y-2">
-                {analysis?.actionItems?.map((item, index) => (
-                  <li key={index} className="flex items-start space-x-3">
-                    <div className="w-4 h-4 border-2 border-orange-500 rounded mt-0.5 flex-shrink-0" />
-                    <span className="text-slate-700">{item}</span>
+              <ul className="space-y-1.5">
+                {analysis.actionItems.map((item, index) => (
+                  <li key={index} className="flex items-start space-x-2">
+                    <div className="w-3.5 h-3.5 border border-amber-500 rounded mt-0.5 flex-shrink-0" />
+                    <span className="text-sm text-foreground">{item}</span>
                   </li>
                 ))}
               </ul>
@@ -185,59 +181,54 @@ export default function AIAnalysis({ transcription }: AIAnalysisProps) {
           {/* Topics */}
           {analysis?.topics && analysis.topics.length > 0 && (
             <div>
-              <div className="flex items-center space-x-2 mb-3">
-                <Hash className="w-4 h-4 text-indigo-600" />
-                <h4 className="font-semibold text-slate-900">討論主題</h4>
+              <div className="flex items-center space-x-2 mb-2">
+                <Hash className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs font-medium text-foreground">討論主題</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {analysis?.topics?.map((topic, index) => (
-                  <Badge key={index} variant="secondary" className="bg-indigo-100 text-indigo-700">
+              <div className="flex flex-wrap gap-1.5">
+                {analysis.topics.map((topic, index) => (
+                  <span key={index} className="px-2 py-0.5 rounded-lg text-xs bg-primary/10 text-primary border border-primary/20">
                     {topic}
-                  </Badge>
+                  </span>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="pt-4 border-t border-slate-200">
+          {/* Re-analyze Button */}
+          <div className="pt-3 border-t border-border/50">
             <Button
               variant="outline"
               onClick={handleAnalyze}
               disabled={isAnalyzing}
-              className="w-full"
+              className="w-full h-9 rounded-lg"
+              size="sm"
             >
               {isAnalyzing ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                   重新分析中...
                 </>
               ) : (
                 <>
-                  <Brain className="w-4 h-4 mr-2" />
+                  <Brain className="w-3.5 h-3.5 mr-1.5" />
                   重新分析
                 </>
               )}
             </Button>
           </div>
-        </CardContent>
-      )}
-
-      {!analysis && !isAnalyzing && (
-        <CardContent>
-          <div className="text-center py-8">
-            <Brain className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500 mb-4">
-              使用 Gemini AI 分析對話內容，提供智能洞察和重點摘要
-            </p>
-            <p className="text-xs text-slate-400">
-              • 會議摘要和重點分析<br />
-              • 對話者角色識別<br />
-              • 行動項目提取<br />
-              • 主題標籤生成
-            </p>
-          </div>
-        </CardContent>
-      )}
-    </Card>
+        </div>
+      ) : !isAnalyzing ? (
+        <div className="p-8 text-center">
+          <Brain className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground mb-2">
+            使用 Gemini AI 分析對話內容
+          </p>
+          <p className="text-xs text-muted-foreground/70">
+            會議摘要 · 重點分析 · 行動項目 · 主題標籤
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }
