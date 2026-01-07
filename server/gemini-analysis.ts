@@ -51,6 +51,7 @@ interface AnalysisResult {
 export class GeminiAnalyzer {
   private vertexAI: VertexAI;
   private model: any;
+  private model15Pro: any; // Gemini 1.5 Pro 用於多模態語者識別
   private speechClient: SpeechClient;
   private speechClientV2: InstanceType<typeof SpeechClientV2>; // V2 客戶端 for STT V2
   private storageClient: Storage;
@@ -76,6 +77,11 @@ export class GeminiAnalyzer {
       model: "gemini-2.0-flash-001",
     });
 
+    // Gemini 2.5 Pro 用於多模態語者識別（結合音訊和文字）
+    this.model15Pro = this.vertexAI.getGenerativeModel({
+      model: "gemini-2.5-pro",
+    });
+
     // 初始化 Storage 和 SpeechClient（使用 ADC 自動認證）
     this.speechClient = new SpeechClient({ projectId: this.projectId });
 
@@ -90,8 +96,231 @@ export class GeminiAnalyzer {
       `Google Cloud clients initialized with ADC (Project: ${this.projectId}, Bucket: ${this.bucketName})`
     );
     console.log(
-      `Vertex AI initialized (gemini-2.0-flash-001), Speech-to-Text V2 initialized for us (chirp_3)`
+      `Vertex AI initialized (gemini-2.0-flash-001, gemini-2.5-pro), Speech-to-Text V2 initialized for us (chirp_3)`
     );
+  }
+
+  /**
+   * 使用 Gemini 1.5 Pro 多模態能力進行語者識別
+   * 結合音訊檔案和逐字稿文字，提高語者識別準確度
+   * @param gcsUri GCS 音檔 URI
+   * @param rawTranscript 原始逐字稿文字
+   * @param attendees 可選的與會者名單
+   * @param attendeeRoles 可選的角色描述（如「陳經理通常是主持會議的人，林秘書負責記錄並偶爾補充」）
+   * @returns cleanedSegments 和 speakers
+   */
+  async identifySpeakersMultimodal(
+    gcsUri: string,
+    rawTranscript: string,
+    attendees?: string[],
+    attendeeRoles?: string
+  ): Promise<{
+    cleanedSegments: Array<{
+      speaker: string;
+      text: string;
+      start: number;
+      end: number;
+    }>;
+    speakers: Array<{
+      id: string;
+      label: string;
+      color: string;
+    }>;
+  }> {
+    const speakerColors = [
+      "hsl(220, 70%, 50%)",
+      "hsl(120, 70%, 50%)",
+      "hsl(0, 70%, 50%)",
+      "hsl(280, 70%, 50%)",
+      "hsl(60, 70%, 50%)",
+      "hsl(180, 70%, 50%)",
+    ];
+
+    console.log(`[Multimodal] 開始多模態語者識別...`);
+    console.log(`[Multimodal] GCS URI: ${gcsUri}`);
+    console.log(`[Multimodal] 逐字稿長度: ${rawTranscript.length} 字元`);
+    console.log(`[Multimodal] 與會者名單: ${attendees?.join(', ') || '未提供'}`);
+    console.log(`[Multimodal] 角色描述: ${attendeeRoles || '未提供'}`);
+
+    // 建立 Prompt
+    const attendeesInfo = attendees && attendees.length > 0
+      ? `已知與會者名單：${attendees.join('、')}`
+      : '未知與會者名單（請自行識別並使用「講者A」、「講者B」等標籤）';
+
+    // 角色背景資訊
+    const roleContext = attendeeRoles
+      ? `\n【角色背景資訊】\n${attendeeRoles}\n\n請根據上述角色特徵來輔助判斷說話者身分。例如，主持人通常會引導討論、問問題；記錄員可能較少發言但會確認重點。`
+      : '';
+
+    const prompt = `你是一位專業的會議記錄員，擁有出色的聲音識別能力。請結合提供的音訊特徵（音色、語氣、說話速度）與原始逐字稿文字內容，精確地標註說話者身分。
+
+${attendeesInfo}
+${roleContext}
+
+【音訊分析重點】
+1. 仔細聆聽不同說話者的聲音特徵（性別、音高、語調、口音）
+2. 注意說話者切換的時機點
+3. 結合文字內容和角色特徵推測說話者身分
+4. 如果有角色描述，優先參考角色的說話習慣和職責來判斷
+
+【文字處理要求】
+1. 修正語法錯誤和錯別字
+2. 移除口語贅詞（如「嗯」、「啊」、「那個」、「就是」等）
+3. 添加適當的標點符號
+4. 保持原意不變
+
+【原始逐字稿】
+${rawTranscript}
+
+【輸出格式】
+請以 JSON 格式回應，確保 JSON 格式正確：
+
+{
+  "cleanedSegments": [
+    { "speaker": "${attendees?.[0] || '講者A'}", "text": "整理後的內容...", "start": 0, "end": 5000 },
+    { "speaker": "${attendees?.[1] || '講者B'}", "text": "整理後的內容...", "start": 5000, "end": 10000 }
+  ],
+  "speakers": [
+    { "id": "A", "label": "${attendees?.[0] || '講者A'}", "color": "hsl(220, 70%, 50%)" },
+    { "id": "B", "label": "${attendees?.[1] || '講者B'}", "color": "hsl(120, 70%, 50%)" }
+  ]
+}
+
+【注意事項】
+1. start 和 end 為毫秒時間戳，必須與原始音訊對應
+2. 同一人連續發言可合併為一個 segment
+3. 當說話人切換時，必須創建新的 segment
+4. 只輸出 JSON，不要有其他文字`;
+
+    try {
+      // 使用 Gemini 1.5 Pro 進行多模態分析
+      const result = await this.model15Pro.generateContent({
+        contents: [{
+          role: "user",
+          parts: [
+            {
+              fileData: {
+                mimeType: "audio/mpeg",
+                fileUri: gcsUri,
+              }
+            },
+            {
+              text: prompt
+            }
+          ]
+        }]
+      });
+
+      const response = result.response;
+      const responseText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      console.log(`[Multimodal] 收到回應，長度: ${responseText.length} 字元`);
+
+      // 解析 JSON 回應
+      let parsedResponse: any;
+      try {
+        let jsonText = responseText.trim();
+
+        // 移除 markdown 格式
+        jsonText = jsonText
+          .replace(/```json\s*/g, "")
+          .replace(/```\s*/g, "")
+          .trim();
+
+        // 找到 JSON 開始和結束位置
+        const jsonStart = jsonText.indexOf("{");
+        let jsonEnd = -1;
+
+        if (jsonStart !== -1) {
+          let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
+
+          for (let i = jsonStart; i < jsonText.length; i++) {
+            const char = jsonText[i];
+
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+
+            if (char === "\\") {
+              escapeNext = true;
+              continue;
+            }
+
+            if (char === '"') {
+              inString = !inString;
+              continue;
+            }
+
+            if (!inString) {
+              if (char === "{") {
+                braceCount++;
+              } else if (char === "}") {
+                braceCount--;
+                if (braceCount === 0) {
+                  jsonEnd = i + 1;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (jsonEnd !== -1) {
+            jsonText = jsonText.substring(jsonStart, jsonEnd);
+          }
+        }
+
+        parsedResponse = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error("[Multimodal] JSON 解析失敗:", parseError);
+        console.log("[Multimodal] 原始回應:", responseText.substring(0, 500));
+        throw new Error(`Gemini 回應格式異常，無法解析 JSON`);
+      }
+
+      // 處理結果
+      const cleanedSegments = parsedResponse.cleanedSegments || [];
+      let speakers = parsedResponse.speakers || [];
+
+      // 確保 speakers 有正確的格式
+      if (speakers.length === 0 && cleanedSegments.length > 0) {
+        const speakerSet = new Set(cleanedSegments.map((seg: any) => seg.speaker));
+        speakers = Array.from(speakerSet).map((label: any, index: number) => ({
+          id: String.fromCharCode(65 + index),
+          label: label as string,
+          color: speakerColors[index % speakerColors.length]
+        }));
+      }
+
+      console.log(`[Multimodal] 解析完成: ${cleanedSegments.length} 個段落，${speakers.length} 位說話者`);
+
+      return {
+        cleanedSegments,
+        speakers
+      };
+
+    } catch (error) {
+      console.error("[Multimodal] 多模態分析失敗:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 上傳音檔到 GCS（公開方法，供 API 端點使用）
+   * @param audioFilePath 本地音檔路徑
+   * @returns GCS URI
+   */
+  async uploadAudioToGCS(audioFilePath: string): Promise<string> {
+    return this.uploadToGCS(audioFilePath);
+  }
+
+  /**
+   * 清理 GCS 檔案（公開方法，供 API 端點使用）
+   * @param gcsUri GCS 檔案 URI
+   */
+  async cleanupGCSFilePublic(gcsUri: string): Promise<void> {
+    return this.cleanupGCSFile(gcsUri);
   }
 
   async transcribeAudio(audioFilePath: string): Promise<{
@@ -256,8 +485,8 @@ export class GeminiAnalyzer {
 
       console.log(`[Gemini 3 Flash] 發送轉錄請求...`);
 
-      // 使用 Gemini 2.5 Flash 進行轉錄
-      const result = await this.gemini3FlashModel.generateContent([
+      // 使用 Gemini 2.0 Flash 進行轉錄
+      const result = await this.model.generateContent([
         {
           inlineData: {
             mimeType: mimeType,
@@ -1854,7 +2083,7 @@ ${conversationText}
 
       if (audioDurationMinutes > MAX_DURATION_MINUTES) {
         console.log(`[Speech-to-Text] 音檔超過 ${MAX_DURATION_MINUTES} 分鐘，需要分割處理`);
-        sttResult = await this.transcribeLongAudio(processedPath, audioDurationMinutes, onProgress);
+        sttResult = await this.transcribeLongAudioWithSegments(processedPath, audioDurationMinutes, onProgress);
       } else {
         // 上傳到 GCS
         console.log(`[Speech-to-Text] 上傳音檔到 GCS...`);
@@ -1990,7 +2219,7 @@ ${conversationText}
    * @param totalDurationMinutes 總時長（分鐘）
    * @param onProgress 進度回調
    */
-  private async transcribeLongAudio(
+  private async transcribeLongAudioWithSegments(
     audioFilePath: string,
     totalDurationMinutes: number,
     onProgress?: (progress: number) => Promise<void>

@@ -121,3 +121,85 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// SSE 進度事件類型
+export interface SSEProgressEvent {
+  stage: 'uploading' | 'speaker_identification' | 'content_analysis' | 'completed' | 'error';
+  progress: number;
+  message: string;
+  data?: any;
+}
+
+// SSE 串流請求函式
+export async function streamRequest(
+  url: string,
+  body: any,
+  onProgress: (event: SSEProgressEvent) => void,
+  onError?: (error: Error) => void
+): Promise<void> {
+  const token = localStorage.getItem('auth_token');
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorMessage = response.statusText;
+    try {
+      const errorJson = JSON.parse(errorText);
+      errorMessage = errorJson.message || errorMessage;
+    } catch {
+      errorMessage = errorText || errorMessage;
+    }
+    throw new Error(errorMessage);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('無法讀取串流回應');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // 解析 SSE 格式的訊息
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // 保留最後未完整的行
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            onProgress(data as SSEProgressEvent);
+          } catch (parseError) {
+            console.warn('SSE 資料解析失敗:', line);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    if (onError) {
+      onError(error instanceof Error ? error : new Error(String(error)));
+    } else {
+      throw error;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

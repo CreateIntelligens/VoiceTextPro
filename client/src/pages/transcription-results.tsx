@@ -6,6 +6,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Download, Copy, Users, Clock, FileText, TrendingUp, History, ArrowLeft, Music, FileDown, Brain, Sparkles, MessageSquare, Target, Lightbulb, BarChart3, Edit2, Check, X, Wand2, BookOpen, UserCheck, Heart, Search, Settings, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import type { TranscriptionStatus } from "@/lib/types";
 import { Link } from "wouter";
@@ -13,6 +15,14 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function TranscriptionResultsPage() {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<number | null>(null);
@@ -23,6 +33,10 @@ export default function TranscriptionResultsPage() {
   const [speakerEditValue, setSpeakerEditValue] = useState("");
   const [showAnalysisResults, setShowAnalysisResults] = useState(false);
   const [analysisData, setAnalysisData] = useState<any>(null);
+  // 與會者設定 Dialog
+  const [showAttendeesDialog, setShowAttendeesDialog] = useState(false);
+  const [attendeesInput, setAttendeesInput] = useState("");
+  const [cleanupTargetId, setCleanupTargetId] = useState<number | null>(null);
   const { toast } = useToast();
 
   // Query for all transcriptions - no automatic polling to prevent infinite API calls
@@ -212,8 +226,13 @@ export default function TranscriptionResultsPage() {
 
   const handleDownloadAudio = async (transcription: TranscriptionStatus) => {
     try {
-      const response = await fetch(`/api/transcriptions/${transcription.id}/download-audio`);
-      
+      const token = localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`/api/transcriptions/${transcription.id}/download-audio`, { headers });
+
       if (!response.ok) {
         throw new Error('下載失敗');
       }
@@ -309,33 +328,70 @@ export default function TranscriptionResultsPage() {
     }
   };
 
-  const handleAICleanup = async (transcriptionId: number) => {
+  // 打開與會者設定 Dialog
+  const handleOpenAttendeesDialog = (transcriptionId: number) => {
+    setCleanupTargetId(transcriptionId);
+    setAttendeesInput("");
+    setShowAttendeesDialog(true);
+  };
+
+  // 執行 AI 整理（帶與會者名單）
+  const handleAICleanup = async (transcriptionId: number, attendees?: string[]) => {
     setIsCleaning(true);
+    setShowAttendeesDialog(false);
+
     try {
-      const result = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-cleanup`, 'POST');
-      
+      const result = await apiRequest(`/api/transcriptions/${transcriptionId}/ai-cleanup`, 'POST', {
+        attendees: attendees,
+        useMultimodal: true
+      });
+
       // Invalidate both the transcriptions list and the specific transcription
       await queryClient.invalidateQueries({ queryKey: ["/api/transcriptions"] });
       await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcriptionId}`] });
-      
+
       // Force refetch both queries to show cleaned segments immediately
       refetch();
       refetchSelected();
-      
+
+      // 根據是否使用多模態顯示不同訊息
+      const isMultimodal = (result as any)?.usedMultimodal;
       toast({
-        title: "逐字稿整理完成",
-        description: "AI已成功整理並優化逐字稿內容，現有內容已被取代",
+        title: isMultimodal ? "多模態語者識別完成" : "逐字稿整理完成",
+        description: isMultimodal
+          ? "Gemini 1.5 Pro 已結合音訊與文字完成語者識別"
+          : "AI已成功整理並優化逐字稿內容",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI cleanup error:', error);
       toast({
         title: "逐字稿整理失敗",
-        description: "無法完成逐字稿整理，請稍後再試",
+        description: error.message || "無法完成逐字稿整理，請稍後再試",
         variant: "destructive",
       });
     } finally {
       setIsCleaning(false);
+      setCleanupTargetId(null);
     }
+  };
+
+  // 處理確認與會者設定
+  const handleConfirmAttendees = () => {
+    if (!cleanupTargetId) return;
+
+    // 解析與會者名單（支援逗號、頓號、換行分隔）
+    const attendees = attendeesInput
+      .split(/[,，、\n]/)
+      .map(name => name.trim())
+      .filter(name => name.length > 0);
+
+    handleAICleanup(cleanupTargetId, attendees.length > 0 ? attendees : undefined);
+  };
+
+  // 跳過與會者設定直接整理
+  const handleSkipAttendees = () => {
+    if (!cleanupTargetId) return;
+    handleAICleanup(cleanupTargetId);
   };
 
   const handleSpeakerEdit = (index: number, currentName: string) => {
@@ -532,21 +588,21 @@ export default function TranscriptionResultsPage() {
                             </>
                           )}
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => handleAICleanup(selectedTranscription.id)}
+                        <Button
+                          variant="outline"
+                          onClick={() => handleOpenAttendeesDialog(selectedTranscription.id)}
                           disabled={isCleaning}
                           className="bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 hover:from-green-600 hover:to-emerald-700"
                         >
                           {isCleaning ? (
                             <>
                               <Sparkles className="w-4 h-4 mr-2 animate-spin" />
-                              整理中...
+                              Gemini 分析中...
                             </>
                           ) : (
                             <>
                               <Wand2 className="w-4 h-4 mr-2" />
-                              AI 整理逐字稿
+                              AI 語者識別
                             </>
                           )}
                         </Button>
@@ -1173,6 +1229,62 @@ export default function TranscriptionResultsPage() {
           </div>
         </div>
       )}
+
+      {/* 與會者設定 Dialog */}
+      <Dialog open={showAttendeesDialog} onOpenChange={setShowAttendeesDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              AI 語者識別設定
+            </DialogTitle>
+            <DialogDescription>
+              輸入與會者名單可提高語者識別準確度。Gemini 1.5 Pro 將結合音訊特徵和文字內容進行分析。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="attendees">與會者名單（可選）</Label>
+              <Textarea
+                id="attendees"
+                placeholder="請輸入與會者姓名，每行一個或使用逗號分隔&#10;例如：&#10;張三&#10;李四&#10;王五"
+                value={attendeesInput}
+                onChange={(e) => setAttendeesInput(e.target.value)}
+                className="min-h-[120px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                提示：如果知道與會者名單，AI 可以更準確地識別每個人的發言
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={handleSkipAttendees}
+              disabled={isCleaning}
+            >
+              跳過，直接分析
+            </Button>
+            <Button
+              onClick={handleConfirmAttendees}
+              disabled={isCleaning}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+            >
+              {isCleaning ? (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2 animate-spin" />
+                  分析中...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  開始分析
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1207,11 +1207,14 @@ ${textToAnalyze.substring(0, 15000)}
     }
   });
 
-  // AI transcript cleanup and enhancement
+  // AI transcript cleanup and enhancement with multimodal speaker identification
   app.post("/api/transcriptions/:id/ai-cleanup", requireAuth, async (req: AuthenticatedRequest, res) => {
+    const transcriptionId = parseInt(req.params.id);
+    let gcsUri: string | null = null;
+    const analyzer = new GeminiAnalyzer();
+
     try {
-      const transcriptionId = parseInt(req.params.id);
-      const { attendees } = req.body; // 接收與會者名單
+      const { attendees, useMultimodal = true } = req.body; // 接收與會者名單和是否使用多模態
       const transcription = await storage.getTranscription(transcriptionId);
 
       if (!transcription) {
@@ -1231,41 +1234,130 @@ ${textToAnalyze.substring(0, 15000)}
         return res.status(400).json({ message: "缺少分段資料，無法進行整理" });
       }
 
+      console.log(`[AI Cleanup] 開始處理轉錄 ${transcriptionId}`);
       console.log(`[AI Cleanup] 與會者名單:`, attendees);
-
-      // Use Vertex AI for transcript cleanup (ADC 認證)
-      const model = getVertexAIModel();
+      console.log(`[AI Cleanup] 使用多模態分析: ${useMultimodal}`);
 
       const segments = transcription.segments as any[];
-
-      // Use existing transcript text for more efficient processing
       const originalText = transcription.transcriptText ||
         segments.map(seg => `${seg.speaker}: ${seg.text}`).join('\n');
 
-      // 分段處理長文本，每段最多 5000 字
-      const CHUNK_SIZE = 5000;
-      const textChunks: string[] = [];
+      let cleanedSegments: any[] = [];
+      let speakers: any[] = [];
+      let usedMultimodal = false;
 
-      for (let i = 0; i < originalText.length; i += CHUNK_SIZE) {
-        textChunks.push(originalText.substring(i, i + CHUNK_SIZE));
+      // 嘗試使用多模態分析（如果有音檔且啟用）
+      console.log(`[AI Cleanup] useMultimodal: ${useMultimodal}, filename: ${transcription.filename}`);
+      if (useMultimodal && transcription.filename) {
+        const audioFilePath = path.join(process.cwd(), 'uploads', transcription.filename);
+        console.log(`[AI Cleanup] 檢查音檔路徑: ${audioFilePath}`);
+        console.log(`[AI Cleanup] 音檔存在檢查: ${nodeFs.existsSync(audioFilePath)}`);
+
+        // 檢查音檔是否存在
+        if (nodeFs.existsSync(audioFilePath)) {
+          console.log(`[AI Cleanup] 音檔存在: ${audioFilePath}`);
+
+          try {
+            // 1. 上傳音檔到 GCS
+            console.log(`[AI Cleanup] 上傳音檔到 GCS...`);
+            gcsUri = await analyzer.uploadAudioToGCS(audioFilePath);
+            console.log(`[AI Cleanup] GCS URI: ${gcsUri}`);
+
+            await AdminLogger.log({
+              category: 'multimodal_analysis',
+              action: 'gcs_upload_success',
+              description: `轉錄${transcriptionId}音檔上傳GCS成功`,
+              details: { transcriptionId, gcsUri }
+            });
+
+            // 2. 使用 Gemini 1.5 Pro 多模態分析
+            console.log(`[AI Cleanup] 開始 Gemini 1.5 Pro 多模態分析...`);
+            const multimodalResult = await analyzer.identifySpeakersMultimodal(
+              gcsUri,
+              originalText,
+              attendees
+            );
+
+            cleanedSegments = multimodalResult.cleanedSegments;
+            speakers = multimodalResult.speakers;
+            usedMultimodal = true;
+
+            console.log(`[AI Cleanup] 多模態分析完成: ${cleanedSegments.length} 段落，${speakers.length} 位說話者`);
+
+            await AdminLogger.log({
+              category: 'multimodal_analysis',
+              action: 'gemini_multimodal_success',
+              description: `轉錄${transcriptionId}多模態語者識別成功`,
+              details: {
+                transcriptionId,
+                segmentsCount: cleanedSegments.length,
+                speakersCount: speakers.length,
+                attendees
+              }
+            });
+
+          } catch (multimodalError: any) {
+            console.error(`[AI Cleanup] 多模態分析失敗:`, multimodalError);
+
+            // 判斷錯誤類型並記錄
+            let errorAction = 'gemini_multimodal_error';
+            let userMessage = 'AI 分析服務暫時無法使用';
+
+            if (multimodalError.message?.includes('upload') || multimodalError.message?.includes('GCS')) {
+              errorAction = 'gcs_upload_error';
+              userMessage = '音檔上傳失敗，已改用純文字分析';
+            } else if (multimodalError.message?.includes('JSON') || multimodalError.message?.includes('解析')) {
+              errorAction = 'gemini_parse_error';
+              userMessage = 'AI 回應格式異常，已改用備用方案';
+            } else if (multimodalError.message?.includes('timeout') || multimodalError.message?.includes('超時')) {
+              errorAction = 'timeout_error';
+              userMessage = '分析超時，已改用純文字分析';
+            }
+
+            await AdminLogger.log({
+              category: 'multimodal_analysis',
+              action: errorAction,
+              description: `轉錄${transcriptionId}多模態分析失敗: ${multimodalError.message}`,
+              severity: 'high',
+              details: {
+                transcriptionId,
+                gcsUri,
+                errorType: multimodalError.name,
+                errorMessage: multimodalError.message,
+                attendees
+              }
+            });
+
+            // 多模態失敗，fallback 到純文字分析
+            console.log(`[AI Cleanup] Fallback 到純文字分析...`);
+          }
+        } else {
+          console.log(`[AI Cleanup] 音檔不存在，使用純文字分析: ${audioFilePath}`);
+        }
       }
 
-      console.log(`[AI Cleanup] 文本長度: ${originalText.length}，分為 ${textChunks.length} 段處理`);
+      // 如果多模態分析失敗或未使用，使用純文字分析
+      if (cleanedSegments.length === 0) {
+        console.log(`[AI Cleanup] 使用純文字分析模式...`);
 
-      let allCleanedSegments: any[] = [];
-      const speakerSet = new Set<string>();
+        const model = getVertexAIModel();
+        const speakerSet = new Set<string>();
 
-      // 建立與會者名單說明
-      const attendeesList = attendees && attendees.length > 0
-        ? attendees.map((name: string, i: number) => `${i + 1}. ${name}`).join('\n')
-        : null;
+        // 分段處理長文本
+        const CHUNK_SIZE = 5000;
+        const textChunks: string[] = [];
+        for (let i = 0; i < originalText.length; i += CHUNK_SIZE) {
+          textChunks.push(originalText.substring(i, i + CHUNK_SIZE));
+        }
 
-      // 逐段處理
-      for (let chunkIndex = 0; chunkIndex < textChunks.length; chunkIndex++) {
-        const chunk = textChunks[chunkIndex];
-        const isFirstChunk = chunkIndex === 0;
+        const attendeesList = attendees && attendees.length > 0
+          ? attendees.map((name: string, i: number) => `${i + 1}. ${name}`).join('\n')
+          : null;
 
-        const cleanupPrompt = `
+        for (let chunkIndex = 0; chunkIndex < textChunks.length; chunkIndex++) {
+          const chunk = textChunks[chunkIndex];
+
+          const cleanupPrompt = `
 你是一個專業的語音轉錄整理助手。請完成以下任務：
 
 ${attendeesList ? `**與會者名單：**
@@ -1298,82 +1390,78 @@ ${attendees[1] || '其他與會者'}：整理後的內容` : `講者A：整理�
 
 不要回應 JSON，直接用上述格式回應。`;
 
-        try {
-          const result = await model.generateContent(cleanupPrompt);
-          const response = result.response;
-          const cleanedText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          try {
+            const result = await model.generateContent(cleanupPrompt);
+            const response = result.response;
+            const cleanedText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-          // 解析「姓名：內容」格式
-          const lines = cleanedText.split('\n').filter(line => line.trim());
+            const lines = cleanedText.split('\n').filter((line: string) => line.trim());
 
-          for (const line of lines) {
-            // 匹配「姓名：內容」或「姓名: 內容」格式（支援中文姓名和講者A格式）
-            const match = line.match(/^([^：:]+)[：:]\s*(.+)$/);
-            if (match) {
-              const speaker = match[1].trim();
-              const text = match[2].trim();
+            for (const line of lines) {
+              const match = line.match(/^([^：:]+)[：:]\s*(.+)$/);
+              if (match) {
+                const speaker = match[1].trim();
+                const text = match[2].trim();
 
-              // 排除非說話者內容（如標題、說明等）
-              if (text.length > 0 && !speaker.includes('任務') && !speaker.includes('原始') && !speaker.includes('整理')) {
-                speakerSet.add(speaker);
-                allCleanedSegments.push({
-                  text: text,
-                  speaker: speaker,
-                  start: 0,
-                  end: 0,
-                  confidence: 0.9
-                });
+                if (text.length > 0 && !speaker.includes('任務') && !speaker.includes('原始') && !speaker.includes('整理')) {
+                  speakerSet.add(speaker);
+                  cleanedSegments.push({
+                    text: text,
+                    speaker: speaker,
+                    start: 0,
+                    end: 0,
+                    confidence: 0.9
+                  });
+                }
               }
             }
+          } catch (chunkError) {
+            console.error(`[AI Cleanup] 第 ${chunkIndex + 1} 段處理失敗:`, chunkError);
           }
-
-          console.log(`[AI Cleanup] 第 ${chunkIndex + 1} 段完成，累計 ${allCleanedSegments.length} 個段落`);
-
-        } catch (chunkError) {
-          console.error(`[AI Cleanup] 第 ${chunkIndex + 1} 段處理失敗:`, chunkError);
         }
-      }
 
-      // 分配時間戳
-      if (allCleanedSegments.length > 0 && segments.length > 0) {
-        const totalDuration = segments[segments.length - 1]?.end || 30000;
-        const avgDuration = totalDuration / allCleanedSegments.length;
+        // 建立說話者列表
+        const speakerColors = [
+          "hsl(220, 70%, 50%)",
+          "hsl(120, 70%, 50%)",
+          "hsl(0, 70%, 50%)",
+          "hsl(280, 70%, 50%)",
+          "hsl(60, 70%, 50%)",
+          "hsl(180, 70%, 50%)",
+        ];
 
-        allCleanedSegments = allCleanedSegments.map((seg, index) => ({
-          ...seg,
-          start: Math.floor(index * avgDuration),
-          end: Math.floor((index + 1) * avgDuration)
+        const speakerList = Array.from(speakerSet).sort();
+        speakers = speakerList.map((label, index) => ({
+          id: String.fromCharCode(65 + index),
+          label,
+          color: speakerColors[index % speakerColors.length]
         }));
       }
 
-      const speakerColors = [
-        "hsl(220, 70%, 50%)",
-        "hsl(120, 70%, 50%)",
-        "hsl(0, 70%, 50%)",
-        "hsl(280, 70%, 50%)",
-        "hsl(60, 70%, 50%)",
-        "hsl(180, 70%, 50%)",
-      ];
+      // 分配時間戳（如果需要）
+      if (cleanedSegments.length > 0 && segments.length > 0) {
+        const totalDuration = segments[segments.length - 1]?.end || 30000;
 
-      // 建立說話者列表
-      const speakerList = Array.from(speakerSet).sort();
-      const speakers = speakerList.map((label, index) => ({
-        id: String.fromCharCode(65 + index),
-        label,
-        color: speakerColors[index % speakerColors.length]
-      }));
-
-      console.log(`[AI Cleanup] 整理完成: ${allCleanedSegments.length} 個段落，${speakers.length} 位說話者`);
+        // 如果 cleanedSegments 沒有時間戳，分配時間
+        if (cleanedSegments[0]?.start === 0 && cleanedSegments[0]?.end === 0) {
+          const avgDuration = totalDuration / cleanedSegments.length;
+          cleanedSegments = cleanedSegments.map((seg: any, index: number) => ({
+            ...seg,
+            start: Math.floor(index * avgDuration),
+            end: Math.floor((index + 1) * avgDuration)
+          }));
+        }
+      }
 
       // 如果解析失敗，保留原始段落
-      const finalSegments = allCleanedSegments.length > 0 ? allCleanedSegments : segments;
+      const finalSegments = cleanedSegments.length > 0 ? cleanedSegments : segments;
 
       // Update transcript text with cleaned segments
       const cleanedTranscriptText = finalSegments
-        .map(seg => `${seg.speaker}: ${seg.text}`)
+        .map((seg: any) => `${seg.speaker}: ${seg.text}`)
         .join('\n');
 
-      // Save cleaned content to separate fields (preserve original)
+      // Save cleaned content to database
       await storage.updateTranscription(transcriptionId, {
         cleanedSegments: finalSegments,
         cleanedTranscriptText: cleanedTranscriptText,
@@ -1383,34 +1471,477 @@ ${attendees[1] || '其他與會者'}：整理後的內容` : `講者A：整理�
       await AdminLogger.log({
         category: 'ai_cleanup',
         action: 'transcript_cleanup_completed',
-        description: `轉錄${transcriptionId}完成AI逐字稿整理`,
+        description: `轉錄${transcriptionId}完成AI逐字稿整理${usedMultimodal ? '(多模態)' : '(純文字)'}`,
         details: {
           transcriptionId,
           originalSegments: segments.length,
           cleanedSegments: finalSegments.length,
-          speakersIdentified: speakers.length
+          speakersIdentified: speakers.length,
+          usedMultimodal,
+          attendees
         }
       });
 
       res.json({
         success: true,
-        message: "逐字稿整理完成",
+        message: usedMultimodal ? "多模態語者識別完成" : "逐字稿整理完成",
         cleanedSegments: finalSegments.length,
         speakers: speakers,
+        usedMultimodal,
         transcription: await storage.getTranscription(transcriptionId)
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI cleanup error:", error);
+
       await AdminLogger.log({
         category: 'ai_cleanup',
         action: 'transcript_cleanup_error',
-        description: `轉錄${req.params.id}AI逐字稿整理失敗`,
+        description: `轉錄${transcriptionId}AI逐字稿整理失敗: ${error.message}`,
         severity: 'high',
-        details: { error: (error as Error).message }
+        details: {
+          transcriptionId,
+          error: error.message,
+          stack: error.stack
+        }
       });
-      
-      res.status(500).json({ message: "逐字稿整理失敗，請稍後再試" });
+
+      res.status(500).json({ message: error.message || "逐字稿整理失敗，請稍後再試" });
+
+    } finally {
+      // 清理 GCS 檔案
+      if (gcsUri) {
+        try {
+          await analyzer.cleanupGCSFilePublic(gcsUri);
+          console.log(`[AI Cleanup] GCS 檔案已清理: ${gcsUri}`);
+        } catch (cleanupError) {
+          console.error(`[AI Cleanup] GCS 清理失敗:`, cleanupError);
+          await AdminLogger.log({
+            category: 'multimodal_analysis',
+            action: 'gcs_cleanup_error',
+            description: `轉錄${transcriptionId}GCS檔案清理失敗`,
+            severity: 'low',
+            details: { transcriptionId, gcsUri, error: (cleanupError as Error).message }
+          });
+        }
+      }
+    }
+  });
+
+  // Unified AI Analysis with SSE progress updates
+  // 統一 AI 分析端點 - 結合多模態語者識別 + AI 內容分析
+  app.post("/api/transcriptions/:id/unified-analysis", requireAuth, async (req: AuthenticatedRequest, res) => {
+    const transcriptionId = parseInt(req.params.id);
+    let gcsUri: string | null = null;
+    const analyzer = new GeminiAnalyzer();
+
+    // 設定 SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    // 發送 SSE 進度訊息的輔助函式
+    const sendProgress = (stage: string, progress: number, message: string, data?: any) => {
+      const event = { stage, progress, message, data };
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    try {
+      const { attendees, attendeeRoles } = req.body;
+      // attendees: string[] - 與會者名單
+      // attendeeRoles: string - 角色描述（如「陳經理通常是主持會議的人，林秘書負責記錄並偶爾補充」）
+
+      const transcription = await storage.getTranscription(transcriptionId);
+
+      if (!transcription) {
+        sendProgress('error', 0, '轉錄記錄不存在');
+        return res.end();
+      }
+
+      // Check permissions
+      if (req.user!.role !== 'admin' && transcription.userId !== req.user!.id) {
+        sendProgress('error', 0, '無權限執行此操作');
+        return res.end();
+      }
+
+      if (transcription.status !== 'completed') {
+        sendProgress('error', 0, '轉錄尚未完成，無法進行AI分析');
+        return res.end();
+      }
+
+      if (!transcription.segments || !Array.isArray(transcription.segments)) {
+        sendProgress('error', 0, '缺少分段資料，無法進行分析');
+        return res.end();
+      }
+
+      console.log(`[Unified Analysis] 開始處理轉錄 ${transcriptionId}`);
+      console.log(`[Unified Analysis] 與會者名單:`, attendees);
+      console.log(`[Unified Analysis] 角色描述:`, attendeeRoles);
+
+      const segments = transcription.segments as any[];
+      const originalText = transcription.transcriptText ||
+        segments.map(seg => `${seg.speaker}: ${seg.text}`).join('\n');
+
+      let cleanedSegments: any[] = [];
+      let speakers: any[] = [];
+      let usedMultimodal = false;
+
+      // ====== 階段 1: 多模態語者識別 ======
+      sendProgress('uploading', 10, '正在準備音檔上傳...');
+
+      if (transcription.filename) {
+        const audioFilePath = path.join(process.cwd(), 'uploads', transcription.filename);
+
+        if (nodeFs.existsSync(audioFilePath)) {
+          try {
+            // 1. 上傳音檔到 GCS
+            sendProgress('uploading', 20, '正在上傳音檔至雲端...');
+            gcsUri = await analyzer.uploadAudioToGCS(audioFilePath);
+            console.log(`[Unified Analysis] GCS URI: ${gcsUri}`);
+
+            sendProgress('speaker_identification', 40, '正在進行多模態語者識別...');
+
+            await AdminLogger.log({
+              category: 'unified_analysis',
+              action: 'gcs_upload_success',
+              description: `轉錄${transcriptionId}統一分析：音檔上傳GCS成功`,
+              details: { transcriptionId, gcsUri }
+            });
+
+            // 2. 使用 Gemini 1.5 Pro 多模態分析（加入角色定義）
+            console.log(`[Unified Analysis] 開始 Gemini 1.5 Pro 多模態分析...`);
+            const multimodalResult = await analyzer.identifySpeakersMultimodal(
+              gcsUri,
+              originalText,
+              attendees,
+              attendeeRoles // 傳入角色描述
+            );
+
+            cleanedSegments = multimodalResult.cleanedSegments;
+            speakers = multimodalResult.speakers;
+            usedMultimodal = true;
+
+            sendProgress('speaker_identification', 60, `已識別 ${speakers.length} 位語者，共 ${cleanedSegments.length} 段對話`);
+
+            console.log(`[Unified Analysis] 多模態分析完成: ${cleanedSegments.length} 段落，${speakers.length} 位說話者`);
+
+            await AdminLogger.log({
+              category: 'unified_analysis',
+              action: 'multimodal_speaker_identification_success',
+              description: `轉錄${transcriptionId}多模態語者識別成功`,
+              details: {
+                transcriptionId,
+                segmentsCount: cleanedSegments.length,
+                speakersCount: speakers.length,
+                attendees,
+                attendeeRoles
+              }
+            });
+
+          } catch (multimodalError: any) {
+            console.error(`[Unified Analysis] 多模態分析失敗:`, multimodalError);
+
+            sendProgress('speaker_identification', 45, '多模態分析失敗，正在使用純文字分析...');
+
+            await AdminLogger.log({
+              category: 'unified_analysis',
+              action: 'multimodal_fallback',
+              description: `轉錄${transcriptionId}多模態分析失敗，切換到純文字分析: ${multimodalError.message}`,
+              severity: 'medium',
+              details: {
+                transcriptionId,
+                gcsUri,
+                errorMessage: multimodalError.message,
+                attendees
+              }
+            });
+          }
+        } else {
+          sendProgress('speaker_identification', 30, '音檔不存在，使用純文字分析...');
+        }
+      } else {
+        sendProgress('speaker_identification', 30, '無音檔資訊，使用純文字分析...');
+      }
+
+      // 如果多模態失敗，使用純文字分析
+      if (cleanedSegments.length === 0) {
+        sendProgress('speaker_identification', 50, '正在進行純文字語者識別...');
+
+        const model = getVertexAIModel();
+        const speakerSet = new Set<string>();
+
+        const CHUNK_SIZE = 5000;
+        const textChunks: string[] = [];
+        for (let i = 0; i < originalText.length; i += CHUNK_SIZE) {
+          textChunks.push(originalText.substring(i, i + CHUNK_SIZE));
+        }
+
+        const attendeesList = attendees && attendees.length > 0
+          ? attendees.map((name: string, i: number) => `${i + 1}. ${name}`).join('\n')
+          : null;
+
+        // 加入角色描述到 prompt
+        const roleContext = attendeeRoles
+          ? `\n**角色背景資訊：**\n${attendeeRoles}\n`
+          : '';
+
+        for (let chunkIndex = 0; chunkIndex < textChunks.length; chunkIndex++) {
+          const chunk = textChunks[chunkIndex];
+
+          const cleanupPrompt = `
+你是一個專業的語音轉錄整理助手。請完成以下任務：
+
+${attendeesList ? `**與會者名單：**
+${attendeesList}
+${roleContext}
+**任務 1：說話者識別**
+根據與會者名單和角色背景，分析對話內容，識別每段話是誰說的。
+- 使用與會者的實際姓名（如「${attendees[0]}」）
+- 根據語氣、用詞、問答模式以及角色定義來判斷說話者
+- 如果無法確定是哪位與會者，請用「未知講者」標記` : `**任務 1：說話者識別**
+分析對話內容，根據語氣、用詞、問答模式識別不同的說話者。
+- 如果明顯有多人對話，標記為「講者A」、「講者B」等
+- 如果只有一人獨白，全部標記為「講者A」
+- 最多識別 6 位說話者`}
+
+**任務 2：文字整理**
+- 修正語法錯誤和錯別字
+- 移除重複用詞和口語贅詞（如「嗯」、「啊」、「那個」）
+- 添加適當的標點符號
+- 保持原意不變
+
+**原始逐字稿（第 ${chunkIndex + 1}/${textChunks.length} 段）：**
+${chunk}
+
+**請直接回應整理後的文字，格式為：**
+${attendeesList ? `${attendees[0]}：整理後的內容
+${attendees[1] || '其他與會者'}：整理後的內容` : `講者A：整理後的內容
+講者B：整理後的內容`}
+...
+
+不要回應 JSON，直接用上述格式回應。`;
+
+          try {
+            const result = await model.generateContent(cleanupPrompt);
+            const response = result.response;
+            const cleanedText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+            const lines = cleanedText.split('\n').filter((line: string) => line.trim());
+
+            for (const line of lines) {
+              const match = line.match(/^([^：:]+)[：:]\s*(.+)$/);
+              if (match) {
+                const speaker = match[1].trim();
+                const text = match[2].trim();
+
+                if (text.length > 0 && !speaker.includes('任務') && !speaker.includes('原始') && !speaker.includes('整理')) {
+                  speakerSet.add(speaker);
+                  cleanedSegments.push({
+                    text: text,
+                    speaker: speaker,
+                    start: 0,
+                    end: 0,
+                    confidence: 0.85
+                  });
+                }
+              }
+            }
+          } catch (chunkError) {
+            console.error(`[Unified Analysis] 第 ${chunkIndex + 1} 段處理失敗:`, chunkError);
+          }
+        }
+
+        // 建立說話者列表
+        const speakerColors = [
+          "hsl(220, 70%, 50%)",
+          "hsl(120, 70%, 50%)",
+          "hsl(0, 70%, 50%)",
+          "hsl(280, 70%, 50%)",
+          "hsl(60, 70%, 50%)",
+          "hsl(180, 70%, 50%)",
+        ];
+
+        const speakerList = Array.from(speakerSet).sort();
+        speakers = speakerList.map((label, index) => ({
+          id: String.fromCharCode(65 + index),
+          label,
+          color: speakerColors[index % speakerColors.length]
+        }));
+      }
+
+      // 分配時間戳
+      if (cleanedSegments.length > 0 && segments.length > 0) {
+        const totalDuration = segments[segments.length - 1]?.end || 30000;
+
+        if (cleanedSegments[0]?.start === 0 && cleanedSegments[0]?.end === 0) {
+          const avgDuration = totalDuration / cleanedSegments.length;
+          cleanedSegments = cleanedSegments.map((seg: any, index: number) => ({
+            ...seg,
+            start: Math.floor(index * avgDuration),
+            end: Math.floor((index + 1) * avgDuration)
+          }));
+        }
+      }
+
+      const finalSegments = cleanedSegments.length > 0 ? cleanedSegments : segments;
+
+      // 更新 cleanedSegments 和 speakers 到資料庫
+      const cleanedTranscriptText = finalSegments
+        .map((seg: any) => `${seg.speaker}: ${seg.text}`)
+        .join('\n');
+
+      await storage.updateTranscription(transcriptionId, {
+        cleanedSegments: finalSegments,
+        cleanedTranscriptText: cleanedTranscriptText,
+        speakers: speakers.length > 0 ? speakers : undefined,
+      });
+
+      // ====== 階段 2: AI 內容分析 ======
+      sendProgress('content_analysis', 70, '正在進行 AI 內容分析...');
+
+      const model = getVertexAIModel();
+
+      // 使用整理後的逐字稿進行分析
+      const textForAnalysis = cleanedTranscriptText || originalText;
+
+      const analysisPrompt = `
+你是一個專業的會議記錄分析師。請分析以下會議逐字稿，提煉出重要資訊。請用繁體中文回應，格式為嚴格的JSON：
+
+${textForAnalysis.substring(0, 15000)}
+
+請提供完整的分析，包含以下所有欄位：
+{
+  "summary": "會議整體摘要，200-300字，包含主要討論內容和結論",
+  "actionItems": [
+    {
+      "content": "待辦事項具體描述",
+      "type": "todo",
+      "assignee": "負責人（如果有的話）",
+      "priority": "high/medium/low",
+      "dueDate": "截止日期（如果有提到）"
+    }
+  ],
+  "speakerAnalysis": {
+    "講者名稱": {
+      "參與度": "高/中/低",
+      "發言特點": "此人的發言風格和特點",
+      "主要觀點": "此人主要提出的觀點或貢獻"
+    }
+  },
+  "topicsDetection": ["主題1", "主題2", "主題3"],
+  "autoHighlights": ["重要內容摘錄1", "重要內容摘錄2"]
+}
+
+重要：請只回傳純JSON格式，不要使用 markdown code block，不要有任何其他文字說明。`;
+
+      let analysisResult: any = {};
+
+      try {
+        sendProgress('content_analysis', 80, '正在生成會議摘要和行動項目...');
+
+        const result = await model.generateContent(analysisPrompt);
+        const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
+        // 清理並解析 JSON
+        let cleanJson = responseText
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .trim();
+
+        try {
+          analysisResult = JSON.parse(cleanJson);
+        } catch (parseError) {
+          console.error('[Unified Analysis] JSON 解析失敗，嘗試修復:', parseError);
+          // 嘗試提取 JSON 部分
+          const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            analysisResult = JSON.parse(jsonMatch[0]);
+          }
+        }
+
+        console.log(`[Unified Analysis] AI 分析完成`);
+
+      } catch (analysisError: any) {
+        console.error('[Unified Analysis] AI 分析失敗:', analysisError);
+
+        await AdminLogger.log({
+          category: 'unified_analysis',
+          action: 'content_analysis_error',
+          description: `轉錄${transcriptionId}內容分析失敗: ${analysisError.message}`,
+          severity: 'medium',
+          details: { transcriptionId, errorMessage: analysisError.message }
+        });
+
+        // 即使分析失敗，也繼續（語者識別已完成）
+        analysisResult = {
+          summary: '內容分析處理中發生錯誤，請稍後重試',
+          actionItems: [],
+          topicsDetection: [],
+          autoHighlights: []
+        };
+      }
+
+      // 更新分析結果到資料庫
+      await storage.updateTranscription(transcriptionId, {
+        summary: analysisResult.summary,
+        actionItems: analysisResult.actionItems || [],
+        speakerAnalysis: analysisResult.speakerAnalysis,
+        topicsDetection: analysisResult.topicsDetection || [],
+        autoHighlights: analysisResult.autoHighlights || [],
+      });
+
+      sendProgress('completed', 100, '分析完成', {
+        speakersCount: speakers.length,
+        segmentsCount: finalSegments.length,
+        usedMultimodal,
+        hasActionItems: (analysisResult.actionItems?.length || 0) > 0,
+        hasSummary: !!analysisResult.summary
+      });
+
+      await AdminLogger.log({
+        category: 'unified_analysis',
+        action: 'unified_analysis_completed',
+        description: `轉錄${transcriptionId}統一AI分析完成`,
+        details: {
+          transcriptionId,
+          usedMultimodal,
+          speakersCount: speakers.length,
+          segmentsCount: finalSegments.length,
+          hasAnalysis: !!analysisResult.summary
+        }
+      });
+
+      res.end();
+
+    } catch (error: any) {
+      console.error("[Unified Analysis] 統一分析錯誤:", error);
+
+      await AdminLogger.log({
+        category: 'unified_analysis',
+        action: 'unified_analysis_error',
+        description: `轉錄${transcriptionId}統一AI分析失敗: ${error.message}`,
+        severity: 'high',
+        details: {
+          transcriptionId,
+          error: error.message,
+          stack: error.stack
+        }
+      });
+
+      sendProgress('error', 0, error.message || '分析過程中發生錯誤');
+      res.end();
+
+    } finally {
+      // 清理 GCS 檔案
+      if (gcsUri) {
+        try {
+          await analyzer.cleanupGCSFilePublic(gcsUri);
+          console.log(`[Unified Analysis] GCS 檔案已清理: ${gcsUri}`);
+        } catch (cleanupError) {
+          console.error(`[Unified Analysis] GCS 清理失敗:`, cleanupError);
+        }
+      }
     }
   });
 
@@ -1726,6 +2257,109 @@ ${originalText}
     }
   });
 
+  // Update single segment speaker (for inline editing)
+  app.patch("/api/transcriptions/:id/segments/:segmentIndex/speaker", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transcriptionId = parseInt(req.params.id);
+      const segmentIndex = parseInt(req.params.segmentIndex);
+      const { speaker } = req.body;
+
+      if (!speaker || typeof speaker !== 'string') {
+        return res.status(400).json({ message: "請提供有效的語者名稱" });
+      }
+
+      const transcription = await storage.getTranscription(transcriptionId);
+      if (!transcription) {
+        return res.status(404).json({ message: "轉錄記錄不存在" });
+      }
+
+      // Check permissions
+      if (req.user!.role !== 'admin' && transcription.userId !== req.user!.id) {
+        return res.status(403).json({ message: "無權限執行此操作" });
+      }
+
+      // Update cleanedSegments
+      const cleanedSegments = [...(transcription.cleanedSegments as any[] || [])];
+      if (segmentIndex < 0 || segmentIndex >= cleanedSegments.length) {
+        return res.status(400).json({ message: "無效的段落索引" });
+      }
+
+      const oldSpeaker = cleanedSegments[segmentIndex].speaker;
+      cleanedSegments[segmentIndex] = { ...cleanedSegments[segmentIndex], speaker };
+
+      await storage.updateTranscription(transcriptionId, { cleanedSegments });
+
+      await AdminLogger.log({
+        category: 'speaker_management',
+        action: 'update_segment_speaker',
+        description: `更新轉錄${transcriptionId}第${segmentIndex + 1}段的語者：${oldSpeaker} → ${speaker}`,
+        severity: 'info',
+        userId: req.user!.id,
+        transcriptionId,
+        details: { segmentIndex, oldSpeaker, newSpeaker: speaker }
+      });
+
+      res.json({ success: true, message: "語者已更新" });
+
+    } catch (error) {
+      console.error("Segment speaker update error:", error);
+      res.status(500).json({ message: "更新語者失敗" });
+    }
+  });
+
+  // Batch update segment speakers
+  app.patch("/api/transcriptions/:id/segments/batch-speaker", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transcriptionId = parseInt(req.params.id);
+      const { updates } = req.body;  // [{ segmentIndex: number, speaker: string }]
+
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return res.status(400).json({ message: "請提供有效的更新資料" });
+      }
+
+      const transcription = await storage.getTranscription(transcriptionId);
+      if (!transcription) {
+        return res.status(404).json({ message: "轉錄記錄不存在" });
+      }
+
+      // Check permissions
+      if (req.user!.role !== 'admin' && transcription.userId !== req.user!.id) {
+        return res.status(403).json({ message: "無權限執行此操作" });
+      }
+
+      // Batch update cleanedSegments
+      const cleanedSegments = [...(transcription.cleanedSegments as any[] || [])];
+      const updateDetails: any[] = [];
+
+      for (const update of updates) {
+        const { segmentIndex, speaker } = update;
+        if (segmentIndex >= 0 && segmentIndex < cleanedSegments.length && speaker) {
+          const oldSpeaker = cleanedSegments[segmentIndex].speaker;
+          cleanedSegments[segmentIndex] = { ...cleanedSegments[segmentIndex], speaker };
+          updateDetails.push({ segmentIndex, oldSpeaker, newSpeaker: speaker });
+        }
+      }
+
+      await storage.updateTranscription(transcriptionId, { cleanedSegments });
+
+      await AdminLogger.log({
+        category: 'speaker_management',
+        action: 'batch_update_segment_speakers',
+        description: `批次更新轉錄${transcriptionId}的${updateDetails.length}段語者`,
+        severity: 'info',
+        userId: req.user!.id,
+        transcriptionId,
+        details: { updates: updateDetails }
+      });
+
+      res.json({ success: true, updatedCount: updateDetails.length });
+
+    } catch (error) {
+      console.error("Batch speaker update error:", error);
+      res.status(500).json({ message: "批次更新語者失敗" });
+    }
+  });
+
   // Get all transcriptions (user-specific or all for admin)
   app.get("/api/transcriptions", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -1753,9 +2387,26 @@ ${originalText}
   });
 
   // Download audio file
-  app.get("/api/transcriptions/:id/download-audio", requireAuth, async (req: AuthenticatedRequest, res) => {
+  // Support token via query parameter for direct download links
+  app.get("/api/transcriptions/:id/download-audio", async (req: AuthenticatedRequest, res) => {
     try {
       const id = parseInt(req.params.id);
+
+      // Try to authenticate from query token, header, or cookie
+      let user = null;
+      const queryToken = req.query.token as string;
+      const headerToken = req.headers.authorization?.replace('Bearer ', '');
+      const cookieToken = req.cookies?.auth_token;
+      const token = queryToken || headerToken || cookieToken;
+
+      if (token) {
+        user = await AuthService.validateSession(token);
+      }
+
+      if (!user || user.status !== 'active') {
+        return res.status(401).json({ message: "需要登入" });
+      }
+
       const transcription = await storage.getTranscription(id);
 
       if (!transcription) {
@@ -1763,12 +2414,12 @@ ${originalText}
       }
 
       // Check if user has access to this transcription
-      if (req.user!.role !== 'admin' && transcription.userId !== req.user!.id) {
+      if (user.role !== 'admin' && transcription.userId !== user.id) {
         return res.status(403).json({ message: "無權限下載此檔案" });
       }
 
       const filePath = path.join(process.cwd(), "uploads", transcription.filename);
-      
+
       // Check if file exists
       try {
         await fs.access(filePath);
@@ -1776,14 +2427,18 @@ ${originalText}
         return res.status(404).json({ message: "音頻檔案不存在" });
       }
 
+      // Get file stats for Content-Length
+      const stats = await fs.stat(filePath);
+
       // Set appropriate headers for file download
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(transcription.originalName || transcription.filename)}"`);
       res.setHeader('Content-Type', 'application/octet-stream');
-      
+      res.setHeader('Content-Length', stats.size);
+
       // Stream the file
       const fileStream = nodeFs.createReadStream(filePath);
       fileStream.pipe(res);
-      
+
       fileStream.on('error', (error: any) => {
         console.error('File stream error:', error);
         if (!res.headersSent) {
@@ -1793,8 +2448,8 @@ ${originalText}
 
     } catch (error) {
       console.error("Audio download error:", error);
-      res.status(500).json({ 
-        message: error instanceof Error ? error.message : "下載失敗" 
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "下載失敗"
       });
     }
   });
@@ -1915,9 +2570,11 @@ ${textToAnalyze.substring(0, 15000)}
   });
 
   // RD Mode Analysis - Generate technical documentation from engineering discussions
+  // RD 模式不需要多模態分析，直接使用現有逐字稿產出技術文檔
   app.post("/api/transcriptions/:id/analyze-rd", requireAuth, async (req: AuthenticatedRequest, res) => {
+    const id = parseInt(req.params.id);
+
     try {
-      const id = parseInt(req.params.id);
       const transcription = await storage.getTranscription(id);
 
       if (!transcription) {
@@ -1928,7 +2585,7 @@ ${textToAnalyze.substring(0, 15000)}
         return res.status(400).json({ message: "轉錄尚未完成，無法進行 RD 分析" });
       }
 
-      // Prefer cleaned transcript if available
+      // 優先使用整理後的逐字稿，否則使用原始逐字稿
       const textToAnalyze = (transcription as any).cleanedTranscriptText || transcription.transcriptText;
 
       if (!textToAnalyze) {
@@ -2189,7 +2846,8 @@ ${textToAnalyze.substring(0, 20000)}
       await AdminLogger.log({
         category: 'ai_analysis',
         action: 'rd_analysis_error',
-        description: `轉錄${req.params.id} RD 分析失敗`,
+        description: `轉錄${id} RD 分析失敗`,
+        severity: 'high',
         details: { error: error instanceof Error ? error.message : String(error) }
       });
 

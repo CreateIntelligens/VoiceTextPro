@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient as useQueryClientHook } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,6 @@ import {
   Users,
   TrendingUp,
   Brain,
-  Wand2,
   Music,
   FileDown,
   Loader2,
@@ -24,8 +23,27 @@ import {
   X,
   Edit2,
   Check,
-  UserPlus,
+  ChevronDown,
+  CheckSquare,
+  Square,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -33,21 +51,30 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
 import type { TranscriptionStatus, RDAnalysisResult } from "@/lib/types";
 import RDAnalysis from "@/components/rd-analysis";
+import AIAnalysisDialog from "@/components/ai-analysis-dialog";
 
 export default function HistoryDetailPage() {
   const [, params] = useRoute("/history/:id");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const qc = useQueryClientHook();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRDAnalyzing, setIsRDAnalyzing] = useState(false);
-  const [isCleaning, setIsCleaning] = useState(false);
   const [activeTab, setActiveTab] = useState<'transcript' | 'cleaned' | 'analysis'>('transcript');
 
-  const [attendees, setAttendees] = useState<string[]>([]);
-  const [newAttendee, setNewAttendee] = useState('');
+  // AI 分析 Dialog 狀態
+  const [showAnalysisDialog, setShowAnalysisDialog] = useState(false);
 
   const [editingSpeakerIndex, setEditingSpeakerIndex] = useState<number | null>(null);
   const [editingSpeakerName, setEditingSpeakerName] = useState('');
+
+  // 語者編輯相關 state
+  const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
+  const [isUpdatingSpeaker, setIsUpdatingSpeaker] = useState(false);
+  const [showAddSpeakerDialog, setShowAddSpeakerDialog] = useState(false);
+  const [newSpeakerName, setNewSpeakerName] = useState('');
+  const [pendingSegmentIndex, setPendingSegmentIndex] = useState<number | null>(null);
+  const [showBatchSpeakerDialog, setShowBatchSpeakerDialog] = useState(false);
 
   const transcriptionId = params?.id ? parseInt(params.id) : null;
 
@@ -181,19 +208,15 @@ export default function HistoryDetailPage() {
     if (!transcription) return;
 
     try {
-      const response = await fetch(`/api/transcriptions/${transcription.id}/download-audio`);
-      if (!response.ok) throw new Error('下載失敗');
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = transcription.originalName || transcription.filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast({ title: "下載成功", description: "音頻檔案已下載" });
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        toast({ title: "下載失敗", description: "請先登入", variant: "destructive" });
+        return;
+      }
+      // Use direct link with token for large file downloads
+      const downloadUrl = `/api/transcriptions/${transcription.id}/download-audio?token=${encodeURIComponent(token)}`;
+      window.open(downloadUrl, '_blank');
+      toast({ title: "下載開始", description: "音頻檔案正在下載" });
     } catch (error) {
       toast({ title: "下載失敗", description: "無法下載音頻檔案", variant: "destructive" });
     }
@@ -205,7 +228,7 @@ export default function HistoryDetailPage() {
     setIsAnalyzing(true);
     try {
       await apiRequest(`/api/transcriptions/${transcription.id}/analyze`, 'POST');
-      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      await qc.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
       refetch();
       toast({ title: "分析完成", description: "AI 智能分析已完成" });
     } catch (error) {
@@ -220,36 +243,39 @@ export default function HistoryDetailPage() {
 
     setIsRDAnalyzing(true);
     try {
-      await apiRequest(`/api/transcriptions/${transcription.id}/analyze-rd`, 'POST');
-      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      const result = await apiRequest(`/api/transcriptions/${transcription.id}/analyze-rd`, 'POST', {
+        useMultimodal: true
+      });
+      await qc.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
       refetch();
-      toast({ title: "RD 分析完成", description: "已產出技術文檔和圖表" });
-    } catch (error) {
-      toast({ title: "RD 分析失敗", description: "無法完成 RD 分析，請稍後再試", variant: "destructive" });
+
+      const hasCleanedSegments = transcription.cleanedSegments && transcription.cleanedSegments.length > 0;
+      toast({
+        title: "RD 分析完成",
+        description: hasCleanedSegments
+          ? "已產出技術文檔和圖表"
+          : "已完成多模態語者識別並產出技術文檔"
+      });
+    } catch (error: any) {
+      toast({
+        title: "RD 分析失敗",
+        description: error.message || "無法完成 RD 分析，請稍後再試",
+        variant: "destructive"
+      });
     } finally {
       setIsRDAnalyzing(false);
     }
   };
 
-  const addAttendee = () => {
-    if (!newAttendee.trim()) return;
-    if (attendees.includes(newAttendee.trim())) {
-      toast({ title: "與會者已存在", description: "此與會者已在名單中", variant: "destructive" });
-      return;
-    }
-    setAttendees([...attendees, newAttendee.trim()]);
-    setNewAttendee('');
-  };
-
-  const removeAttendee = (index: number) => {
-    setAttendees(attendees.filter((_, i) => i !== index));
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addAttendee();
-    }
+  // AI 分析完成後的回調
+  const handleAnalysisComplete = () => {
+    qc.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription?.id}`] });
+    refetch();
+    setActiveTab('analysis'); // 自動切換到分析結果 Tab
+    toast({
+      title: "AI 分析完成",
+      description: "已完成語者識別和內容分析"
+    });
   };
 
   const startSpeakerEdit = (speakerName: string, index: number) => {
@@ -287,7 +313,7 @@ export default function HistoryDetailPage() {
         cleanedSegments: updatedCleanedSegments,
       });
 
-      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      await qc.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
       refetch();
       toast({ title: "更新成功", description: "語者名稱已更新" });
       cancelSpeakerEdit();
@@ -315,7 +341,7 @@ export default function HistoryDetailPage() {
         cleanedSegments: updatedCleanedSegments,
       });
 
-      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      await qc.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
       refetch();
       toast({ title: "刪除成功", description: `已刪除語者「${speakerName}」及其相關段落` });
     } catch (error) {
@@ -323,24 +349,123 @@ export default function HistoryDetailPage() {
     }
   };
 
-  const handleAICleanup = async () => {
+  // 更新單段語者
+  const updateSegmentSpeaker = async (segmentIndex: number, newSpeaker: string) => {
     if (!transcription) return;
 
-    if (attendees.length === 0) {
-      toast({ title: "請先設定與會者", description: "在進行逐字稿整理前，請先新增與會者名單", variant: "destructive" });
-      return;
-    }
-
-    setIsCleaning(true);
+    setIsUpdatingSpeaker(true);
     try {
-      await apiRequest(`/api/transcriptions/${transcription.id}/ai-cleanup`, 'POST', { attendees });
-      await queryClient.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
-      refetch();
-      toast({ title: "整理完成", description: "逐字稿已完成 AI 整理" });
-    } catch (error) {
-      toast({ title: "整理失敗", description: "無法完成逐字稿整理，請稍後再試", variant: "destructive" });
+      await apiRequest(`/api/transcriptions/${transcription.id}/segments/${segmentIndex}/speaker`, 'PATCH', {
+        speaker: newSpeaker
+      });
+      // 強制刷新資料
+      await qc.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      await qc.refetchQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      toast({ title: "語者已更新", description: `已將此段對話的語者更改為「${newSpeaker}」` });
+    } catch (error: any) {
+      toast({
+        title: "更新失敗",
+        description: error.message || "無法更新語者",
+        variant: "destructive"
+      });
     } finally {
-      setIsCleaning(false);
+      setIsUpdatingSpeaker(false);
+    }
+  };
+
+  // 批次更新語者
+  const batchUpdateSpeakers = async (newSpeaker: string) => {
+    if (!transcription || selectedSegments.size === 0) return;
+
+    setIsUpdatingSpeaker(true);
+    try {
+      const updates = Array.from(selectedSegments).map(segmentIndex => ({
+        segmentIndex,
+        speaker: newSpeaker
+      }));
+
+      await apiRequest(`/api/transcriptions/${transcription.id}/segments/batch-speaker`, 'PATCH', {
+        updates
+      });
+      // 強制刷新資料
+      await qc.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      await qc.refetchQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      setSelectedSegments(new Set());
+      setShowBatchSpeakerDialog(false);
+      toast({ title: "批次更新完成", description: `已將 ${updates.length} 段對話的語者更改為「${newSpeaker}」` });
+    } catch (error: any) {
+      toast({
+        title: "批次更新失敗",
+        description: error.message || "無法批次更新語者",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdatingSpeaker(false);
+    }
+  };
+
+  // 新增語者並更新段落
+  const addNewSpeakerAndUpdate = async () => {
+    if (!transcription || !newSpeakerName.trim()) return;
+
+    // 先更新語者清單
+    const currentSpeakers = transcription.speakers as any[] || [];
+    const speakerColors = ['#0abdc6', '#ea00d9', '#05ffa1', '#f0e130', '#711c91', '#ff2a6d'];
+    const newSpeaker = {
+      id: `speaker_${currentSpeakers.length + 1}`,
+      label: newSpeakerName.trim(),
+      color: speakerColors[currentSpeakers.length % speakerColors.length]
+    };
+
+    try {
+      // 更新語者清單
+      await apiRequest(`/api/transcriptions/${transcription.id}`, 'PATCH', {
+        speakers: [...currentSpeakers, newSpeaker]
+      });
+
+      // 如果有指定要更新的段落，也一併更新
+      if (pendingSegmentIndex !== null) {
+        await updateSegmentSpeaker(pendingSegmentIndex, newSpeakerName.trim());
+      } else if (selectedSegments.size > 0) {
+        await batchUpdateSpeakers(newSpeakerName.trim());
+      }
+
+      await qc.invalidateQueries({ queryKey: [`/api/transcriptions/${transcription.id}`] });
+      refetch();
+      setShowAddSpeakerDialog(false);
+      setNewSpeakerName('');
+      setPendingSegmentIndex(null);
+      toast({ title: "新增成功", description: `已新增語者「${newSpeakerName.trim()}」` });
+    } catch (error: any) {
+      toast({
+        title: "新增失敗",
+        description: error.message || "無法新增語者",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // 切換段落選取
+  const toggleSegmentSelection = (index: number) => {
+    setSelectedSegments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
+
+  // 全選/取消全選
+  const toggleSelectAll = () => {
+    if (!transcription?.cleanedSegments) return;
+    const allSegments = transcription.cleanedSegments as any[];
+    if (selectedSegments.size === allSegments.length) {
+      setSelectedSegments(new Set());
+    } else {
+      setSelectedSegments(new Set(allSegments.map((_, i) => i)));
     }
   };
 
@@ -563,56 +688,12 @@ export default function HistoryDetailPage() {
           </div>
         </div>
 
-        {/* Attendees */}
-        <div className="mb-4 p-4 rounded-xl bg-card/50 border border-border/50">
-          <div className="flex items-center space-x-2 mb-3">
-            <UserPlus className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">與會者名單</span>
-          </div>
-          {attendees.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {attendees.map((name, index) => (
-                <span
-                  key={index}
-                  className="inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium"
-                  style={{
-                    backgroundColor: `${speakerColors[index % speakerColors.length]}15`,
-                    color: speakerColors[index % speakerColors.length],
-                    border: `1px solid ${speakerColors[index % speakerColors.length]}30`
-                  }}
-                >
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: speakerColors[index % speakerColors.length] }} />
-                  <span>{name}</span>
-                  <button onClick={() => removeAttendee(index)} className="ml-1 hover:opacity-70">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <Input
-              placeholder="輸入與會者姓名"
-              value={newAttendee}
-              onChange={(e) => setNewAttendee(e.target.value)}
-              onKeyPress={handleKeyPress}
-              className="flex-1 h-9 rounded-lg bg-background border-border/50"
-            />
-            <Button onClick={addAttendee} size="sm" className="h-9 rounded-lg">
-              <Plus className="w-4 h-4" />
-            </Button>
-          </div>
-          {attendees.length === 0 && (
-            <p className="text-xs text-muted-foreground/70 mt-2">請先新增與會者，以便 AI 識別說話者</p>
-          )}
-        </div>
-
         {/* Action Buttons */}
         <div className="flex gap-2 mb-4">
           {transcription.analysisMode === 'rd' ? (
             <Button
               onClick={handleRDAnalysis}
-              disabled={isRDAnalyzing || !transcription.cleanedTranscriptText}
+              disabled={isRDAnalyzing || (!transcription.cleanedTranscriptText && !transcription.transcriptText)}
               className="flex-1 h-10 rounded-xl"
             >
               {isRDAnalyzing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Brain className="w-4 h-4 mr-2" />}
@@ -620,23 +701,13 @@ export default function HistoryDetailPage() {
             </Button>
           ) : (
             <Button
-              onClick={handleAIAnalysis}
-              disabled={isAnalyzing || !transcription.cleanedTranscriptText}
+              onClick={() => setShowAnalysisDialog(true)}
               className="flex-1 h-10 rounded-xl"
             >
-              {isAnalyzing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Brain className="w-4 h-4 mr-2" />}
+              <Brain className="w-4 h-4 mr-2" />
               AI 分析
             </Button>
           )}
-          <Button
-            onClick={handleAICleanup}
-            disabled={isCleaning}
-            variant="outline"
-            className="flex-1 h-10 rounded-xl"
-          >
-            {isCleaning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-            整理逐字稿
-          </Button>
         </div>
 
         {/* Export Buttons */}
@@ -661,7 +732,11 @@ export default function HistoryDetailPage() {
 
         {/* Content Tabs */}
         <div className="flex p-1 mb-4 bg-muted/30 rounded-xl">
-          {(['transcript', 'cleaned', 'analysis'] as const).map((tab) => (
+          {/* RD 模式只顯示原始逐字稿和 AI 分析，會議模式顯示全部三個 Tab */}
+          {(transcription.analysisMode === 'rd'
+            ? ['transcript', 'analysis'] as const
+            : ['transcript', 'cleaned', 'analysis'] as const
+          ).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -797,30 +872,142 @@ export default function HistoryDetailPage() {
             )}
 
             {transcription.cleanedSegments && Array.isArray(transcription.cleanedSegments) && transcription.cleanedSegments.length > 0 ? (
-              transcription.cleanedSegments.map((segment: any, index: number) => {
-                let speakerColor = speakerColors[0];
-                let speakerName = segment.speaker || '未知講者';
-
-                if (transcription.speakers && Array.isArray(transcription.speakers)) {
-                  const speakerIndex = transcription.speakers.findIndex((s: any) => {
-                    const label = typeof s === 'string' ? s : s.label;
-                    return label === segment.speaker;
-                  });
-                  if (speakerIndex >= 0) {
-                    const speaker = transcription.speakers[speakerIndex];
-                    speakerColor = typeof speaker === 'string'
-                      ? speakerColors[speakerIndex % speakerColors.length]
-                      : speaker.color || speakerColors[speakerIndex % speakerColors.length];
-                  }
-                }
-
-                return (
-                  <div key={index} className="p-3 rounded-xl bg-card/50 border-l-2" style={{ borderLeftColor: speakerColor }}>
-                    <span className="text-xs font-medium mb-1 block" style={{ color: speakerColor }}>{speakerName}</span>
-                    <p className="text-sm text-foreground leading-relaxed">{segment.text}</p>
+              <>
+                {/* 批次操作工具列 */}
+                <div className="flex items-center justify-between mb-3 p-2 bg-muted/30 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={toggleSelectAll}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      {selectedSegments.size === (transcription.cleanedSegments as any[]).length ? (
+                        <CheckSquare className="w-4 h-4" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                      {selectedSegments.size > 0 ? `已選 ${selectedSegments.size} 段` : '全選'}
+                    </button>
                   </div>
-                );
-              })
+                  {selectedSegments.size > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedSegments(new Set())}
+                        className="h-7 text-xs"
+                      >
+                        取消
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowBatchSpeakerDialog(true)}
+                        className="h-7 text-xs gap-1"
+                      >
+                        <Users className="w-3 h-3" />
+                        變更語者
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 對話段落列表 */}
+                {transcription.cleanedSegments.map((segment: any, index: number) => {
+                  let speakerColor = speakerColors[0];
+                  let speakerName = segment.speaker || '未知講者';
+                  const isSelected = selectedSegments.has(index);
+
+                  if (transcription.speakers && Array.isArray(transcription.speakers)) {
+                    const speakerIndex = transcription.speakers.findIndex((s: any) => {
+                      const label = typeof s === 'string' ? s : s.label;
+                      return label === segment.speaker;
+                    });
+                    if (speakerIndex >= 0) {
+                      const speaker = transcription.speakers[speakerIndex];
+                      speakerColor = typeof speaker === 'string'
+                        ? speakerColors[speakerIndex % speakerColors.length]
+                        : speaker.color || speakerColors[speakerIndex % speakerColors.length];
+                    }
+                  }
+
+                  return (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-xl border-l-2 transition-colors ${
+                        isSelected ? 'bg-primary/10 border-primary' : 'bg-card/50'
+                      }`}
+                      style={{ borderLeftColor: isSelected ? undefined : speakerColor }}
+                    >
+                      <div className="flex items-start gap-2">
+                        {/* 選取 Checkbox */}
+                        <button
+                          onClick={() => toggleSegmentSelection(index)}
+                          className="mt-0.5 flex-shrink-0"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-4 h-4 text-primary" />
+                          ) : (
+                            <Square className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                          )}
+                        </button>
+
+                        <div className="flex-1 min-w-0">
+                          {/* 語者下拉選單 */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                className="text-xs font-medium mb-1 flex items-center gap-1 hover:opacity-80 transition-opacity disabled:opacity-50"
+                                style={{ color: speakerColor }}
+                                disabled={isUpdatingSpeaker}
+                              >
+                                {speakerName}
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-48">
+                              {transcription.speakers?.map((speaker: any, speakerIdx: number) => {
+                                const label = typeof speaker === 'string' ? speaker : speaker.label;
+                                const color = typeof speaker === 'string'
+                                  ? speakerColors[speakerIdx % speakerColors.length]
+                                  : speaker.color || speakerColors[speakerIdx % speakerColors.length];
+                                const isCurrent = label === speakerName;
+
+                                return (
+                                  <DropdownMenuItem
+                                    key={speakerIdx}
+                                    onClick={() => !isCurrent && updateSegmentSpeaker(index, label)}
+                                    className={isCurrent ? 'bg-muted' : ''}
+                                  >
+                                    <div
+                                      className="w-2 h-2 rounded-full mr-2"
+                                      style={{ backgroundColor: color }}
+                                    />
+                                    {label}
+                                    {isCurrent && <Check className="w-3 h-3 ml-auto" />}
+                                  </DropdownMenuItem>
+                                );
+                              })}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setPendingSegmentIndex(index);
+                                  setShowAddSpeakerDialog(true);
+                                }}
+                              >
+                                <Plus className="w-3 h-3 mr-2" />
+                                新增語者
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          {/* 對話內容 */}
+                          <p className="text-sm text-foreground leading-relaxed">{segment.text}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
             ) : transcription.cleanedTranscriptText ? (
               <div className="p-4 rounded-xl bg-card/50">
                 <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{transcription.cleanedTranscriptText}</p>
@@ -1010,6 +1197,114 @@ export default function HistoryDetailPage() {
           </>
         )}
       </main>
+
+      {/* 新增語者 Dialog */}
+      <Dialog open={showAddSpeakerDialog} onOpenChange={setShowAddSpeakerDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>新增語者</DialogTitle>
+            <DialogDescription>
+              輸入新語者的名稱，將會新增到語者清單並更新選取的段落。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newSpeakerName">語者名稱</Label>
+              <Input
+                id="newSpeakerName"
+                placeholder="例如：張經理"
+                value={newSpeakerName}
+                onChange={(e) => setNewSpeakerName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newSpeakerName.trim()) {
+                    addNewSpeakerAndUpdate();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddSpeakerDialog(false);
+                setNewSpeakerName('');
+                setPendingSegmentIndex(null);
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={addNewSpeakerAndUpdate}
+              disabled={!newSpeakerName.trim()}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              新增
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批次變更語者 Dialog */}
+      <Dialog open={showBatchSpeakerDialog} onOpenChange={setShowBatchSpeakerDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>批次變更語者</DialogTitle>
+            <DialogDescription>
+              選擇要將 {selectedSegments.size} 段對話變更為哪位語者。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-4 max-h-64 overflow-y-auto">
+            {transcription?.speakers?.map((speaker: any, idx: number) => {
+              const label = typeof speaker === 'string' ? speaker : speaker.label;
+              const color = typeof speaker === 'string'
+                ? speakerColors[idx % speakerColors.length]
+                : speaker.color || speakerColors[idx % speakerColors.length];
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => batchUpdateSpeakers(label)}
+                  disabled={isUpdatingSpeaker}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left disabled:opacity-50"
+                >
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-sm font-medium">{label}</span>
+                </button>
+              );
+            })}
+            <button
+              onClick={() => {
+                setShowBatchSpeakerDialog(false);
+                setShowAddSpeakerDialog(true);
+              }}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left border-t mt-2 pt-3"
+            >
+              <Plus className="w-3 h-3 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">新增語者</span>
+            </button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowBatchSpeakerDialog(false)}
+            >
+              取消
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI 分析 Dialog */}
+      <AIAnalysisDialog
+        transcription={transcription}
+        isOpen={showAnalysisDialog}
+        onClose={() => setShowAnalysisDialog(false)}
+        onComplete={handleAnalysisComplete}
+      />
     </div>
   );
 }
