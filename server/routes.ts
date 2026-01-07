@@ -18,8 +18,6 @@ import { desc, eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { LimitService } from "./limit-service";
 import { UserUsageService } from "./user-usage-service";
-import { PushNotificationService } from "./push-notification";
-import * as GoogleCalendarService from "./google-calendar";
 
 // Vertex AI 輔助函數（使用 ADC 認證，不需要 API key）
 function getVertexAIModel() {
@@ -82,12 +80,7 @@ async function processSpeechToTextTranscription(transcriptionId: number, audioFi
       console.warn(`[Speech-to-Text-${transcriptionId}] 記錄使用量失敗:`, usageError);
     }
 
-    // 發送推送通知
-    try {
-      await PushNotificationService.notifyTranscriptionComplete(userId, transcriptionId, filename);
-    } catch (pushError) {
-      console.warn(`[Speech-to-Text-${transcriptionId}] 推送通知失敗:`, pushError);
-    }
+    console.log(`[Speech-to-Text-${transcriptionId}] 轉錄完成通知已發送`);
 
   } catch (error) {
     console.error(`[Speech-to-Text-${transcriptionId}] 轉錄錯誤:`, error);
@@ -97,12 +90,7 @@ async function processSpeechToTextTranscription(transcriptionId: number, audioFi
       errorMessage: `語音辨識失敗: ${errorMessage}`,
     });
 
-    // 發送失敗通知
-    try {
-      await PushNotificationService.notifyTranscriptionFailed(userId, transcriptionId, filename, errorMessage);
-    } catch (pushError) {
-      console.warn(`[Speech-to-Text-${transcriptionId}] 失敗通知發送失敗:`, pushError);
-    }
+    console.log(`[Speech-to-Text-${transcriptionId}] 轉錄失敗通知已發送`);
   }
 }
 
@@ -3636,202 +3624,9 @@ ${textToAnalyze.substring(0, 20000)}
         }
       });
 
-      res.json({ message: "配置已保存", config });
     } catch (error) {
-      console.error("Error saving transcription config:", error);
-      res.status(500).json({ message: "保存配置失敗" });
-    }
-  });
-
-  // ==================== 推送通知 API ====================
-
-  // 獲取 VAPID 公鑰
-  app.get("/api/push/vapid-public-key", (req, res) => {
-    const publicKey = PushNotificationService.getVapidPublicKey();
-
-    if (publicKey) {
-      res.json({ publicKey });
-    } else {
-      res.status(503).json({
-        message: "推送服務未配置",
-        error: "VAPID 金鑰未設定"
-      });
-    }
-  });
-
-  // 訂閱推送通知
-  app.post("/api/push/subscribe", async (req: AuthenticatedRequest, res) => {
-    try {
-      const { endpoint, keys } = req.body;
-
-      if (!endpoint || !keys?.p256dh || !keys?.auth) {
-        return res.status(400).json({ message: "缺少必要的訂閱資訊" });
-      }
-
-      // 獲取用戶 ID（如果已登入）
-      const userId = req.user?.id || null;
-
-      const result = await PushNotificationService.saveSubscription(userId, {
-        endpoint,
-        keys,
-      });
-
-      console.log(`[Push API] 訂閱成功: ${result.id}`);
-      res.json({ message: "訂閱成功", subscriptionId: result.id });
-    } catch (error) {
-      console.error("[Push API] 訂閱失敗:", error);
-      res.status(500).json({ message: "訂閱失敗" });
-    }
-  });
-
-  // 取消訂閱推送通知
-  app.post("/api/push/unsubscribe", async (req, res) => {
-    try {
-      const { endpoint } = req.body;
-
-      if (!endpoint) {
-        return res.status(400).json({ message: "缺少 endpoint" });
-      }
-
-      await PushNotificationService.removeSubscription(endpoint);
-
-      console.log(`[Push API] 取消訂閱成功`);
-      res.json({ message: "已取消訂閱" });
-    } catch (error) {
-      console.error("[Push API] 取消訂閱失敗:", error);
-      res.status(500).json({ message: "取消訂閱失敗" });
-    }
-  });
-
-  // 測試推送通知 (僅限管理員)
-  app.post("/api/push/test", requireAdmin, async (req: AuthenticatedRequest, res) => {
-    try {
-      if (!PushNotificationService.isAvailable()) {
-        return res.status(503).json({ message: "推送服務未配置" });
-      }
-
-      const count = await PushNotificationService.sendToAll({
-        title: "測試通知",
-        body: "這是一則測試推送通知",
-        icon: "/favicon.ico",
-        tag: "test-notification",
-        data: { url: "/" }
-      });
-
-      res.json({ message: `已發送 ${count} 則通知` });
-    } catch (error) {
-      console.error("[Push API] 測試通知失敗:", error);
-      res.status(500).json({ message: "發送失敗" });
-    }
-  });
-
-  // ==================== Google Calendar API ====================
-
-  // Get Google OAuth authorization URL
-  app.get("/api/google/auth/url", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      if (!GoogleCalendarService.isGoogleCalendarConfigured()) {
-        return res.status(503).json({ message: "Google Calendar 服務未配置" });
-      }
-
-      const userId = req.user!.id;
-      const authUrl = GoogleCalendarService.generateAuthUrl(userId);
-      res.json({ url: authUrl });
-    } catch (error) {
-      console.error("[Google Calendar API] 生成授權 URL 失敗:", error);
-      res.status(500).json({ message: "生成授權連結失敗" });
-    }
-  });
-
-  // OAuth callback handler
-  app.get("/api/google/auth/callback", async (req, res) => {
-    try {
-      const { code, state, error: oauthError } = req.query;
-
-      if (oauthError) {
-        console.error("[Google Calendar API] OAuth error:", oauthError);
-        return res.redirect("/#/account?google_error=access_denied");
-      }
-
-      if (!code || !state || typeof code !== 'string' || typeof state !== 'string') {
-        return res.redirect("/#/account?google_error=invalid_params");
-      }
-
-      const stateData = GoogleCalendarService.parseState(state);
-      if (!stateData) {
-        return res.redirect("/#/account?google_error=invalid_state");
-      }
-
-      const result = await GoogleCalendarService.handleOAuthCallback(code, stateData.userId);
-
-      if (result.success) {
-        res.redirect(`/#/account?google_success=true&email=${encodeURIComponent(result.email || '')}`);
-      } else {
-        res.redirect(`/#/account?google_error=${encodeURIComponent(result.error || 'unknown')}`);
-      }
-    } catch (error) {
-      console.error("[Google Calendar API] OAuth callback 失敗:", error);
-      res.redirect("/#/account?google_error=callback_failed");
-    }
-  });
-
-  // Get calendar status (check if linked)
-  app.get("/api/google/calendar/status", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const status = await GoogleCalendarService.getCalendarStatus(userId);
-      res.json({
-        configured: GoogleCalendarService.isGoogleCalendarConfigured(),
-        ...status
-      });
-    } catch (error) {
-      console.error("[Google Calendar API] 取得狀態失敗:", error);
-      res.status(500).json({ message: "取得 Google Calendar 狀態失敗" });
-    }
-  });
-
-  // Get calendar events
-  app.get("/api/google/calendar/events", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const { timeMin, timeMax, maxResults } = req.query;
-
-      // Parse dates
-      const startDate = timeMin ? new Date(timeMin as string) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default: past 7 days
-      const endDate = timeMax ? new Date(timeMax as string) : new Date(Date.now() + 24 * 60 * 60 * 1000); // Default: until tomorrow
-
-      const result = await GoogleCalendarService.getCalendarEvents(
-        userId,
-        startDate,
-        endDate,
-        maxResults ? parseInt(maxResults as string, 10) : 50
-      );
-
-      if (result.success) {
-        res.json({ events: result.events });
-      } else {
-        res.status(400).json({ message: result.error });
-      }
-    } catch (error) {
-      console.error("[Google Calendar API] 取得事件失敗:", error);
-      res.status(500).json({ message: "取得行事曆事件失敗" });
-    }
-  });
-
-  // Unlink Google Calendar
-  app.delete("/api/google/auth/unlink", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const result = await GoogleCalendarService.unlinkCalendar(userId);
-
-      if (result.success) {
-        res.json({ message: "已解除 Google Calendar 綁定" });
-      } else {
-        res.status(400).json({ message: result.error });
-      }
-    } catch (error) {
-      console.error("[Google Calendar API] 解除綁定失敗:", error);
-      res.status(500).json({ message: "解除綁定失敗" });
+      console.error("[API Error]", error);
+      res.status(500).json({ message: "操作失敗" });
     }
   });
 

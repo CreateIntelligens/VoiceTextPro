@@ -14,4 +14,4 @@ vite.config.ts.*
 uploads/
 
 # Claude settings
-.claude/
+.claude/google-credentials.json

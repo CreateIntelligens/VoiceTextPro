@@ -1,23 +1,15 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, File, X, Mic, StopCircle, Users, Code2, Calendar, Edit3, Loader2 } from "lucide-react";
+import { Upload, File, X, Mic, StopCircle, Users, Code2, Edit3, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import AudioRecorder from "./audio-recorder";
-import MeetingSelector from "./meeting-selector";
 import type { AnalysisMode } from "@/lib/types";
-import type { CalendarEvent } from "@shared/schema";
 
 interface UploadSectionProps {
   onFileUploaded: (transcriptionId: number) => void;
   isDisabled?: boolean;
-}
-
-interface GoogleCalendarStatus {
-  configured: boolean;
-  linked: boolean;
-  email?: string;
 }
 
 export default function UploadSection({ onFileUploaded, isDisabled }: UploadSectionProps) {
@@ -27,8 +19,6 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
   const [activeTab, setActiveTab] = useState<'record' | 'upload'>('record');
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('meeting');
   const [displayName, setDisplayName] = useState<string>('');
-  const [selectedMeeting, setSelectedMeeting] = useState<CalendarEvent | null>(null);
-  const [showMeetingSelector, setShowMeetingSelector] = useState(false);
   const { toast } = useToast();
 
   const { data: userResponse } = useQuery<{ user: { id: number; email: string; role: string } }>({
@@ -36,36 +26,9 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
     retry: false,
   });
 
-  // Fetch Google Calendar status
-  const { data: calendarStatus, isLoading: isCalendarStatusLoading } = useQuery<GoogleCalendarStatus>({
-    queryKey: ['/api/google/calendar/status'],
-    queryFn: async () => {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/google/calendar/status', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch status');
-      return response.json();
-    },
-    retry: false,
-  });
-
   const user = userResponse?.user;
   const isAdmin = user?.role === 'admin';
   const maxFileSize = isAdmin ? undefined : 500 * 1024 * 1024;
-  const isCalendarLinked = calendarStatus?.configured && calendarStatus?.linked;
-
-  // Handle meeting selection
-  const handleSelectMeeting = (meeting: CalendarEvent) => {
-    setSelectedMeeting(meeting);
-    setDisplayName(meeting.summary || '');
-  };
-
-  // Clear meeting selection
-  const handleClearMeeting = () => {
-    setSelectedMeeting(null);
-    setDisplayName('');
-  };
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -182,7 +145,6 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
       onFileUploaded(transcription.id);
       setSelectedFile(null);
       setDisplayName('');
-      setSelectedMeeting(null);
 
       toast({ title: "上傳成功", description: "開始轉錄..." });
     } catch (error) {
@@ -244,7 +206,6 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
       console.log('[Upload] Success, transcription ID:', transcription.id);
       onFileUploaded(transcription.id);
       setDisplayName('');
-      setSelectedMeeting(null);
 
       toast({ title: "錄音完成", description: "開始轉錄..." });
     } catch (error) {
@@ -367,59 +328,24 @@ export default function UploadSection({ onFileUploaded, isDisabled }: UploadSect
           <div className="flex-1 relative">
             <Input
               type="text"
-              placeholder={isCalendarLinked ? "輸入名稱或選擇會議" : "輸入記錄名稱..."}
+              placeholder="輸入記錄名稱..."
               value={displayName}
-              onChange={(e) => {
-                setDisplayName(e.target.value);
-                if (selectedMeeting && e.target.value !== selectedMeeting.summary) {
-                  setSelectedMeeting(null);
-                }
-              }}
+              onChange={(e) => setDisplayName(e.target.value)}
               disabled={isUploading}
               className="h-11 pr-10"
             />
             {displayName && (
               <button
                 type="button"
-                onClick={handleClearMeeting}
+                onClick={() => setDisplayName('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
-          {isCalendarLinked && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowMeetingSelector(true)}
-              disabled={isUploading}
-              className="h-11 px-4 shrink-0"
-            >
-              <Calendar className="w-4 h-4 mr-2" />
-              選擇會議
-            </Button>
-          )}
         </div>
-        {selectedMeeting && (
-          <p className="mt-2 text-xs text-muted-foreground flex items-center">
-            <Calendar className="w-3 h-3 mr-1" />
-            已選擇: {selectedMeeting.summary}
-          </p>
-        )}
-        {!isCalendarLinked && calendarStatus?.configured && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            前往「帳戶」頁面綁定 Google Calendar 即可選擇會議
-          </p>
-        )}
       </div>
-
-      {/* 會議選擇器 Dialog */}
-      <MeetingSelector
-        open={showMeetingSelector}
-        onOpenChange={setShowMeetingSelector}
-        onSelectMeeting={handleSelectMeeting}
-      />
 
       {/* 錄音區 */}
       {activeTab === 'record' && (

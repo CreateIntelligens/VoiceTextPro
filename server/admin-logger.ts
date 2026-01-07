@@ -63,8 +63,7 @@ AdminLogger.log({
   severity: "info",
   details: {
     tech_stack: ["React.js", "Python", "TypeScript", "AssemblyAI", "Gemini AI", "PostgreSQL", "OpenAI", "Drizzle ORM", "SendGrid"],
-    features: ["會議轉錄", "多講者標記", "AI智能分析", "語音識別", "內容安全檢測"],
-    admin_account: "dy052340@gmail.com"
+    features: ["會議轉錄", "多講者標記", "AI智能分析", "語音識別", "內容安全檢測"]
   }
 });
 
@@ -235,8 +234,7 @@ AdminLogger.log({
   severity: "info",
   details: {
     use_cases: ["帳號申請通知", "系統警報", "轉錄完成通知"],
-    provider: "SendGrid",
-    admin_email: "dy052340@gmail.com"
+    provider: "SendGrid"
   }
 });
 

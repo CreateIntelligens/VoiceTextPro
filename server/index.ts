@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { AuthService } from "./auth";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -48,6 +49,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize admin user on startup
+  await AuthService.initializeAdmin();
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -67,9 +71,9 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Serve the app on port 3000 for development
-  const port = 3000;
-  server.listen(port, () => {
+  // Use PORT from environment variable, default to 5000
+  const port = parseInt(process.env.PORT || '5000', 10);
+  server.listen(port, '0.0.0.0', () => {
     log(`serving on port ${port}`);
   });
 })();

@@ -583,20 +583,12 @@ export class AuthService {
 
   private static async sendApplicationNotification(email: string, name: string, reason: string): Promise<void> {
     try {
-      if (!process.env.SENDGRID_API_KEY) {
-        console.log('SendGrid API key not configured, skipping email notification');
-        return;
-      }
-
-      const sgMail = await import('@sendgrid/mail');
-      const mailService = sgMail.default;
-      mailService.setApiKey(process.env.SENDGRID_API_KEY);
-
-      const adminEmail = 'dy052340@gmail.com';
-      const msg = {
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+      
+      // 使用統一的 Gmail 服務發送管理員通知
+      await EmailService.sendEmail({
         to: adminEmail,
-        from: 'noreply@transcription-platform.com',
-        subject: '新的帳號申請 - 智能語音轉錄平台',
+        subject: '新的帳號申請 - VoiceTextPro',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #2563eb;">新的帳號申請</h2>
@@ -614,13 +606,12 @@ export class AuthService {
             <p>請登入管理員面板處理此申請。</p>
             
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
-              <p>此郵件由智能語音轉錄平台自動發送</p>
+              <p>此郵件由 VoiceTextPro 自動發送</p>
             </div>
           </div>
         `
-      };
-
-      await mailService.send(msg);
+      });
+      
       console.log('Application notification email sent successfully');
     } catch (error) {
       console.error('Failed to send application notification email:', error);
@@ -652,17 +643,27 @@ export class AuthService {
   }
 
   static async initializeAdmin(): Promise<void> {
-    const adminEmail = 'dy052340@gmail.com';
-    
-    const existingAdmin = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, adminEmail))
-      .limit(1);
+    try {
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+      const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+      
+      const existingAdmin = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, adminEmail))
+        .limit(1);
 
-    if (existingAdmin.length === 0) {
-      await this.createUser(adminEmail, 'admin123', '系統管理員', 'admin');
-      console.log(`Admin user created: ${adminEmail}`);
+      if (existingAdmin.length === 0) {
+        await this.createUser(adminEmail, adminPassword, '系統管理員', 'admin');
+        console.log(`Admin user created: ${adminEmail}`);
+      }
+    } catch (error: any) {
+      // 如果表不存在（首次啟動前未執行 db:push），跳過初始化
+      if (error.code === '42P01') {
+        console.log('Database tables not initialized yet. Please run "npm run db:push" first.');
+      } else {
+        console.error('Failed to initialize admin:', error);
+      }
     }
   }
 }

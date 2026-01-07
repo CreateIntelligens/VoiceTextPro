@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, useSearch } from "wouter";
-import { usePushNotification } from "@/hooks/use-push-notification";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -12,8 +11,6 @@ import {
   ChevronRight,
   HelpCircle,
   Info,
-  Bell,
-  BellOff,
   Loader2,
   Gauge,
   Clock,
@@ -175,26 +172,10 @@ export default function AccountPage() {
     fetchUsage();
   }, []);
   const [, setLocation] = useLocation();
-  const {
-    isSupported,
-    isSubscribed,
-    isLoading: isPushLoading,
-    permission,
-    subscribe,
-    unsubscribe,
-  } = usePushNotification();
 
   const handleLogout = () => {
     logout();
     setLocation('/');
-  };
-
-  const handlePushToggle = async () => {
-    if (isSubscribed) {
-      await unsubscribe();
-    } else {
-      await subscribe();
-    }
   };
 
   const menuItems = [
@@ -351,50 +332,6 @@ export default function AccountPage() {
             </div>
           )}
         </div>
-
-        {/* Push Notification Section */}
-        {isSupported && (
-          <div className="mb-6 p-4 rounded-xl bg-card/50 border border-border/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isSubscribed ? 'bg-emerald-500/10' : 'bg-muted/50'
-                }`}>
-                  {isSubscribed ? (
-                    <Bell className="w-5 h-5 text-emerald-500" />
-                  ) : (
-                    <BellOff className="w-5 h-5 text-muted-foreground" />
-                  )}
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">推送通知</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {isSubscribed
-                      ? '轉錄完成時收到通知'
-                      : permission === 'denied'
-                      ? '通知權限已被封鎖'
-                      : '開啟以接收轉錄完成通知'}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant={isSubscribed ? 'outline' : 'default'}
-                size="sm"
-                onClick={handlePushToggle}
-                disabled={isPushLoading || permission === 'denied'}
-                className="h-9 rounded-lg"
-              >
-                {isPushLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : isSubscribed ? (
-                  '關閉'
-                ) : (
-                  '開啟'
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
 
         {/* Google Calendar Section */}
         <div className="mb-6 p-4 rounded-xl bg-card/50 border border-border/50">

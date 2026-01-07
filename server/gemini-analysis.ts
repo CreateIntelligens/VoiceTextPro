@@ -2790,6 +2790,7 @@ ${transcript.substring(0, 15000)}
       // 檢查是否有錯誤
       if (fileResult.error) {
         console.error("[STT V2] API 回傳錯誤:", JSON.stringify(fileResult.error, null, 2));
+        throw new Error(`Speech-to-Text API 錯誤: ${JSON.stringify(fileResult.error)}`);
       }
 
       // 嘗試多種可能的回應路徑
